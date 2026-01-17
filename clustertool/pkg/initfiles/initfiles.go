@@ -341,7 +341,7 @@ func setDocker() {
 		// Prepare the content to append
 		configContent := fmt.Sprintf(`
     # Add Dockerhub Login
-    config
+    config:
       registry-1.docker.io:
         auth:
           username: "%s"
