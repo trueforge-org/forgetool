@@ -24,6 +24,26 @@ spec:
       target:
         group: networking.k8s.io
         kind: NetworkPolicy
+    # Remove the image reflector and automation controllers as introduced with Flux 2.7.0 as not needed
+    # Ref: https://fluxcd.io/blog/2025/09/flux-v2.7.0/#general-availability-of-image-update-automation
+    - patch: |
+        $patch: delete
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: image-reflector-controller
+      target:
+        kind: Deployment
+        name: image-reflector-controller
+    - patch: |
+        $patch: delete
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: image-automation-controller
+      target:
+        kind: Deployment
+        name: image-automation-controller
     # Increase the number of reconciliations that can be performed in parallel and bump the resources limits
     # Ref: https://fluxcd.io/flux/cheatsheets/bootstrap/#increase-the-number-of-workers
     - patch: |
