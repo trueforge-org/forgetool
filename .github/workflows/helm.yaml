@@ -72,7 +72,7 @@ jobs:
       - name: Inject ConfigMap data for CI (pull)
         shell: bash
         run: |
-          CONFIG_PATH="/github/workspace/pull/embed/generic/kubernetes/flux-system/flux/clustersettings.secret.yaml"
+          CONFIG_PATH="pull/embed/generic/kubernetes/flux-system/flux/clustersettings.secret.yaml"
 
           if [[ -f "$CONFIG_PATH" ]]; then
             echo "Replacing REPLACEWITHENV in clustersettings.secret.yaml"
