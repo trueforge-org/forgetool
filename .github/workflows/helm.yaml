@@ -48,98 +48,17 @@ jobs:
         shell: bash
         run: bash ./.github/scripts/kubeconform.sh ${{ env.KUBERNETES_DIR }}
 
-  diff:
-    name: Flux Diff
+  flux-local:
+    name: Flux Local - Test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    strategy:
-      matrix:
-        resources: ["helmrelease", "kustomization"]
-      max-parallel: 4
-      fail-fast: false
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-        with:
-          path: pull
-      - name: Checkout Default Branch
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-        with:
-          ref: "${{ github.event.repository.default_branch }}"
-          path: default
-      - name: Adjust flux-entry path for CI
-        shell: bash
-        run: |
-          for branch in pull default; do
-            ENTRY_PATH="$branch/embed/generic/kubernetes/flux-entry.yaml"
-
-            if [[ -f "$ENTRY_PATH" ]]; then
-              echo "Updating flux-entry path in $branch branch"
-              sed -i "s|path: ./clusters/REPLACEWITHCLUSTERNAME/kubernetes|path: ./embed/generic/kubernetes|" "$ENTRY_PATH"
-              echo "✅ File after modification ($branch):"
-              cat "$ENTRY_PATH"
-            else
-              echo "⚠️ File not found: $ENTRY_PATH"
-            fi
-          done
-      - name: Inject ConfigMap data for CI
-        shell: bash
-        run: |
-          for branch in pull default; do
-            CONFIG_PATH="$branch/embed/generic/kubernetes/flux-system/flux/clustersettings.secret.yaml"
-
-            if [[ -f "$CONFIG_PATH" ]]; then
-              echo "Replacing REPLACEWITHENV in $branch branch"
-              sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
-              echo "✅ File after modification ($branch):"
-              cat "$CONFIG_PATH"
-            else
-              echo "⚠️ File not found: $CONFIG_PATH"
-            fi
-          done
-      - name: Diff Resources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Run flux-local test
         uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261
         with:
           args: >-
-            diff ${{ matrix.resources }}
-            --unified 6
-            --path /github/workspace/pull/embed/generic/kubernetes
-            --path-orig /github/workspace/default/embed/generic/kubernetes
-            --strip-attrs "helm.sh/chart,checksum/config,checksum/redis,checksum/secrets,app.kubernetes.io/version,chart,app"
-            --limit-bytes 10000
+            test
             --all-namespaces
-            --sources "cluster"
-            --output-file diff.patch
-      - name: Generate Diff
-        id: diff
-        run: |
-          echo 'diff<<EOF' >> $GITHUB_OUTPUT
-          cat diff.patch >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
-
-          echo '## Flux ${{ matrix.resources }} diff' >> $GITHUB_STEP_SUMMARY
-          echo '```diff' >> $GITHUB_STEP_SUMMARY
-          cat diff.patch >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - if: ${{ steps.diff.outputs.diff != '' }}
-        name: Generate Token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
-        id: app-token
-        with:
-          app-id: ${{ secrets.BOT_APP_ID }}
-          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
-      - if: ${{ steps.diff.outputs.diff != '' }}
-        name: Add Comment
-        continue-on-error: true
-        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2
-        with:
-          repo-token: "${{ steps.app-token.outputs.token }}"
-          message-id: "${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resources }}"
-          header: ${{ github.event.pull_request.number }}/kubernetes/${{ matrix.resource }}
-          message-failure: Diff was not successful
-          message: |
-            ```diff
-            ${{ steps.diff.outputs.diff }}
-            ```
+            --enable-helm
+            --verbose
