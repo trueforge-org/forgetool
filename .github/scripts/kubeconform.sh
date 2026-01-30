@@ -20,8 +20,6 @@ kubeconform_args=(
     "-verbose"
 )
 
-# Additional files to validate
-extra_files=("namespace.yaml" "another-file.yaml") 
 
 echo "=== Validating standalone manifests in ${KUBERNETES_DIR} ==="
 find "${KUBERNETES_DIR}" -maxdepth 1 -type f -name '*.yaml' -print0 | while IFS= read -r -d $'\0' file;
@@ -34,6 +32,16 @@ done
 
 echo "=== Validating all namespace.yaml files in ${KUBERNETES_DIR} ==="
 find "${KUBERNETES_DIR}" -type f -name 'namespace.yaml' -print0 | while IFS= read -r -d $'\0' file;
+do
+    echo "Validating ${file}"
+    kubeconform "${kubeconform_args[@]}" "${file}"
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        exit 1
+    fi
+done
+
+echo "=== Validating all helm-release.yaml files in ${KUBERNETES_DIR} ==="
+find "${KUBERNETES_DIR}" -type f -name 'helm-release.yaml' -print0 | while IFS= read -r -d $'\0' file;
 do
     echo "Validating ${file}"
     kubeconform "${kubeconform_args[@]}" "${file}"
