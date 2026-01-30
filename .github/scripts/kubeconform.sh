@@ -11,8 +11,6 @@ kustomize_config="kustomization.yaml"
 kubeconform_args=(
     "-strict"
     "-ignore-missing-schemas"
-    "-ignore-filename-pattern"
-    "deploykey.secret.yaml"
     "-skip"
     "Secret,ConfigMap"
     "-schema-location"

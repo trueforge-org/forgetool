@@ -23,6 +23,23 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
       - name: Setup Workflow Tools
         run: brew install fluxcd/tap/flux kubeconform kustomize
+      - name: Create dummy deploykey secret (CI only)
+        shell: bash
+        run: |
+          SECRET_PATH="embed/generic/kubernetes/flux-system/flux/deploykey.secret.yaml"
+
+          if [[ ! -f "$SECRET_PATH" ]]; then
+            echo "Creating dummy deploykey.secret.yaml for kubeconform"
+            mkdir -p "$(dirname "$SECRET_PATH")"
+            cat <<EOF > "$SECRET_PATH"
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: deploykey
+            type: Opaque
+            data: {}
+            EOF
+          fi
       - name: Run kubeconform
         shell: bash
         run: bash ./.github/scripts/kubeconform.sh ${{ env.KUBERNETES_DIR }}
