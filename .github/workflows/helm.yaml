@@ -77,8 +77,13 @@ jobs:
           if [[ -f "$CONFIG_PATH" ]]; then
             echo "Replacing REPLACEWITHENV in clustersettings.secret.yaml"
 
-            # Example: replace with dummy key-values for CI
+            # Replace placeholder with dummy key-values for CI
             sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
+
+            echo "✅ File after modification:"
+            cat "$CONFIG_PATH"
+          else
+            echo "⚠️ File not found: $CONFIG_PATH"
           fi
       - name: Diff Resources
         uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261
