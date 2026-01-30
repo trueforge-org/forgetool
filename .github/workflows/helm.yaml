@@ -31,14 +31,7 @@ jobs:
           if [[ ! -f "$SECRET_PATH" ]]; then
             echo "Creating dummy deploykey.secret.yaml for kubeconform"
             mkdir -p "$(dirname "$SECRET_PATH")"
-            cat <<EOF > "$SECRET_PATH"
-            apiVersion: v1
-            kind: Secret
-            metadata:
-              name: deploykey
-            type: Opaque
-            data: {}
-            EOF
+            touch "$SECRET_PATH"
           fi
       - name: Run kubeconform
         shell: bash
