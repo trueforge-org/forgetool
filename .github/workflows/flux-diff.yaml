@@ -8,6 +8,8 @@ on:
 jobs:
   flux-diff:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     concurrency:
       group: flux-diff-${{ github.event.pull_request.number }}
       cancel-in-progress: true
