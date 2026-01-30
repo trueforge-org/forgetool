@@ -87,7 +87,8 @@ jobs:
                 --limit-bytes 10000 \
                 --all-namespaces \
                 --sources "cluster" \
-                --output-file "${hrfile}.patch"
+                --output-file "${hrfile}.patch" \
+                --verbose
 
             # Optional: print the diff
             if [[ -f "${hrfile}.patch" ]]; then
