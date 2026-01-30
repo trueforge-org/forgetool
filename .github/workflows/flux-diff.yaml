@@ -60,6 +60,7 @@ jobs:
                 -v $(pwd):/workdir \
                 -w /workdir \
                 ghcr.io/allenporter/flux-local diff hr \
+                --all-namespaces \
                 --path "$dir" \
                 --output diff 2>&1 | tee /tmp/flux-diff/$(basename "$file").log || true
                 
