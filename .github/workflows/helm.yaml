@@ -33,24 +33,17 @@ jobs:
             mkdir -p "$(dirname "$SECRET_PATH")"
             touch "$SECRET_PATH"
           fi
-      - name: Ensure ConfigMap placeholder exists (CI only)
+      - name: Inject ConfigMap data for CI
         shell: bash
         run: |
           CONFIG_PATH="embed/generic/kubernetes/flux-system/flux/cluster-config.yaml"
 
-          if [[ ! -f "$CONFIG_PATH" ]]; then
-            echo "Creating placeholder ConfigMap for kubeconform"
-            mkdir -p "$(dirname "$CONFIG_PATH")"
-            cat <<EOF > "$CONFIG_PATH"
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: cluster-config
-  namespace: flux-system
-data:
-REPLACEWITHENV
-EOF
-    fi
+          if [[ -f "$CONFIG_PATH" ]]; then
+            echo "Replacing REPLACEWITHENV in cluster-config.yaml"
+
+            # Example: replace with dummy key-values for CI
+            sed -i "s|REPLACEWITHENV|dummyKey=dummyValue|" "$CONFIG_PATH"
+          fi
       - name: Run kubeconform
         shell: bash
         run: bash ./.github/scripts/kubeconform.sh ${{ env.KUBERNETES_DIR }}
