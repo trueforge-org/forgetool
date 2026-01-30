@@ -73,7 +73,7 @@ jobs:
           BASE_DIR="embed/generic/kubernetes"
           
           # Find all HelmRelease YAMLs recursively
-          find "$BASE_DIR" -type f -iname "*helmrelease.yaml" | while read hrfile; do
+          find "$BASE_DIR" -type f -iname "*helm-release.yaml" | while read hrfile; do
             echo "Running flux-local diff on $hrfile"
 
             docker run --rm \
