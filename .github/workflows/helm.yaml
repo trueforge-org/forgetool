@@ -1,0 +1,26 @@
+name: "Helm Chart Validation"
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.head_ref }}-pr-validate
+  cancel-in-progress: true
+
+env:
+  KUBERNETES_DIR: ./embed/generic/kubernetes
+
+jobs:
+  kubeconform:
+    name: Kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+      - name: Setup Workflow Tools
+        run: brew install fluxcd/tap/flux kubeconform kustomize
+      - name: Run kubeconform
+        shell: bash
+        run: bash ./.github/scripts/kubeconform.sh ${{ env.KUBERNETES_DIR }}
