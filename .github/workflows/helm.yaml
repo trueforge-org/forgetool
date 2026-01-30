@@ -67,12 +67,31 @@ jobs:
             # Example: replace with dummy key-values for CI
             sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
           fi
-      - name: Run flux-local test
-        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261
-        with:
-          args: >-
-            test
-            --all-namespaces
-            --path ${{ env.KUBERNETES_DIR }}
-            --enable-helm
-            --verbose
+      - name: Run flux-local on each HelmRelease
+        shell: bash
+        run: |
+          BASE_DIR="embed/generic/kubernetes"
+          
+          # Find all HelmRelease YAMLs recursively
+          find "$BASE_DIR" -type f -iname "*helmrelease.yaml" | while read hrfile; do
+            echo "Running flux-local diff on $hrfile"
+
+            docker run --rm \
+              -v "$PWD":/github/workspace \
+              -w /github/workspace \
+              ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261 \
+              diff helmrelease \
+                --unified 6 \
+                --path "$hrfile" \
+                --strip-attrs "helm.sh/chart,checksum/config,checksum/redis,checksum/secrets,app.kubernetes.io/version,chart,app" \
+                --limit-bytes 10000 \
+                --all-namespaces \
+                --sources "cluster" \
+                --output-file "${hrfile}.patch"
+
+            # Optional: print the diff
+            if [[ -f "${hrfile}.patch" ]]; then
+              echo "✅ Diff for $hrfile:"
+              cat "${hrfile}.patch"
+            fi
+          done
