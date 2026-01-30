@@ -45,15 +45,15 @@ jobs:
           echo "${{ steps.changed.outputs.changed_files }}"
           
           # Convert changed files to array and process each
-          IFS=$'\n' read -d '' -r -a files <<< "${{ steps.changed.outputs.changed_files }}"
+          IFS=$'\n' read -r -a files <<< "${{ steps.changed.outputs.changed_files }}"
           all_diff=""
-
-          # Get directory containing the helm-release.yaml
-          dir=$(dirname "$file")
           
           for file in "${files[@]}"; do
             if [ -f "$file" ]; then
               echo "Processing: $file"
+
+              # Get directory containing the helm-release.yaml
+              dir=$(dirname "$file")
               
               # Run flux-local diff for this file
               docker run --rm \
