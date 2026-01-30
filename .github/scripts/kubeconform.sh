@@ -32,17 +32,13 @@ do
     fi
 done
 
-# Validate extra files
-for file in "${extra_files[@]}"; do
-    full_path="${KUBERNETES_DIR}/${file}"
-    if [[ -f "${full_path}" ]]; then
-        echo "=== Validating extra file ${full_path} ==="
-        kubeconform "${kubeconform_args[@]}" "${full_path}"
-        if [[ $? != 0 ]]; then
-            exit 1
-        fi
-    else
-        echo "Warning: extra file ${full_path} not found"
+echo "=== Validating all namespace.yaml files in ${KUBERNETES_DIR} ==="
+find "${KUBERNETES_DIR}" -type f -name 'namespace.yaml' -print0 | while IFS= read -r -d $'\0' file;
+do
+    echo "Validating ${file}"
+    kubeconform "${kubeconform_args[@]}" "${file}"
+    if [[ ${PIPESTATUS[0]} != 0 ]]; then
+        exit 1
     fi
 done
 
