@@ -1,0 +1,49 @@
+name: "Kubeconform"
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.head_ref }}-pr-validate
+  cancel-in-progress: true
+
+env:
+  KUBERNETES_DIR: ./embed/generic/kubernetes
+
+jobs:
+  kubeconform:
+    name: Kubeconform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - name: Setup Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+      - name: Setup Workflow Tools
+        run: brew install fluxcd/tap/flux kubeconform kustomize
+      - name: Create dummy deploykey secret (CI only)
+        shell: bash
+        run: |
+          SECRET_PATH="embed/generic/kubernetes/flux-system/flux/deploykey.secret.yaml"
+
+          if [[ ! -f "$SECRET_PATH" ]]; then
+            echo "Creating dummy deploykey.secret.yaml for kubeconform"
+            mkdir -p "$(dirname "$SECRET_PATH")"
+            touch "$SECRET_PATH"
+          fi
+      - name: Inject ConfigMap data for CI
+        shell: bash
+        run: |
+          CONFIG_PATH="embed/generic/kubernetes/flux-system/flux/clustersettings.secret.yaml"
+
+          if [[ -f "$CONFIG_PATH" ]]; then
+            echo "Replacing REPLACEWITHENV in clustersettings.secret.yaml"
+
+            # Example: replace with dummy key-values for CI
+            sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
+          fi
+      - name: Run kubeconform
+        shell: bash
+        run: bash ./.github/scripts/kubeconform.sh ${{ env.KUBERNETES_DIR }}

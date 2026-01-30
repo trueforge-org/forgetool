@@ -1,0 +1,76 @@
+name: Flux Helm Diff
+
+on:
+  pull_request:
+    paths:
+      - '**/helm-release.yaml'
+
+jobs:
+  flux-diff:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: flux-diff-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set changed helm releases
+        id: changed
+        run: |
+          # Get all helm-release.yaml files changed in this PR
+          files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep 'helm-release.yaml' || true)
+          echo "changed_files=$files" >> $GITHUB_OUTPUT
+
+      - name: Run Flux Local Diff
+        if: ${{ steps.changed.outputs.changed_files != '' }}
+        id: flux
+        uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261
+        with:
+          entrypoint: /bin/sh
+          args: |
+            -c '
+            for file in ${{ steps.changed.outputs.changed_files }}; do
+              flux diff -f "$file" > diff.patch || true
+              cat diff.patch
+            done
+            '
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Generate Diff Output
+        if: ${{ steps.changed.outputs.changed_files != '' }}
+        id: diff
+        run: |
+          if [ -f diff.patch ] && [ -s diff.patch ]; then
+            echo "diff<<EOF" >> $GITHUB_OUTPUT
+            cat diff.patch >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+
+            echo "## Flux diff" >> $GITHUB_STEP_SUMMARY
+            echo '```diff' >> $GITHUB_STEP_SUMMARY
+            cat diff.patch >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - if: ${{ steps.diff.outputs.diff != '' }}
+        name: Generate Token
+        uses: actions/create-github-app-token@v2.2.1
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      - if: ${{ steps.diff.outputs.diff != '' }}
+        name: Add PR Comment
+        continue-on-error: true
+        uses: mshick/add-pr-comment@v2
+        with:
+          repo-token: "${{ steps.app-token.outputs.token }}"
+          message-id: "${{ github.event.pull_request.number }}/kubernetes/flux-diff"
+          header: "${{ github.event.pull_request.number }}/kubernetes/flux-diff"
+          message-failure: Diff was not successful
+          message: |
+            ```diff
+            ${{ steps.diff.outputs.diff }}
+            ```
