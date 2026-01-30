@@ -7,7 +7,7 @@ KUBERNETES_DIR=$1
 [[ -z "${KUBERNETES_DIR}" ]] && echo "Kubernetes location not specified" && exit 1
 
 kustomize_args=("--load-restrictor=LoadRestrictionsNone")
-kustomize_config="kustomization.yaml"
+kustomize_config="kustomization.yaml, namespace.yaml"
 kubeconform_args=(
     "-strict"
     "-ignore-missing-schemas"
