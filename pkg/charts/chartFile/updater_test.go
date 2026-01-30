@@ -149,7 +149,7 @@ func TestSetMetadata(t *testing.T) {
 						"truecharts.org/train": "stable",
 					},
 					Icon: "https://truecharts.org/img/hotlink-ok/chart-icons/test-chart.webp",
-					Home: "https://truecharts.org/charts/stable/test-chart",
+					Home: "https://truecharts.org/truetech/truecharts/charts/stable/test-chart",
 				},
 			},
 		},

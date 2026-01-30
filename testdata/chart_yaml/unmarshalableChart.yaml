@@ -3,7 +3,7 @@ name: grafana
 version: 11.1.6
 kubeVersion: ">=1.24.0-0"
 icon: https://truecharts.org/img/hotlink-ok/chart-icons/grafana.png
-home: https://truecharts.org/charts/enterprise/grafana
+home: https://truecharts.org/truetech/truecharts/charts/enterprise/grafana
 description: Grafana is an open source, feature rich metrics dashboard and graph editor for Graphite, Elasticsearch, OpenTSDB, Prometheus and InfluxDB.
 apiVersion: v2
 appVersion: 10.2.3
