@@ -71,5 +71,6 @@ jobs:
           args: >-
             test
             --all-namespaces
+            --path ${{ env.KUBERNETES_DIR }}
             --enable-helm
             --verbose
