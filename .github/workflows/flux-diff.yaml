@@ -2,8 +2,6 @@ name: Flux Helm Diff
 
 on:
   pull_request:
-    paths:
-      - '**/helm-release.yaml'
 
 jobs:
   flux-diff:
@@ -23,6 +21,10 @@ jobs:
           # Get all helm-release.yaml files changed in this PR
           files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep 'helm-release.yaml' || true)
           echo "changed_files=$files" >> $GITHUB_OUTPUT
+
+      - name: No HelmRelease changes
+        if: ${{ steps.changed.outputs.changed_files == '' }}
+        run: echo "No helm-release.yaml changes detected. Skipping flux-local diff."
 
       - name: Run Flux Local Diff
         if: ${{ steps.changed.outputs.changed_files != '' }}
