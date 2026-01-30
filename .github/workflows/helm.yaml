@@ -80,6 +80,8 @@ jobs:
             # Example: replace with dummy key-values for CI
             sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
           fi
+          echo "✅ File after modification:"
+          cat "$CONFIG_PATH"
       - name: Inject ConfigMap data for CI (origin)
         shell: bash
         run: |
@@ -91,6 +93,8 @@ jobs:
             # Example: replace with dummy key-values for CI
             sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
           fi
+          echo "✅ File after modification:"
+          cat "$CONFIG_PATH"
       - name: Diff Resources
         uses: docker://ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261
         with:
