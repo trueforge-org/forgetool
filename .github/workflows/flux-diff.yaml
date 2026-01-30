@@ -24,7 +24,7 @@ jobs:
           files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep 'helm-release.yaml' || true)
           echo "changed_files=$files" >> $GITHUB_OUTPUT
 
-      - name: No HelmRelease changes
+      - name: Check if there are helm-release.yaml changes
         if: ${{ steps.changed.outputs.changed_files == '' }}
         run: echo "No helm-release.yaml changes detected. Skipping flux-local diff."
 
@@ -35,7 +35,21 @@ jobs:
         with:
           entrypoint: /bin/sh
           args: >-
-            -c "for file in ${{ steps.changed.outputs.changed_files }}; do flux diff -f \"$file\" > diff.patch || true; cat diff.patch; done"
+            -c ": > diff.patch;
+            for file in ${{ steps.changed.outputs.changed_files }}; do
+              name=$(awk '/^metadata:/ {inmeta=1; next} inmeta && /^[^ ]/ {exit} inmeta && $1==\"name:\" {print $2; exit}' \"$file\");
+              namespace=$(awk '/^metadata:/ {inmeta=1; next} inmeta && /^[^ ]/ {exit} inmeta && $1==\"namespace:\" {print $2; exit}' \"$file\");
+              if [ -z \"$name\" ]; then
+                echo \"⚠️ Could not detect name in $file\";
+                continue;
+              fi;
+              if [ -z \"$namespace\" ]; then
+                namespace=default;
+              fi;
+              echo \"Diffing $namespace/$name from $file\";
+              flux-local diff helmrelease \"$name\" -n \"$namespace\" --path embed/generic/kubernetes >> diff.patch || true;
+            done;
+            cat diff.patch"
         env:
           GITHUB_SHA: ${{ github.sha }}
 
