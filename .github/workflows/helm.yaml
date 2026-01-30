@@ -56,15 +56,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Install flux-local
-        shell: bash
-        run: |
-          FLUX_LOCAL_VERSION="v8.1.0"
-          ARCHIVE="flux-local_linux_amd64.tar.gz"
-
-          curl -sSL "https://github.com/allenporter/flux-local/releases/download/${FLUX_LOCAL_VERSION}/${ARCHIVE}" -o /tmp/flux-local.tar.gz
-          tar -xzf /tmp/flux-local.tar.gz -C /tmp
-          sudo install /tmp/flux-local /usr/local/bin/flux-local
       - name: Inject ConfigMap data for CI
         shell: bash
         run: |
@@ -85,14 +76,18 @@ jobs:
           find "$BASE_DIR" -type f -iname "*helm-release.yaml" | while read hrfile; do
             echo "Running flux-local diff on $hrfile"
 
-            flux-local diff helmrelease \
-              --unified 6 \
-              --path "$hrfile" \
-              --strip-attrs "helm.sh/chart,checksum/config,checksum/redis,checksum/secrets,app.kubernetes.io/version,chart,app" \
-              --limit-bytes 10000 \
-              --all-namespaces \
-              --sources "cluster" \
-              --output-file "${hrfile}.patch"
+            docker run --rm \
+              -v "$PWD":/github/workspace \
+              -w /github/workspace \
+              ghcr.io/allenporter/flux-local:v8.1.0@sha256:37c3c4309a351830b04f93c323adfcb0e28c368001818cd819cbce3e08828261 \
+              diff helmrelease \
+                --unified 6 \
+                --path "$hrfile" \
+                --strip-attrs "helm.sh/chart,checksum/config,checksum/redis,checksum/secrets,app.kubernetes.io/version,chart,app" \
+                --limit-bytes 10000 \
+                --all-namespaces \
+                --sources "cluster" \
+                --output-file "${hrfile}.patch"
 
             # Optional: print the diff
             if [[ -f "${hrfile}.patch" ]]; then
