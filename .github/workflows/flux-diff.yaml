@@ -19,7 +19,7 @@ jobs:
         id: changed
         run: |
           # Get all helm-release.yaml files changed in this PR
-          files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep 'helm-release.yaml' || true)
+          files=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep 'helm-release.yaml' || true)
           echo "changed_files=$files" >> $GITHUB_OUTPUT
 
       - name: No HelmRelease changes
