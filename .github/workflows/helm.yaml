@@ -42,7 +42,7 @@ jobs:
             echo "Replacing REPLACEWITHENV in clustersettings.secret.yaml"
 
             # Example: replace with dummy key-values for CI
-            sed -i "s|REPLACEWITHENV|dummyKey:dummyValue|" "$CONFIG_PATH"
+            sed -i "s|REPLACEWITHENV|  dummyKey: dummyValue|" "$CONFIG_PATH"
           fi
       - name: Run kubeconform
         shell: bash
