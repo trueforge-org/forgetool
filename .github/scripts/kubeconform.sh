@@ -7,7 +7,7 @@ KUBERNETES_DIR=$1
 [[ -z "${KUBERNETES_DIR}" ]] && echo "Kubernetes location not specified" && exit 1
 
 kustomize_args=("--load-restrictor=LoadRestrictionsNone")
-kustomize_config="kustomization.yaml, namespace.yaml"
+kustomize_config="kustomization.yaml"
 kubeconform_args=(
     "-strict"
     "-ignore-missing-schemas"
@@ -20,6 +20,9 @@ kubeconform_args=(
     "-verbose"
 )
 
+# Additional files to validate
+extra_files=("namespace.yaml" "another-file.yaml") 
+
 echo "=== Validating standalone manifests in ${KUBERNETES_DIR} ==="
 find "${KUBERNETES_DIR}" -maxdepth 1 -type f -name '*.yaml' -print0 | while IFS= read -r -d $'\0' file;
 do
@@ -28,6 +31,21 @@ do
         exit 1
     fi
 done
+
+# Validate extra files
+for file in "${extra_files[@]}"; do
+    full_path="${KUBERNETES_DIR}/${file}"
+    if [[ -f "${full_path}" ]]; then
+        echo "=== Validating extra file ${full_path} ==="
+        kubeconform "${kubeconform_args[@]}" "${full_path}"
+        if [[ $? != 0 ]]; then
+            exit 1
+        fi
+    else
+        echo "Warning: extra file ${full_path} not found"
+    fi
+done
+
 
 echo "=== Validating kustomizations in ${KUBERNETES_DIR}/ ==="
 find "${KUBERNETES_DIR}" -type f -name $kustomize_config -print0 | while IFS= read -r -d $'\0' file;
