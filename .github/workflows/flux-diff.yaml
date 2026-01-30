@@ -3,6 +3,10 @@ name: Flux Helm Diff
 on:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   flux-diff:
     runs-on: ubuntu-latest
@@ -21,13 +25,28 @@ jobs:
           if [ -n "$changed_files" ]; then
             echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
             echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Found changed files:"
+            echo "$changed_files"
           else
             echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No helm-release.yaml files changed"
           fi
 
-      - name: Set up flux-local
+      - name: Debug file structure
         if: steps.changed.outputs.changed == 'true'
-        uses: docker/setup-buildx-action@v3
+        run: |
+          echo "Current directory structure:"
+          find . -name "*.yaml" -type f | head -20
+          echo ""
+          echo "Checking if changed files exist:"
+          IFS=$'\n' read -d '' -r -a files <<< "${{ steps.changed.outputs.changed_files }}"
+          for file in "${files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists"
+            else
+              echo "✗ $file does not exist"
+            fi
+          done
 
       - name: Run flux-local diff
         if: steps.changed.outputs.changed == 'true'
@@ -36,39 +55,72 @@ jobs:
           # Create temp directory for outputs
           mkdir -p /tmp/flux-diff
           
-          # Run flux-local for each changed helm-release.yaml file
-          echo "Running flux-local diff for changed files:"
-          echo "${{ steps.changed.outputs.changed_files }}"
-          
-          # Convert changed files to array and process each
+          # Convert changed files to array
           IFS=$'\n' read -d '' -r -a files <<< "${{ steps.changed.outputs.changed_files }}"
           all_diff=""
+          any_diff_found=false
           
           for file in "${files[@]}"; do
             if [ -f "$file" ]; then
-              echo "Processing: $file"
+              echo "=== Processing: $file ==="
               
-              # Run flux-local diff for this file
+              # Get directory containing the helm-release.yaml
+              dir=$(dirname "$file")
+              
+              # Try different flux-local approaches
+              echo "Attempting flux-local diff in directory: $dir"
+              
+              # Approach 1: Try with --path option
               docker run --rm \
                 -v $(pwd):/workdir \
                 -w /workdir \
                 ghcr.io/allenporter/flux-local flux-local diff \
-                --kustomization-file "$file" \
-                --output diff \
-                --output-file /tmp/flux-diff/$(basename "$file").patch 2>/dev/null || true
+                --path "$dir" \
+                --output diff 2>&1 | tee /tmp/flux-diff/$(basename "$file").log || true
+              
+              # Approach 2: Try with kustomization.yaml in the same directory
+              if [ -f "$dir/kustomization.yaml" ]; then
+                echo "Found kustomization.yaml, trying with it:"
+                docker run --rm \
+                  -v $(pwd):/workdir \
+                  -w /workdir \
+                  ghcr.io/allenporter/flux-local flux-local diff \
+                  --kustomization-file "$dir/kustomization.yaml" \
+                  --output diff 2>&1 | tee -a /tmp/flux-diff/$(basename "$file").log || true
+              fi
+              
+              # Approach 3: Direct helm-release diff
+              echo "Trying direct helm-release.yaml diff:"
+              docker run --rm \
+                -v $(pwd):/workdir \
+                -w /workdir \
+                ghcr.io/allenporter/flux-local flux-local diff \
+                --helm-release-file "$file" \
+                --output diff 2>&1 | tee -a /tmp/flux-diff/$(basename "$file").log || true
                 
-              # Check if diff file was created and has content
-              diff_file="/tmp/flux-diff/$(basename "$file").patch"
-              if [ -f "$diff_file" ] && [ -s "$diff_file" ]; then
+              # Check if any diff was captured in the log
+              if grep -q "^[+-]" /tmp/flux-diff/$(basename "$file").log || grep -q "^diff" /tmp/flux-diff/$(basename "$file").log; then
+                echo "Found diff for $file"
                 echo "=== Diff for $file ===" >> /tmp/flux-diff/all.patch
-                cat "$diff_file" >> /tmp/flux-diff/all.patch
+                grep -A 1000 "^[+-]\|^diff\|^---\|^+++" /tmp/flux-diff/$(basename "$file").log >> /tmp/flux-diff/all.patch || cat /tmp/flux-diff/$(basename "$file").log >> /tmp/flux-diff/all.patch
                 echo -e "\n" >> /tmp/flux-diff/all.patch
+                any_diff_found=true
+              else
+                echo "No diff found for $file"
+                echo "Log output was:"
+                cat /tmp/flux-diff/$(basename "$file").log
               fi
             fi
           done
+          
+          if [ "$any_diff_found" = true ]; then
+            echo "has_diff=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_diff=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Generate Diff Output
-        if: steps.changed.outputs.changed == 'true'
+        if: steps.flux-diff.outputs.has_diff == 'true'
         id: diff-output
         run: |
           if [ -f /tmp/flux-diff/all.patch ] && [ -s /tmp/flux-diff/all.patch ]; then
@@ -91,14 +143,15 @@ jobs:
             cat /tmp/flux-diff/all.patch >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
             
-            echo "has_diff=true" >> $GITHUB_OUTPUT
+            echo "diff_generated=true" >> $GITHUB_OUTPUT
           else
-            echo "No differences found in helm releases" >> $GITHUB_STEP_SUMMARY
-            echo "has_diff=false" >> $GITHUB_OUTPUT
+            echo "## Flux Diff Results" >> $GITHUB_STEP_SUMMARY
+            echo "No differences detected in helm releases." >> $GITHUB_STEP_SUMMARY
+            echo "diff_generated=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Add PR Comment
-        if: steps.diff-output.outputs.has_diff == 'true'
+        if: steps.diff-output.outputs.diff_generated == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -138,3 +191,22 @@ jobs:
                 body: body
               });
             }
+
+      - name: Show debug info on failure
+        if: failure() && steps.changed.outputs.changed == 'true'
+        run: |
+          echo "=== Debug Information ==="
+          echo "Changed files:"
+          echo "${{ steps.changed.outputs.changed_files }}"
+          
+          if [ -d /tmp/flux-diff ]; then
+            echo "=== Log files ==="
+            ls -la /tmp/flux-diff/
+            
+            for log in /tmp/flux-diff/*.log; do
+              if [ -f "$log" ]; then
+                echo "=== Contents of $(basename $log) ==="
+                cat "$log"
+              fi
+            done
+          fi
