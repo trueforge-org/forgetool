@@ -1,91 +1,12 @@
 package kubectlcmds
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
-	"time"
 
 	"github.com/rs/zerolog/log"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/kustomize/api/krusty"
-	"sigs.k8s.io/kustomize/kyaml/filesys"
-	"sigs.k8s.io/kustomize/kyaml/kio"
-	"sigs.k8s.io/yaml"
 )
-
-// getKubeClient initializes and returns a controller-runtime client.Client
-func getKubeClient() (client.Client, error) {
-	log.Trace().Msg("Initializing Kubernetes client")
-
-	// Load kubeconfig from the default location
-	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to load kubeconfig")
-		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
-	}
-
-	// Create a controller-runtime client
-	c, err := client.New(config, client.Options{})
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to create Kubernetes client")
-		return nil, fmt.Errorf("failed to create Kubernetes client: %v", err)
-	}
-
-	log.Debug().Msg("Successfully initialized Kubernetes client")
-	return c, nil
-}
-
-// applyYAML applies the given YAML data to the Kubernetes cluster using the provided client
-func applyYAML(k8sClient client.Client, yamlData []byte) error {
-	log.Trace().Msg("Applying YAML data to the Kubernetes cluster")
-
-	// Parse the YAML into KIO nodes
-	reader := kio.ByteReader{
-		Reader: bytes.NewReader(yamlData),
-	}
-	nodes, err := reader.Read()
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to parse YAML")
-		return fmt.Errorf("failed to parse YAML: %v", err)
-	}
-
-	// Apply each node to the cluster
-	for _, node := range nodes {
-		obj := &unstructured.Unstructured{}
-		if err := yaml.Unmarshal([]byte(node.MustString()), obj); err != nil {
-			log.Error().Err(err).Msg("Failed to unmarshal node")
-			return fmt.Errorf("failed to unmarshal node: %v", err)
-		}
-		if err := applyObjectWithRetry(k8sClient, obj); err != nil {
-			return err
-		}
-		log.Info().Msgf("Successfully applied object: %s of kind: %s in namespace: %s", obj.GetName(), obj.GetKind(), obj.GetNamespace())
-	}
-
-	log.Debug().Msg("YAML application completed")
-	return nil
-}
-
-func applyObjectWithRetry(k8sClient client.Client, obj *unstructured.Unstructured) error {
-	if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
-		log.Warn().Err(err).Msg("Failed to apply yaml object... trying again in 15 seconds...")
-		time.Sleep(15 * time.Second)
-		if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
-			log.Error().Err(err).Msg("Failed to apply object")
-			return fmt.Errorf("failed to apply object: %v", err)
-		}
-	}
-
-	return nil
-}
 
 // KubectlApply applies a YAML file to the Kubernetes cluster and filters the logs
 func KubectlApply(ctx context.Context, filePath string) error {
@@ -98,7 +19,7 @@ func KubectlApply(ctx context.Context, filePath string) error {
 	}
 
 	// Read the YAML file
-	yamlData, err := ioutil.ReadFile(filePath)
+	yamlData, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to read YAML file")
 		return fmt.Errorf("failed to read YAML file: %v", err)
@@ -112,7 +33,7 @@ func KubectlApply(ctx context.Context, filePath string) error {
 	}
 
 	// Apply the YAML to the cluster
-	if err := applyYAML(k8sClient, yamlData); err != nil {
+	if err := applyYAML(ctx, k8sClient, yamlData); err != nil {
 		log.Error().Err(err).Msg("Failed to apply YAML")
 		return fmt.Errorf("failed to apply YAML: %v", err)
 	}
@@ -133,29 +54,9 @@ func KubectlApplyKustomize(ctx context.Context, filePath string) error {
 		return fmt.Errorf("path does not exist: %s", filePath)
 	}
 
-	// Determine if the path is a directory or a file
-	fileInfo, err := os.Stat(filePath)
+	yamlData, err := buildKustomizeYAML(filePath)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to stat path")
-		return fmt.Errorf("failed to stat path: %v", err)
-	}
-
-	kustomizePath := resolveKustomizePath(filePath, fileInfo)
-
-	// Process kustomize to get the YAML output
-	fSys := filesys.MakeFsOnDisk()
-	k := krusty.MakeKustomizer(krusty.MakeDefaultOptions())
-	resMap, err := k.Run(fSys, kustomizePath)
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to run kustomize")
-		return fmt.Errorf("failed to run kustomize: %v", err)
-	}
-
-	// Get the YAML output from the resMap
-	yamlData, err := resMap.AsYaml()
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to convert kustomize output to YAML")
-		return fmt.Errorf("failed to convert kustomize output to YAML: %v", err)
+		return err
 	}
 
 	// Initialize Kubernetes client
@@ -166,7 +67,7 @@ func KubectlApplyKustomize(ctx context.Context, filePath string) error {
 	}
 
 	// Apply the YAML to the cluster
-	if err := applyYAML(k8sClient, yamlData); err != nil {
+	if err := applyYAML(ctx, k8sClient, yamlData); err != nil {
 		log.Error().Err(err).Msg("Failed to apply YAML from kustomize")
 		return fmt.Errorf("failed to apply YAML from kustomize: %v", err)
 	}
@@ -174,15 +75,4 @@ func KubectlApplyKustomize(ctx context.Context, filePath string) error {
 	log.Info().Msg("KubectlApplyKustomize operation completed")
 
 	return nil
-}
-
-func resolveKustomizePath(filePath string, fileInfo os.FileInfo) string {
-	if fileInfo.IsDir() {
-		log.Debug().Msgf("Using directory as kustomize path: %s", filePath)
-		return filePath
-	}
-
-	kustomizePath := filepath.Dir(filePath)
-	log.Debug().Msgf("Using file's directory as kustomize path: %s", kustomizePath)
-	return kustomizePath
 }
