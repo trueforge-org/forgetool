@@ -39,3 +39,7 @@ jobs:
           go build -o /usr/local/bin/forgetool
           go test -v ./... -race -covermode=atomic
           forgetool-dev
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
