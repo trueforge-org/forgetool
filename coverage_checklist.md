@@ -82,13 +82,13 @@ Sorted from lowest to highest coverage.
 - [ ]  33.33% (1/3) - cmd/cluster_init.go
 - [x]  33.33% (1/3) - cmd/decrypt.go
 - [x]  33.33% (1/3) - cmd/encrypt.go
-- [ ]  48.84% (42/86) - pkg/charts/chartFile/updater.go
+- [x]  48.84% (42/86) - pkg/charts/chartFile/updater.go
 - [ ]  50.00% (1/2) - cmd/cluster_genconfig.go
 - [ ]  50.00% (1/2) - cmd/info.go
-- [ ]  62.50% (10/16) - pkg/charts/version/bump.go
-- [ ]  91.67% (55/60) - pkg/charts/image/cleanup.go
-- [ ]  93.10% (54/58) - pkg/charts/image/image.go
-- [ ]  98.18% (54/55) - pkg/charts/chartFile/chart_file.go
+- [x]  62.50% (10/16) - pkg/charts/version/bump.go
+- [x]  91.67% (55/60) - pkg/charts/image/cleanup.go
+- [x]  93.10% (54/58) - pkg/charts/image/image.go
+- [x]  98.18% (54/55) - pkg/charts/chartFile/chart_file.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (1/1) - cmd/charts.go
 - [ ] 100.00% (1/1) - cmd/cluster.go
