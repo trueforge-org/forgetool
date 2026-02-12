@@ -22,4 +22,5 @@ ssh-public-key.txt
 .DS_Store
 .envrc
 coverage.txt
+coverage.out
 test_output.txt

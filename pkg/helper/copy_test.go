@@ -202,7 +202,7 @@ func TestCopyDir(t *testing.T) {
 		{
 			name: "Copy directory with DOTREPLACE",
 			setupFunc: func(t *testing.T, tmpDir string) (string, string) {
-				t.Skip("Skipping due to intermittent test failure - see issue #TBD")
+				t.Skip("Skipping due to intermittent test failure - CopyDir works in isolation but fails in test suite, needs investigation")
 				source := filepath.Join(tmpDir, "source")
 				dest := filepath.Join(tmpDir, "dest")
 				
