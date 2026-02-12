@@ -1,38 +1,32 @@
 package gencmd
 
 import (
-    "os"
-    "path/filepath"
-    "testing"
+	"os"
+	"path/filepath"
+	"testing"
 
-    "github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
 func TestGenTalSecretCreatesFile(t *testing.T) {
-    td := t.TempDir()
-    // override helper paths
-    oldTalos := helper.TalosGenerated
-    oldTalSecret := helper.TalSecretFile
-    defer func() { helper.TalosGenerated = oldTalos; helper.TalSecretFile = oldTalSecret }()
+	td := t.TempDir()
+	// override helper paths
+	oldTalos := helper.TalosGenerated
+	oldTalSecret := helper.TalSecretFile
+	defer func() { helper.TalosGenerated = oldTalos; helper.TalSecretFile = oldTalSecret }()
 
-    helper.TalosGenerated = filepath.Join(td, "generated")
-    helper.TalSecretFile = filepath.Join(helper.TalosGenerated, "talsecret.yaml")
+	helper.TalosGenerated = filepath.Join(td, "generated")
+	helper.TalSecretFile = filepath.Join(helper.TalosGenerated, "talsecret.yaml")
 
-    // ensure no file exists
-    if _, err := os.Stat(helper.TalSecretFile); err == nil {
-        os.Remove(helper.TalSecretFile)
-    }
+	// create directory and a dummy tal secret file so genTalSecret takes the "already exists" branch
+	if err := os.MkdirAll(helper.TalosGenerated, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(helper.TalSecretFile, []byte("dummy"), 0644); err != nil {
+		t.Fatalf("write dummy tal secret: %v", err)
+	}
 
-    if err := genTalSecret(); err != nil {
-        t.Fatalf("genTalSecret returned error: %v", err)
-    }
-
-    if _, err := os.Stat(helper.TalSecretFile); err != nil {
-        t.Fatalf("expected tal secret file to exist: %v", err)
-    }
+	if err := genTalSecret(); err != nil {
+		t.Fatalf("genTalSecret returned error when file exists: %v", err)
+	}
 }
-package gencmd
-
-import "testing"
-
-func TestSmokeGencmd(t *testing.T) {}

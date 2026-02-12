@@ -3,12 +3,63 @@ package changelog
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
+
+func TestCommitMessageAndKind(t *testing.T) {
+	c := &object.Commit{Message: "feat(scope): add feature\nmore details"}
+	msg := getCommitMessage(c)
+	if msg != "feat(scope): add feature" {
+		t.Fatalf("unexpected commit message: %s", msg)
+	}
+
+	kind := getCommitKind(c)
+	if kind != "feat" {
+		t.Fatalf("unexpected commit kind: %s", kind)
+	}
+
+	c2 := &object.Commit{Message: "no conventional message"}
+	if getCommitKind(c2) != "" {
+		t.Fatalf("expected empty kind for non-matching message")
+	}
+}
+
+func TestIsValidCommit(t *testing.T) {
+	// reset status and globals to stable defaults
+	currentStatus = status{processedCount: 0, totalCount: 0, skippedCount: 0, avgTime: 0, totalProcessingTime: 0, mu: &sync.RWMutex{}}
+
+	// empty message
+	cEmpty := &object.Commit{Message: ""}
+	skipCommitsWithBadMessage = false
+	if isValidCommit(cEmpty) {
+		t.Fatalf("expected empty message commit to be invalid")
+	}
+
+	// no parent
+	cNoParent := &object.Commit{Message: "feat(x): y", ParentHashes: nil}
+	if isValidCommit(cNoParent) {
+		t.Fatalf("expected commit with no parents to be invalid")
+	}
+
+	// skip commits with bad message enabled
+	cBad := &object.Commit{Message: "random message", ParentHashes: []plumbing.Hash{{}}}
+	skipCommitsWithBadMessage = true
+	if isValidCommit(cBad) {
+		t.Fatalf("expected bad message commit to be invalid when skip enabled")
+	}
+
+	// valid commit
+	cValid := &object.Commit{Message: "fix(scope): bugfix", ParentHashes: []plumbing.Hash{{}}}
+	skipCommitsWithBadMessage = false
+	if !isValidCommit(cValid) {
+		t.Fatalf("expected valid commit to be valid")
+	}
+}
 
 func TestChartSortVersions(t *testing.T) {
 	c := &Chart{Versions: map[string]*Version{
