@@ -4,9 +4,23 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
+
+func forceNoKubeconfigEnv(t *testing.T) {
+	t.Helper()
+
+	home := t.TempDir()
+	nonexistent := filepath.Join(home, "nonexistent-kubeconfig-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	t.Setenv("HOME", home)
+	t.Setenv("KUBECONFIG", nonexistent)
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+}
 
 func TestKubectlApply_NonExistingFileMessage(t *testing.T) {
 	ctx := context.TODO()
@@ -21,6 +35,8 @@ func TestKubectlApply_NonExistingFileMessage(t *testing.T) {
 }
 
 func TestKubectlApply_ExistingFileNoKubeconfig(t *testing.T) {
+	forceNoKubeconfigEnv(t)
+
 	// Create a temporary YAML file so the file-existence check passes,
 	// but the kubeconfig loading should fail since no cluster is available.
 	tmpFile, err := os.CreateTemp("", "kubectl-apply-test-*.yaml")
@@ -101,6 +117,8 @@ func TestKubectlApplyKustomize_FilePathUsesParentDir(t *testing.T) {
 }
 
 func TestGetKubeClient_NoKubeconfig(t *testing.T) {
+	forceNoKubeconfigEnv(t)
+
 	_, err := getKubeClient()
 	if err == nil {
 		t.Fatal("expected error when no kubeconfig is available, got nil")
@@ -111,6 +129,8 @@ func TestGetKubeClient_NoKubeconfig(t *testing.T) {
 }
 
 func TestGetClientset_NoKubeconfig(t *testing.T) {
+	forceNoKubeconfigEnv(t)
+
 	_, err := GetClientset()
 	if err == nil {
 		t.Fatal("expected error when no kubeconfig is available, got nil")
@@ -118,6 +138,8 @@ func TestGetClientset_NoKubeconfig(t *testing.T) {
 }
 
 func TestCheckStatus_NoKubeconfig(t *testing.T) {
+	forceNoKubeconfigEnv(t)
+
 	// With no kubeconfig and no in-cluster config, CheckStatus should
 	// fail immediately when trying to load the kubeconfig.
 	err := CheckStatus([]string{"some-pod"}, nil, 1)

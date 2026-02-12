@@ -16,8 +16,10 @@ import (
 func GetClientset() (*kubernetes.Clientset, error) {
 	log.Trace().Msg("Attempting to create Kubernetes clientset")
 
-	// Use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", clientcmd.RecommendedHomeFile)
+	// Load config from the current kubeconfig context.
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	configOverrides := &clientcmd.ConfigOverrides{}
+	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides).ClientConfig()
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to load kubeconfig, attempting in-cluster config")
 		config, err = rest.InClusterConfig()
