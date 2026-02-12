@@ -23,7 +23,8 @@ func TestReplaceInFileNoMatch(t *testing.T) {
 }
 
 func TestReplaceInFileNonExistent(t *testing.T) {
-	err := ReplaceInFile("/tmp/nonexistent_replace_test_12345.txt", "old", "new")
+	td := t.TempDir()
+	err := ReplaceInFile(filepath.Join(td, "nonexistent", "file.txt"), "old", "new")
 	if err == nil {
 		t.Fatalf("expected error for non-existent file")
 	}
@@ -54,7 +55,7 @@ func TestReplaceContentBetweenLinesNonExistentSource(t *testing.T) {
 	target := filepath.Join(td, "target.txt")
 	os.WriteFile(target, []byte("content\n"), 0644)
 
-	err := ReplaceContentBetweenLines(target, "/tmp/nonexistent_source_12345.txt", "FROM", "TILL")
+	err := ReplaceContentBetweenLines(target, filepath.Join(td, "nonexistent", "source.txt"), "FROM", "TILL")
 	if err == nil {
 		t.Fatalf("expected error for non-existent source file")
 	}

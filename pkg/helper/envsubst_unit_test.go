@@ -98,16 +98,18 @@ func TestEnvSubstWithKey(t *testing.T) {
 }
 
 func TestEnvSubstNonExistentFile(t *testing.T) {
+	td := t.TempDir()
 	envs := map[string]string{}
-	_, err := EnvSubst("/tmp/nonexistent_envsubst_12345.yaml", envs)
+	_, err := EnvSubst(filepath.Join(td, "nonexistent", "file.yaml"), envs)
 	if err == nil {
 		t.Fatalf("expected error for non-existent file")
 	}
 }
 
 func TestLoadEnvFromFileNonExistent(t *testing.T) {
+	td := t.TempDir()
 	output := make(map[string]string)
-	err := LoadEnvFromFile("/tmp/nonexistent_envfile_12345.env", output)
+	err := LoadEnvFromFile(filepath.Join(td, "nonexistent", "env.yaml"), output)
 	if err == nil {
 		t.Fatalf("expected error for non-existent file")
 	}

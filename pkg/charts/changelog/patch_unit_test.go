@@ -1,6 +1,7 @@
 package changelog
 
 import (
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -43,7 +44,8 @@ func TestCheckPathDirectoryExists(t *testing.T) {
 }
 
 func TestCheckPathNonExistentNoCreate(t *testing.T) {
-	if err := checkPath("/tmp/nonexistent_checkpath_test_12345", false); err != nil {
+	td := t.TempDir()
+	if err := checkPath(filepath.Join(td, "nonexistent"), false); err != nil {
 		t.Fatalf("checkPath on non-existent without create should not error: %v", err)
 	}
 }

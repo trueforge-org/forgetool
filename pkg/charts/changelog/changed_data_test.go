@@ -157,8 +157,9 @@ func TestLoadFromFileInvalidJSON(t *testing.T) {
 }
 
 func TestLoadFromFileNonExistent(t *testing.T) {
+	td := t.TempDir()
 	var cd ChangedData
-	err := cd.LoadFromFile("/tmp/nonexistent_path_12345/file.json")
+	err := cd.LoadFromFile(filepath.Join(td, "nonexistent", "file.json"))
 	if err != nil {
 		t.Fatalf("LoadFromFile should return nil for non-existent file, got: %v", err)
 	}
