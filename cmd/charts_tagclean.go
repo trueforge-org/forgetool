@@ -13,6 +13,12 @@ var chartsTagCleanLongHelp = strings.TrimSpace(`
 
 `)
 
+var chartsTagClean = image.Clean
+
+func runChartsTagClean(args []string) error {
+	return chartsTagClean(args[0])
+}
+
 var tagCleaner = &cobra.Command{
 	Use:     "tagcleaner",
 	Short:   "Creates a clean version tag from a container digest",
@@ -20,7 +26,7 @@ var tagCleaner = &cobra.Command{
 	Example: "forgetool charts tagclean <tag>",
 	Args:    cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		err := image.Clean(args[0])
+		err := runChartsTagClean(args)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to clean tag")
 		}

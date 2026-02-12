@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"io/fs"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -14,23 +16,39 @@ var chartsGenChartsListLongHelp = strings.TrimSpace(`
 
 `)
 
+var (
+	chartsGenChartListWalkCharts2 = helper.WalkCharts2
+	chartsGenChartListOptionsFactory = func() *website.ChartListOptions {
+		return &website.ChartListOptions{
+			OutputPath:  "./charts.json",
+			TrainFilter: []string{},
+		}
+	}
+	chartsGenChartListGetChartData = func(opts *website.ChartListOptions) fs.WalkDirFunc { return opts.GetChartData }
+	chartsGenChartListWrite        = func(opts *website.ChartListOptions) error { return opts.WriteChartList() }
+)
+
+func runChartsGenChartList(args []string) error {
+	opts := chartsGenChartListOptionsFactory()
+	if err := chartsGenChartListWalkCharts2(args, chartsGenChartListGetChartData(opts), helper.AsyncMode); err != nil {
+		return fmt.Errorf("failed to generate chart list json file: %w", err)
+	}
+
+	if err := chartsGenChartListWrite(opts); err != nil {
+		return fmt.Errorf("failed to write chart list json file: %w", err)
+	}
+
+	return nil
+}
+
 var genChartListCmd = &cobra.Command{
 	Use:     "genchartlist",
 	Short:   "Generate chart list json file",
 	Long:    chartsGenChartsListLongHelp,
 	Example: "forgetool charts genchartlist <path to charts folder>",
 	Run: func(cmd *cobra.Command, args []string) {
-		opts := &website.ChartListOptions{
-			OutputPath:  "./charts.json",
-			TrainFilter: []string{}, // We can filter by train later if needed
-		}
-
-		if err := helper.WalkCharts2(args, opts.GetChartData, helper.AsyncMode); err != nil {
-			log.Fatal().Err(err).Msg("failed to generate chart list json file:")
-		}
-
-		if err := opts.WriteChartList(); err != nil {
-			log.Fatal().Err(err).Msg("failed to write chart list json file:")
+		if err := runChartsGenChartList(args); err != nil {
+			log.Fatal().Err(err).Msg("chart list generation failed")
 		}
 
 	},

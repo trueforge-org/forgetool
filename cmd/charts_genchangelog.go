@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -13,29 +15,43 @@ var chartsGenChangelogLongHelp = strings.TrimSpace(`
 
 `)
 
+var (
+	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error { return opts.Generate() }
+	chartsGenChangelogRender   = func(opts *changelog.ChangelogOptions) error { return opts.Render() }
+)
+
+func runChartsGenChangelog(args []string) error {
+	if len(args) < 3 {
+		return errors.New("missing required arguments. please provide the repo path, template path and charts directory")
+	}
+
+	opts := &changelog.ChangelogOptions{
+		RepoPath:                  args[0],
+		TemplatePath:              args[1],
+		ChartsDir:                 args[2],
+		ChangelogFileName:         "CHANGELOG.md",
+		JSONOutputPath:            "./changelog.json",
+		PrettyJSON:                true,
+		StatusUpdateInterval:      5,
+		SkipCommitsWithBadMessage: false,
+	}
+	if err := chartsGenChangelogGenerate(opts); err != nil {
+		return fmt.Errorf("generate changelog: %w", err)
+	}
+	if err := chartsGenChangelogRender(opts); err != nil {
+		return fmt.Errorf("render changelog: %w", err)
+	}
+
+	return nil
+}
+
 var genChangelogCmd = &cobra.Command{
 	Use:     "genchangelog",
 	Short:   "Generate changelog for charts",
 	Long:    chartsGenChangelogLongHelp,
 	Example: "forgetool charts genchangelog <repo path> <template path> <charts dir>",
 	Run: func(cmd *cobra.Command, args []string) {
-		if len(args) < 3 {
-			log.Fatal().Msg("Missing required arguments. Please provide the repo path, template path and charts directory.")
-		}
-		opts := &changelog.ChangelogOptions{
-			RepoPath:                  args[0],
-			TemplatePath:              args[1],
-			ChartsDir:                 args[2],
-			ChangelogFileName:         "CHANGELOG.md",
-			JSONOutputPath:            "./changelog.json",
-			PrettyJSON:                true,
-			StatusUpdateInterval:      5,
-			SkipCommitsWithBadMessage: false,
-		}
-		if err := opts.Generate(); err != nil {
-			log.Fatal().Err(err)
-		}
-		if err := opts.Render(); err != nil {
+		if err := runChartsGenChangelog(args); err != nil {
 			log.Fatal().Err(err)
 		}
 	},

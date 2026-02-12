@@ -12,6 +12,12 @@ var chartsBumpLongHelp = strings.TrimSpace(`
 
 `)
 
+var chartsBumpVersion = version.Bump
+
+func runChartsBump(args []string) error {
+	return chartsBumpVersion(args[0], args[1])
+}
+
 var bumper = &cobra.Command{
 	Use:     "bump",
 	Short:   "generate a bumped image version",
@@ -19,7 +25,7 @@ var bumper = &cobra.Command{
 	Example: "forgetool charts bump <version> <kind>",
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := version.Bump(args[0], args[1]); err != nil {
+		if err := runChartsBump(args); err != nil {
 			log.Fatal().Err(err).Msg("failed to bump version")
 		}
 	},
