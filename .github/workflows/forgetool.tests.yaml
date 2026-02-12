@@ -39,9 +39,11 @@ jobs:
       - name: Unit Tests
         run:  |
           go build -o /usr/local/bin/forgetool
-          go test -v ./... -race -covermode=atomic
+          go test -v ./... -race -covermode=atomic -coverprofile=coverage.txt
           forgetool-dev
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          slug: trueforge-org/forgetool
+          
