@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
 func TestFormatGitURL(t *testing.T) {
@@ -89,5 +91,35 @@ AGE-SECRET-KEY-EXACT` + "\n"
 	}
 	if sec == "" {
 		t.Fatalf("expected a secret key, got empty")
+	}
+}
+
+func TestUpdateGitRepo(t *testing.T) {
+	td := t.TempDir()
+	cwd, _ := os.Getwd()
+	defer os.Chdir(cwd)
+	if err := os.Chdir(td); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+
+	oldEnv := helper.TalEnv
+	helper.TalEnv = map[string]string{"GITHUB_REPOSITORY": "github.com/acme/repo.git"}
+	defer func() { helper.TalEnv = oldEnv }()
+
+	repoFile := filepath.Join("repositories", "git", "this-repo.yaml")
+	if err := os.MkdirAll(filepath.Dir(repoFile), 0755); err != nil {
+		t.Fatalf("mkdir repos dir failed: %v", err)
+	}
+	if err := os.WriteFile(repoFile, []byte("url: ssh://REPLACEWITHGITREPO\n"), 0644); err != nil {
+		t.Fatalf("write this-repo.yaml failed: %v", err)
+	}
+
+	UpdateGitRepo()
+	b, err := os.ReadFile(repoFile)
+	if err != nil {
+		t.Fatalf("read this-repo.yaml failed: %v", err)
+	}
+	if string(b) == "url: ssh://REPLACEWITHGITREPO\n" {
+		t.Fatalf("expected placeholder replaced, got unchanged content")
 	}
 }
