@@ -30,34 +30,34 @@ Sorted from lowest to highest coverage.
 - [x]   0.00% (0/42) - pkg/gencmd/genconfig.go
 - [x]   0.00% (0/22) - pkg/gencmd/plain.go
 - [x]   0.00% (0/21) - pkg/gencmd/upgrade.go
-- [ ]   0.00% (0/49) - pkg/helper/copy.go
-- [ ]   0.00% (0/12) - pkg/helper/dns.go
-- [ ]   0.00% (0/61) - pkg/helper/envsubst.go
-- [ ]   0.00% (0/132) - pkg/helper/git.go
-- [ ]   0.00% (0/35) - pkg/helper/helper.go
-- [ ]   0.00% (0/12) - pkg/helper/marshaller.go
-- [ ]   0.00% (0/48) - pkg/helper/netvalidate.go
-- [ ]   0.00% (0/13) - pkg/helper/prompts.go
-- [ ]   0.00% (0/42) - pkg/helper/replace.go
-- [ ]   0.00% (0/26) - pkg/helper/runcmd.go
-- [ ]   0.00% (0/30) - pkg/helper/talhelperextract.go
-- [ ]   0.00% (0/16) - pkg/helper/time.go
-- [ ]   0.00% (0/95) - pkg/helper/tooldocs.go
-- [ ]   0.00% (0/7) - pkg/helper/var2file.go
-- [ ]   0.00% (0/14) - pkg/helper/walker.go
-- [ ]   0.00% (0/15) - pkg/helper/yamlutil.go
-- [ ]   0.00% (0/12) - pkg/info/info.go
-- [ ]   0.00% (0/157) - pkg/initfiles/clusterenv.go
-- [ ]   0.00% (0/257) - pkg/initfiles/initfiles.go
-- [ ]   0.00% (0/61) - pkg/nodestatus/health.go
-- [ ]   0.00% (0/56) - pkg/nodestatus/status.go
+- [x]   0.00% (0/49) - pkg/helper/copy.go
+- [x]   0.00% (0/12) - pkg/helper/dns.go
+- [x]   0.00% (0/61) - pkg/helper/envsubst.go
+- [x]   0.00% (0/132) - pkg/helper/git.go
+- [x]   0.00% (0/35) - pkg/helper/helper.go
+- [x]   0.00% (0/12) - pkg/helper/marshaller.go
+- [x]   0.00% (0/48) - pkg/helper/netvalidate.go
+- [x]   0.00% (0/13) - pkg/helper/prompts.go
+- [x]   0.00% (0/42) - pkg/helper/replace.go
+- [x]   0.00% (0/26) - pkg/helper/runcmd.go
+- [x]   0.00% (0/30) - pkg/helper/talhelperextract.go
+- [x]   0.00% (0/16) - pkg/helper/time.go
+- [x]   0.00% (0/95) - pkg/helper/tooldocs.go
+- [x]   0.00% (0/7) - pkg/helper/var2file.go
+- [x]   0.00% (0/14) - pkg/helper/walker.go
+- [x]   0.00% (0/15) - pkg/helper/yamlutil.go
+- [x]   0.00% (0/12) - pkg/info/info.go
+- [x]   0.00% (0/157) - pkg/initfiles/clusterenv.go
+- [x]   0.00% (0/257) - pkg/initfiles/initfiles.go
+- [x]   0.00% (0/61) - pkg/nodestatus/health.go
+- [x]   0.00% (0/56) - pkg/nodestatus/status.go
 - [ ]   0.00% (0/148) - pkg/sops/checkencrypt.go
 - [ ]   0.00% (0/60) - pkg/sops/decrypt.go
 - [ ]   0.00% (0/66) - pkg/sops/encrypt.go
 - [ ]   0.00% (0/21) - pkg/sops/loadsops.go
 - [ ]   0.00% (0/65) - pkg/sops/wrapper.go
-- [ ]   0.00% (0/34) - pkg/talassist/load.go
-- [ ]   0.00% (0/25) - pkg/talhelperutil/extractfromtalconfig.go
+- [x]   0.00% (0/34) - pkg/talassist/load.go
+- [x]   0.00% (0/25) - pkg/talhelperutil/extractfromtalconfig.go
 - [ ]   1.41% (1/71) - pkg/fluxhandler/bootstrap.go
 - [ ]   2.63% (1/38) - cmd/talos_apply.go
 - [ ]   4.55% (1/22) - cmd/talos_upgrade.go
