@@ -13,15 +13,24 @@ var advPrecommitLongHelp = strings.TrimSpace(`
 
 `)
 
+var (
+	precommitCheckFilesAndReportEncryption = sops.CheckFilesAndReportEncryption
+	precommitExit                          = os.Exit
+)
+
+func runPrecommit() error {
+	return precommitCheckFilesAndReportEncryption(true, true)
+}
+
 var precommit = &cobra.Command{
 	Use:     "precommit",
 	Short:   "Runs the PreCommit encryption check",
 	Example: "forgetool adv precommit",
 	Long:    advPrecommitLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := sops.CheckFilesAndReportEncryption(true, true); err != nil {
+		if err := runPrecommit(); err != nil {
 			log.Info().Msgf("Error checking files: %v\n", err)
-			os.Exit(1)
+			precommitExit(1)
 		}
 	},
 }

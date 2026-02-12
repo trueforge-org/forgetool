@@ -16,6 +16,15 @@ This tool can, for example, be used as a pre-commit check and will fail with a n
 
 `)
 
+var (
+	checkcryptCheckFilesAndReportEncryption = sops.CheckFilesAndReportEncryption
+	checkcryptExit                          = os.Exit
+)
+
+func runCheckcrypt() error {
+	return checkcryptCheckFilesAndReportEncryption(false, false)
+}
+
 var checkcrypt = &cobra.Command{
 	Use:     "checkcrypt",
 	Short:   "Checks if all files are encrypted correctly in accordance with .sops.yaml",
@@ -23,9 +32,9 @@ var checkcrypt = &cobra.Command{
 	Example: "forgetool checkcrypt",
 	Long:    checkcyptLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := sops.CheckFilesAndReportEncryption(false, false); err != nil {
+		if err := runCheckcrypt(); err != nil {
 			log.Info().Msgf("Error checking files: %v\n", err)
-			os.Exit(1)
+			checkcryptExit(1)
 		}
 	},
 }
