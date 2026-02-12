@@ -1,10 +1,15 @@
 package fluxhandler
 
 import (
+	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"helm.sh/helm/v3/pkg/cli"
 )
 
 func TestRepoURLAndClean(t *testing.T) {
@@ -64,5 +69,80 @@ func TestCreateValuesYAMLAndRemove(t *testing.T) {
 	}
 	if len(b) == 0 {
 		t.Fatalf("created file empty")
+	}
+}
+
+func TestNewDefaultRegistryClientAndNoOpLog(t *testing.T) {
+	settings := cli.New()
+	rc, err := newDefaultRegistryClient(false, settings)
+	if err != nil {
+		t.Fatalf("newDefaultRegistryClient(false) failed: %v", err)
+	}
+	if rc == nil {
+		t.Fatalf("expected registry client")
+	}
+
+	rc2, err := newDefaultRegistryClient(true, settings)
+	if err != nil {
+		t.Fatalf("newDefaultRegistryClient(true) failed: %v", err)
+	}
+	if rc2 == nil {
+		t.Fatalf("expected registry client for plainHTTP")
+	}
+
+	noOpLog("ignored %s", "message")
+}
+
+func TestUpdateHelmRepo(t *testing.T) {
+	td := t.TempDir()
+	t.Setenv("HELM_REPOSITORY_CACHE", filepath.Join(td, "cache"))
+	t.Setenv("HELM_REPOSITORY_CONFIG", filepath.Join(td, "repositories.yaml"))
+
+	index := `apiVersion: v1
+entries:
+  app:
+    - version: 0.1.0
+      urls:
+        - https://example.invalid/app-0.1.0.tgz
+`
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/index.yaml" {
+			_, _ = w.Write([]byte(index))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer ts.Close()
+
+	if err := updateHelmRepo("myrepo", ts.URL, true); err != nil {
+		t.Fatalf("updateHelmRepo failed: %v", err)
+	}
+
+	b, err := os.ReadFile(filepath.Join(td, "repositories.yaml"))
+	if err != nil {
+		t.Fatalf("failed to read repositories config: %v", err)
+	}
+	if len(b) == 0 {
+		t.Fatalf("repositories file is empty")
+	}
+}
+
+func TestHelmInstallDryRunAndRemoveFileError(t *testing.T) {
+	if err := HelmInstall("", "", "", "", "", "", true, false, true); err != nil {
+		t.Fatalf("HelmInstall dryRun should return nil, got: %v", err)
+	}
+
+	td := t.TempDir()
+	dir := filepath.Join(td, "nonempty")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x"), 0644); err != nil {
+		t.Fatalf("write file in dir failed: %v", err)
+	}
+	if err := removeFileIfExists(dir); err == nil {
+		t.Fatalf("expected removeFileIfExists to fail on non-empty directory")
+	} else if err != nil && fmt.Sprint(err) == "" {
+		t.Fatalf("expected non-empty error")
 	}
 }

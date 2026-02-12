@@ -1,6 +1,7 @@
 package website
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -98,6 +99,99 @@ func TestGetChartData_TrainFilter(t *testing.T) {
 	}
 	if opts.list.TotalCount != 0 || len(opts.list.Trains) != 0 {
 		t.Fatalf("expected no charts added when filtered")
+	}
+}
+
+func TestGetChartData_ReturnsInputError(t *testing.T) {
+	td := t.TempDir()
+	entries, err := os.ReadDir(td)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected empty temp dir")
+	}
+
+	chartPath := filepath.Join(td, "Chart.yaml")
+	if err := os.WriteFile(chartPath, []byte("name: x\nversion: 0.1.0\n"), 0644); err != nil {
+		t.Fatalf("write chart: %v", err)
+	}
+	fileEntries, err := os.ReadDir(td)
+	if err != nil {
+		t.Fatalf("readdir with file: %v", err)
+	}
+	entry := fileEntries[0]
+
+	opts := &ChartListOptions{}
+	wantErr := errors.New("walker error")
+	if err := opts.GetChartData(chartPath, entry, wantErr); !errors.Is(err, wantErr) {
+		t.Fatalf("expected input error to be returned, got: %v", err)
+	}
+}
+
+func TestGetChartData_IgnoresNonChartYAML(t *testing.T) {
+	td := t.TempDir()
+	otherPath := filepath.Join(td, "values.yaml")
+	if err := os.WriteFile(otherPath, []byte("foo: bar\n"), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	entries, err := os.ReadDir(td)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one entry")
+	}
+
+	opts := &ChartListOptions{}
+	if err := opts.GetChartData(otherPath, entries[0], nil); err != nil {
+		t.Fatalf("GetChartData should ignore non-Chart.yaml files: %v", err)
+	}
+	if opts.list == nil {
+		t.Fatalf("expected list to be initialized")
+	}
+	if opts.list.TotalCount != 0 {
+		t.Fatalf("expected total count unchanged for non-Chart.yaml file")
+	}
+}
+
+func TestGetChartData_AppendsToExistingTrain(t *testing.T) {
+	td := t.TempDir()
+	chartDirA := filepath.Join(td, "stable", "charta")
+	chartDirB := filepath.Join(td, "stable", "chartb")
+	if err := os.MkdirAll(chartDirA, 0755); err != nil {
+		t.Fatalf("mkdir charta: %v", err)
+	}
+	if err := os.MkdirAll(chartDirB, 0755); err != nil {
+		t.Fatalf("mkdir chartb: %v", err)
+	}
+	pathA := filepath.Join(chartDirA, "Chart.yaml")
+	pathB := filepath.Join(chartDirB, "Chart.yaml")
+	if err := os.WriteFile(pathA, []byte("name: charta\nversion: 0.1.0\n"), 0644); err != nil {
+		t.Fatalf("write charta: %v", err)
+	}
+	if err := os.WriteFile(pathB, []byte("name: chartb\nversion: 0.1.1\n"), 0644); err != nil {
+		t.Fatalf("write chartb: %v", err)
+	}
+
+	entriesA, _ := os.ReadDir(chartDirA)
+	entriesB, _ := os.ReadDir(chartDirB)
+	opts := &ChartListOptions{}
+	if err := opts.GetChartData(pathA, entriesA[0], nil); err != nil {
+		t.Fatalf("GetChartData charta failed: %v", err)
+	}
+	if err := opts.GetChartData(pathB, entriesB[0], nil); err != nil {
+		t.Fatalf("GetChartData chartb failed: %v", err)
+	}
+
+	if opts.list.TotalCount != 2 {
+		t.Fatalf("expected total count 2, got %d", opts.list.TotalCount)
+	}
+	if len(opts.list.Trains) != 1 {
+		t.Fatalf("expected one train, got %d", len(opts.list.Trains))
+	}
+	if opts.list.Trains[0].Count != 2 || len(opts.list.Trains[0].Charts) != 2 {
+		t.Fatalf("expected stable train to contain both charts, got %+v", opts.list.Trains[0])
 	}
 }
 

@@ -2,34 +2,34 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]   0.00% (0/46) - embed/embed.go
-- [ ]   0.00% (0/26) - main.go
-- [ ]   0.00% (0/3) - partial_builds/precommit/main.go
-- [ ]   0.00% (0/22) - pkg/charts/changelog/active_charts.go
-- [ ]   0.00% (0/71) - pkg/charts/changelog/changed_data.go
-- [ ]   0.00% (0/126) - pkg/charts/changelog/changelog.go
-- [ ]   0.00% (0/34) - pkg/charts/changelog/commit.go
-- [ ]   0.00% (0/74) - pkg/charts/changelog/patch.go
-- [ ]   0.00% (0/37) - pkg/charts/changelog/render.go
-- [ ]   0.00% (0/67) - pkg/charts/changelog/utils.go
-- [ ]   0.00% (0/101) - pkg/charts/deps/deps.go
-- [ ]   0.00% (0/10) - pkg/charts/helmignore/helmignore.go
-- [ ]   0.00% (0/12) - pkg/charts/info/info.go
-- [ ]   0.00% (0/12) - pkg/charts/readme/readme.go
-- [ ]   0.00% (0/16) - pkg/charts/valuesYaml/parse.go
-- [ ]   0.00% (0/18) - pkg/charts/valuesYaml/updater.go
-- [ ]   0.00% (0/35) - pkg/charts/website/chart_list.go
-- [ ]   0.00% (0/273) - pkg/fluxhandler/helm.go
-- [ ]   0.00% (0/83) - pkg/fluxhandler/helmrelease.go
-- [ ]   0.00% (0/23) - pkg/fluxhandler/helmrepo.go
-- [ ]   0.00% (0/65) - pkg/fluxhandler/kustomizations.go
-- [ ]   0.00% (0/72) - pkg/fluxhandler/sshsecretgen.go
-- [ ]   0.00% (0/19) - pkg/gencmd/apply.go
+- [x]   0.00% (0/46) - embed/embed.go
+- [x]   0.00% (0/26) - main.go
+- [x]   0.00% (0/3) - partial_builds/precommit/main.go
+- [x]   0.00% (0/22) - pkg/charts/changelog/active_charts.go
+- [x]   0.00% (0/71) - pkg/charts/changelog/changed_data.go
+- [x]   0.00% (0/126) - pkg/charts/changelog/changelog.go
+- [x]   0.00% (0/34) - pkg/charts/changelog/commit.go
+- [x]   0.00% (0/74) - pkg/charts/changelog/patch.go
+- [x]   0.00% (0/37) - pkg/charts/changelog/render.go
+- [x]   0.00% (0/67) - pkg/charts/changelog/utils.go
+- [x]   0.00% (0/101) - pkg/charts/deps/deps.go
+- [x]   0.00% (0/10) - pkg/charts/helmignore/helmignore.go
+- [x]   0.00% (0/12) - pkg/charts/info/info.go
+- [x]   0.00% (0/12) - pkg/charts/readme/readme.go
+- [x]   0.00% (0/16) - pkg/charts/valuesYaml/parse.go
+- [x]   0.00% (0/18) - pkg/charts/valuesYaml/updater.go
+- [x]   0.00% (0/35) - pkg/charts/website/chart_list.go
+- [x]   0.00% (0/273) - pkg/fluxhandler/helm.go
+- [x]   0.00% (0/83) - pkg/fluxhandler/helmrelease.go
+- [x]   0.00% (0/23) - pkg/fluxhandler/helmrepo.go
+- [x]   0.00% (0/65) - pkg/fluxhandler/kustomizations.go
+- [x]   0.00% (0/72) - pkg/fluxhandler/sshsecretgen.go
+- [x]   0.00% (0/19) - pkg/gencmd/apply.go
 - [ ]   0.00% (0/93) - pkg/gencmd/bootstrap.go
 - [ ]   0.00% (0/80) - pkg/gencmd/execcmd.go
-- [ ]   0.00% (0/42) - pkg/gencmd/genconfig.go
-- [ ]   0.00% (0/22) - pkg/gencmd/plain.go
-- [ ]   0.00% (0/21) - pkg/gencmd/upgrade.go
+- [x]   0.00% (0/42) - pkg/gencmd/genconfig.go
+- [x]   0.00% (0/22) - pkg/gencmd/plain.go
+- [x]   0.00% (0/21) - pkg/gencmd/upgrade.go
 - [ ]   0.00% (0/49) - pkg/helper/copy.go
 - [ ]   0.00% (0/12) - pkg/helper/dns.go
 - [ ]   0.00% (0/61) - pkg/helper/envsubst.go
