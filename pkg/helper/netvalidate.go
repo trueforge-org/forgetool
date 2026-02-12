@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -70,35 +71,51 @@ func bytesCompare(a, b net.IP) int {
 	return 0
 }
 
-func ValidateIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName string) {
+// CheckIPorCIDRNotInCIDR checks whether ipOrCIDR is inside cidr.
+// Returns an error describing the problem if the IP is in the CIDR or if
+// validation fails. Returns nil when the IP is safely outside the CIDR.
+func CheckIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName string) error {
 	inCIDR, err := IPInCIDR(ipOrCIDR, cidr)
 	if err != nil {
-		log.Info().Msgf("Error validating %s against %s: %v\n", ipOrCIDRName, cidrName, err)
-		os.Exit(1)
+		return fmt.Errorf("error validating %s against %s: %v", ipOrCIDRName, cidrName, err)
 	}
 	if inCIDR {
-		log.Info().Msgf("Cannot proceed, %s cannot be in %s\n", ipOrCIDRName, cidrName)
+		return fmt.Errorf("cannot proceed, %s cannot be in %s", ipOrCIDRName, cidrName)
+	}
+	return nil
+}
+
+func ValidateIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName string) {
+	if err := CheckIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName); err != nil {
+		log.Info().Msg(err.Error())
 		os.Exit(1)
 	}
 }
 
-func ValidateRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName string) {
+// CheckRangeNotInCIDR checks whether any part of rangeStr falls inside cidr.
+// Returns an error describing the problem or nil if the range is safely outside.
+func CheckRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName string) error {
 	parts := strings.Split(rangeStr, "-")
 	if len(parts) != 2 {
-		log.Info().Msgf("Invalid range format for %s\n", rangeName)
-		os.Exit(1)
+		return fmt.Errorf("invalid range format for %s", rangeName)
 	}
 
 	inCIDRStart, errStart := IPInCIDR(parts[0], cidr)
 	inCIDREnd, errEnd := IPInCIDR(parts[1], cidr)
 
 	if errStart != nil || errEnd != nil {
-		log.Info().Msgf("Error validating %s against %s: %v %v\n", rangeName, cidrName, errStart, errEnd)
-		os.Exit(1)
+		return fmt.Errorf("error validating %s against %s: %v %v", rangeName, cidrName, errStart, errEnd)
 	}
 
 	if inCIDRStart || inCIDREnd {
-		log.Info().Msgf("Cannot proceed, %s cannot be in %s\n", rangeName, cidrName)
+		return fmt.Errorf("cannot proceed, %s cannot be in %s", rangeName, cidrName)
+	}
+	return nil
+}
+
+func ValidateRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName string) {
+	if err := CheckRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName); err != nil {
+		log.Info().Msg(err.Error())
 		os.Exit(1)
 	}
 }
