@@ -2,7 +2,6 @@ package kubectlcmds
 
 import (
 	"context"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	certificatesv1 "k8s.io/api/certificates/v1"
@@ -38,48 +37,6 @@ func GetClientset() (*kubernetes.Clientset, error) {
 
 	log.Info().Msg("Kubernetes clientset created successfully")
 	return clientset, nil
-}
-
-// ApprovePendingCertificates approves pending CSRs
-func ApprovePendingCertificates(clientset *kubernetes.Clientset, stopCh <-chan struct{}) {
-	log.Info().Msg("Waiting to approve certificates...")
-
-	for {
-		select {
-		case <-stopCh:
-			log.Info().Msg("Stopping certificate approval...")
-			return
-		default:
-			// Get the list of pending CSRs
-			log.Debug().Msg("Retrieving list of pending CSRs")
-			csrList, err := clientset.CertificatesV1().CertificateSigningRequests().List(context.TODO(), metav1.ListOptions{})
-			if err != nil {
-				log.Error().Err(err).Msg("Error getting CSRs")
-				time.Sleep(5 * time.Second)
-				continue
-			}
-
-			log.Debug().Msgf("Retrieved %d CSRs", len(csrList.Items))
-
-			// Approve pending CSRs
-			for _, csr := range csrList.Items {
-				log.Debug().Str("CSRName", csr.Name).Msg("Checking CSR for approval")
-
-				if csr.Status.Conditions == nil || len(csr.Status.Conditions) == 0 {
-					if err := approveCSR(clientset, csr); err != nil {
-						log.Error().Str("CSRName", csr.Name).Err(err).Msg("Error approving CSR")
-					} else {
-						log.Info().Str("CSRName", csr.Name).Msg("Approved CSR")
-					}
-				} else {
-					log.Debug().Str("CSRName", csr.Name).Msg("CSR already has approval conditions")
-				}
-			}
-
-			// Sleep for 5 seconds before checking again
-			time.Sleep(5 * time.Second)
-		}
-	}
 }
 
 func approveCSR(clientset *kubernetes.Clientset, csr certificatesv1.CertificateSigningRequest) error {
