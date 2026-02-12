@@ -21,3 +21,5 @@ ssh-public-key.txt
 !/embed/**
 .DS_Store
 .envrc
+coverage.txt
+test_output.txt

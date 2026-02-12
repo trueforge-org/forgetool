@@ -38,12 +38,25 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Unit Tests
         run:  |
+          set -o pipefail
           go build -o /usr/local/bin/forgetool
-          go test -v ./... -race -covermode=atomic -coverprofile=coverage.txt
+          go test -v ./... -race -covermode=atomic -coverprofile=coverage.txt 2>&1 | tee test_output.txt
           forgetool-dev
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: trueforge-org/forgetool
+      - name: Fail on no test files
+        if: always()
+        run: |
+          if [ -f test_output.txt ]; then
+            if grep -q '\[no test files\]' test_output.txt; then
+              echo "Found [no test files] in test output" >&2
+              cat test_output.txt
+              exit 1
+            fi
+          else
+            echo "test_output.txt not found; skipping no-test-files check"
+          fi
           
