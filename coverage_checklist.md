@@ -59,39 +59,39 @@ Sorted from lowest to highest coverage.
 - [x]   0.00% (0/34) - pkg/talassist/load.go
 - [x]   0.00% (0/25) - pkg/talhelperutil/extractfromtalconfig.go
 - [x]   1.41% (1/71) - pkg/fluxhandler/bootstrap.go
-- [ ]   2.63% (1/38) - cmd/talos_apply.go
-- [ ]   4.55% (1/22) - cmd/talos_upgrade.go
-- [ ]   6.25% (1/16) - cmd/talos_kubeconfig.go
-- [ ]   6.25% (1/16) - cmd/talos_reset.go
+- [x]   2.63% (1/38) - cmd/talos_apply.go
+- [x]   4.55% (1/22) - cmd/talos_upgrade.go
+- [x]   6.25% (1/16) - cmd/talos_kubeconfig.go
+- [x]   6.25% (1/16) - cmd/talos_reset.go
 - [x]   7.69% (1/13) - cmd/root.go
-- [ ]  10.00% (1/10) - cmd/adv_testcmd.go
-- [ ]  10.00% (1/10) - cmd/helmrelease_install.go
-- [ ]  10.00% (1/10) - cmd/helmrelease_upgrade.go
-- [ ]  11.11% (1/9) - cmd/adv_gentooldocs.go
-- [ ]  11.11% (1/9) - cmd/charts_genmeta.go
-- [ ]  12.50% (1/8) - cmd/charts_genchangelog.go
-- [ ]  12.50% (1/8) - cmd/talos_health.go
+- [x]  10.00% (1/10) - cmd/adv_testcmd.go
+- [x]  10.00% (1/10) - cmd/helmrelease_install.go
+- [x]  10.00% (1/10) - cmd/helmrelease_upgrade.go
+- [x]  11.11% (1/9) - cmd/adv_gentooldocs.go
+- [x]  11.11% (1/9) - cmd/charts_genmeta.go
+- [x]  12.50% (1/8) - cmd/charts_genchangelog.go
+- [x]  12.50% (1/8) - cmd/talos_health.go
 - [x]  14.29% (1/7) - cmd/talos_bootstrap.go
-- [ ]  16.67% (1/6) - cmd/charts_deps.go
-- [ ]  16.67% (1/6) - cmd/charts_genchartlist.go
-- [ ]  16.67% (1/6) - cmd/flux_bootstrap.go
-- [ ]  25.00% (1/4) - cmd/adv_precommit.go
-- [ ]  25.00% (1/4) - cmd/charts_tagclean.go
+- [x]  16.67% (1/6) - cmd/charts_deps.go
+- [x]  16.67% (1/6) - cmd/charts_genchartlist.go
+- [x]  16.67% (1/6) - cmd/flux_bootstrap.go
+- [x]  25.00% (1/4) - cmd/adv_precommit.go
+- [x]  25.00% (1/4) - cmd/charts_tagclean.go
 - [x]  25.00% (1/4) - cmd/checkcrypt.go
-- [ ]  33.33% (1/3) - cmd/charts_bump.go
-- [ ]  33.33% (1/3) - cmd/cluster_init.go
+- [x]  33.33% (1/3) - cmd/charts_bump.go
+- [x]  33.33% (1/3) - cmd/cluster_init.go
 - [x]  33.33% (1/3) - cmd/decrypt.go
 - [x]  33.33% (1/3) - cmd/encrypt.go
 - [x]  48.84% (42/86) - pkg/charts/chartFile/updater.go
-- [ ]  50.00% (1/2) - cmd/cluster_genconfig.go
-- [ ]  50.00% (1/2) - cmd/info.go
+- [x]  50.00% (1/2) - cmd/cluster_genconfig.go
+- [x]  50.00% (1/2) - cmd/info.go
 - [x]  62.50% (10/16) - pkg/charts/version/bump.go
 - [x]  91.67% (55/60) - pkg/charts/image/cleanup.go
 - [x]  93.10% (54/58) - pkg/charts/image/image.go
 - [x]  98.18% (54/55) - pkg/charts/chartFile/chart_file.go
-- [ ] 100.00% (1/1) - cmd/adv.go
-- [ ] 100.00% (1/1) - cmd/charts.go
-- [ ] 100.00% (1/1) - cmd/cluster.go
-- [ ] 100.00% (1/1) - cmd/flux.go
-- [ ] 100.00% (1/1) - cmd/helmrelease.go
-- [ ] 100.00% (1/1) - cmd/talos.go
+- [x] 100.00% (1/1) - cmd/adv.go
+- [x] 100.00% (1/1) - cmd/charts.go
+- [x] 100.00% (1/1) - cmd/cluster.go
+- [x] 100.00% (1/1) - cmd/flux.go
+- [x] 100.00% (1/1) - cmd/helmrelease.go
+- [x] 100.00% (1/1) - cmd/talos.go
