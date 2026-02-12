@@ -26,7 +26,7 @@ Sorted from lowest to highest coverage.
 - [x]   0.00% (0/72) - pkg/fluxhandler/sshsecretgen.go
 - [x]   0.00% (0/19) - pkg/gencmd/apply.go
 - [ ]   0.00% (0/93) - pkg/gencmd/bootstrap.go
-- [ ]   0.00% (0/80) - pkg/gencmd/execcmd.go
+- [x]   0.00% (0/80) - pkg/gencmd/execcmd.go
 - [x]   0.00% (0/42) - pkg/gencmd/genconfig.go
 - [x]   0.00% (0/22) - pkg/gencmd/plain.go
 - [x]   0.00% (0/21) - pkg/gencmd/upgrade.go
@@ -51,19 +51,19 @@ Sorted from lowest to highest coverage.
 - [x]   0.00% (0/257) - pkg/initfiles/initfiles.go
 - [x]   0.00% (0/61) - pkg/nodestatus/health.go
 - [x]   0.00% (0/56) - pkg/nodestatus/status.go
-- [ ]   0.00% (0/148) - pkg/sops/checkencrypt.go
-- [ ]   0.00% (0/60) - pkg/sops/decrypt.go
-- [ ]   0.00% (0/66) - pkg/sops/encrypt.go
-- [ ]   0.00% (0/21) - pkg/sops/loadsops.go
-- [ ]   0.00% (0/65) - pkg/sops/wrapper.go
+- [x]   0.00% (0/148) - pkg/sops/checkencrypt.go
+- [x]   0.00% (0/60) - pkg/sops/decrypt.go
+- [x]   0.00% (0/66) - pkg/sops/encrypt.go
+- [x]   0.00% (0/21) - pkg/sops/loadsops.go
+- [x]   0.00% (0/65) - pkg/sops/wrapper.go
 - [x]   0.00% (0/34) - pkg/talassist/load.go
 - [x]   0.00% (0/25) - pkg/talhelperutil/extractfromtalconfig.go
-- [ ]   1.41% (1/71) - pkg/fluxhandler/bootstrap.go
+- [x]   1.41% (1/71) - pkg/fluxhandler/bootstrap.go
 - [ ]   2.63% (1/38) - cmd/talos_apply.go
 - [ ]   4.55% (1/22) - cmd/talos_upgrade.go
 - [ ]   6.25% (1/16) - cmd/talos_kubeconfig.go
 - [ ]   6.25% (1/16) - cmd/talos_reset.go
-- [ ]   7.69% (1/13) - cmd/root.go
+- [x]   7.69% (1/13) - cmd/root.go
 - [ ]  10.00% (1/10) - cmd/adv_testcmd.go
 - [ ]  10.00% (1/10) - cmd/helmrelease_install.go
 - [ ]  10.00% (1/10) - cmd/helmrelease_upgrade.go
@@ -71,7 +71,7 @@ Sorted from lowest to highest coverage.
 - [ ]  11.11% (1/9) - cmd/charts_genmeta.go
 - [ ]  12.50% (1/8) - cmd/charts_genchangelog.go
 - [ ]  12.50% (1/8) - cmd/talos_health.go
-- [ ]  14.29% (1/7) - cmd/talos_bootstrap.go
+- [x]  14.29% (1/7) - cmd/talos_bootstrap.go
 - [ ]  16.67% (1/6) - cmd/charts_deps.go
 - [ ]  16.67% (1/6) - cmd/charts_genchartlist.go
 - [ ]  16.67% (1/6) - cmd/flux_bootstrap.go
