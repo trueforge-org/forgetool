@@ -19,62 +19,59 @@ var Version = "dev"
 var noColor = false
 
 func main() {
-	// Configure zerolog
+	configureLogging()
+	printBanner()
+	embed.AllToCache()
+	helper.CheckSystemTime()
+	helper.CheckReqDomains()
+	runCommand()
+}
+
+func configureLogging() {
 	zerolog.DurationFieldUnit = time.Second
-
-	var zerologLevel zerolog.Level
-
-	// Switch-case for setting the global log level
-	switch os.Getenv("LOGLEVEL") {
-	case "trace":
-		zerologLevel = zerolog.TraceLevel
-	case "debug":
-		zerologLevel = zerolog.DebugLevel
-	case "warn":
-		zerologLevel = zerolog.WarnLevel
-	case "error":
-		zerologLevel = zerolog.ErrorLevel
-	case "fatal":
-		zerologLevel = zerolog.FatalLevel
-	case "panic":
-		zerologLevel = zerolog.PanicLevel
-	case "info":
-		zerologLevel = zerolog.InfoLevel
-	default:
-		zerologLevel = zerolog.InfoLevel
-	}
-
 	if os.Getenv("DEBUG") != "" {
 		noColor = true
 	}
 
-	// Set zerolog level
-	zerolog.SetGlobalLevel(zerologLevel)
+	zerolog.SetGlobalLevel(parseLogLevel(os.Getenv("LOGLEVEL")))
 	log.Logger = log.Output(zerolog.ConsoleWriter{
 		Out:        os.Stdout,
-		TimeFormat: time.RFC3339, // Keep this for the timestamp format
-		NoColor:    noColor,      // Set to true if you prefer no color
+		TimeFormat: time.RFC3339,
+		NoColor:    noColor,
 	})
 
-	// Initialize zerolog with console output
 	zlogger := zerolog.New(os.Stderr).With().Timestamp().Logger()
+	k8slog.SetLogger(zerologr.New(&zlogger))
+}
 
-	// Wrap zerolog with zerologr to create a logr.Logger
-	logger := zerologr.New(&zlogger)
+func parseLogLevel(level string) zerolog.Level {
+	switch level {
+	case "trace":
+		return zerolog.TraceLevel
+	case "debug":
+		return zerolog.DebugLevel
+	case "warn":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	case "fatal":
+		return zerolog.FatalLevel
+	case "panic":
+		return zerolog.PanicLevel
+	case "info":
+		return zerolog.InfoLevel
+	default:
+		return zerolog.InfoLevel
+	}
+}
 
-	// Set this logger for dependencies expecting log.SetLogger
-	k8slog.SetLogger(logger)
-
+func printBanner() {
 	fmt.Printf("\n%s\n", helper.Logo)
 	fmt.Printf("---\nForgetool Version: %s\n---\n", Version)
+}
 
-	embed.AllToCache()
-
-	helper.CheckSystemTime()
-	helper.CheckReqDomains()
-
-	err := cmd.Execute()
-	if err != nil {
+func runCommand() {
+	if err := cmd.Execute(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to execute command")
 	}
 }

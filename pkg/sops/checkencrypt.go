@@ -40,51 +40,9 @@ func ExecuteCheck(useStagedFiles bool) ([]EncrFileData, error) {
 	}
 	log.Debug().Msgf("Files to check: %v", allFiles)
 
-	var filesToCheck []EncrFileData
-
-	if useStagedFiles {
-		// Step 3: Get the staged files from Git.
-		stagedFiles, err := helper.GetStagedFiles()
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to get staged files")
-			return nil, err
-		}
-
-		if len(stagedFiles) == 0 {
-			log.Warn().Msg("No staged files to check")
-			return nil, fmt.Errorf("no staged files to check")
-		}
-		log.Info().Msgf("Staged files: %v", stagedFiles)
-
-		// Step 4: Filter the .sops.yaml files to include only those that are staged.
-		for _, file := range allFiles {
-			checkPath := file.Path
-			if _, err := os.Stat("./DEVTRIGGER"); err == nil {
-				checkPath = filepath.Join("forgetool", checkPath)
-			}
-			for _, stagedFile := range stagedFiles {
-				if checkPath == stagedFile {
-					filesToCheck = append(filesToCheck, file)
-					break
-				}
-			}
-		}
-
-		// Ensure that the files are fully staged by re-staging them.
-		var filePaths []string
-		for _, file := range filesToCheck {
-			filePaths = append(filePaths, file.Path)
-		}
-
-		if err := helper.StageFiles(filePaths); err != nil {
-			log.Error().Err(err).Msg("Error staging files")
-			return nil, fmt.Errorf("error staging files: %v", err)
-		}
-		log.Info().Msg("All staged files processed successfully")
-	} else {
-		// Use all files instead of staged files.
-		filesToCheck = allFiles
-		log.Debug().Msgf("Using all files: %v", filesToCheck)
+	filesToCheck, err := selectFilesForCheck(allFiles, useStagedFiles)
+	if err != nil {
+		return nil, err
 	}
 
 	// Step 5: Check the encryption status of each file.
@@ -114,75 +72,11 @@ func CheckFilesAndReportEncryption(tryEncrypt bool, checkStaged bool) error {
 		return fmt.Errorf("error executing check: %v", err)
 	}
 
-	// Step 2: Filter out unencrypted files.
-	var unencryptedFiles []EncrFileData
-	for _, file := range files {
-		if !file.Encrypted {
-			unencryptedFiles = append(unencryptedFiles, file)
-		}
-	}
+	unencryptedFiles := filterUnencryptedFiles(files)
 
 	// Step 3: If there are any unencrypted files, handle based on the tryEncrypt flag.
 	if len(unencryptedFiles) > 0 {
-		log.Warn().Msg("Found unencrypted files")
-		fmt.Println("The following files are not encrypted:")
-
-		for _, file := range unencryptedFiles {
-			fmt.Println(file.Path)
-
-			// Step 4: If tryEncrypt is true, attempt to encrypt the files.
-			if tryEncrypt {
-				err := processFileEncryption(file)
-				if err != nil {
-					log.Error().Err(err).Msgf("Failed to encrypt file %s", file.Path)
-				} else {
-					log.Info().Msgf("File %s encrypted successfully.", file.Path)
-
-					// Step 5: Stage the file after successful encryption.
-					err := helper.StageFile(file.Path)
-					if err != nil {
-						log.Error().Err(err).Msgf("Failed to stage file %s after encryption", file.Path)
-					} else {
-						log.Info().Msgf("File %s staged successfully after encryption.", file.Path)
-					}
-				}
-			}
-		}
-
-		// If tryEncrypt is false, exit with failure code.
-		if !tryEncrypt {
-			log.Debug().Msg("tryEncrypt is false")
-			log.Fatal().Msg("Exiting due to unencrypted files")
-
-			os.Exit(1)
-		} else {
-			// Check if all files were successfully encrypted after the attempt.
-			var stillUnencrypted []string
-			for _, file := range unencryptedFiles {
-				// Recheck encryption status after attempting to encrypt.
-				data, err := os.ReadFile(file.Path)
-				if err != nil {
-					log.Error().Err(err).Msgf("Error reading file %s", file.Path)
-					stillUnencrypted = append(stillUnencrypted, file.Path)
-					continue
-				}
-				if !isEncrypted(data, file.Path) {
-					stillUnencrypted = append(stillUnencrypted, file.Path)
-				}
-			}
-
-			// If some files are still unencrypted, print them and exit with failure code.
-			if len(stillUnencrypted) > 0 {
-				log.Warn().Msg("The following files could not be encrypted:")
-				fmt.Println("The following files could not be encrypted:")
-				for _, file := range stillUnencrypted {
-					fmt.Println(file)
-				}
-				log.Fatal().Msg("Exiting due to unencrypted files after encryption attempt")
-				os.Exit(1)
-			}
-			shamCheck()
-		}
+		handleUnencryptedFiles(unencryptedFiles, tryEncrypt)
 	}
 
 	// Step 6: If no unencrypted files are found, print a success message and exit with code 0.
@@ -191,6 +85,136 @@ func CheckFilesAndReportEncryption(tryEncrypt bool, checkStaged bool) error {
 	os.Exit(0)
 
 	return nil
+}
+
+func selectFilesForCheck(allFiles []EncrFileData, useStagedFiles bool) ([]EncrFileData, error) {
+	if !useStagedFiles {
+		log.Debug().Msgf("Using all files: %v", allFiles)
+		return allFiles, nil
+	}
+
+	stagedFiles, err := helper.GetStagedFiles()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get staged files")
+		return nil, err
+	}
+
+	if len(stagedFiles) == 0 {
+		log.Warn().Msg("No staged files to check")
+		return nil, fmt.Errorf("no staged files to check")
+	}
+	log.Info().Msgf("Staged files: %v", stagedFiles)
+
+	filtered := filterStagedSopsFiles(allFiles, stagedFiles)
+	if err = stageFilteredFiles(filtered); err != nil {
+		return nil, err
+	}
+
+	return filtered, nil
+}
+
+func filterStagedSopsFiles(allFiles []EncrFileData, stagedFiles []string) []EncrFileData {
+	var filesToCheck []EncrFileData
+	for _, file := range allFiles {
+		checkPath := file.Path
+		if _, err := os.Stat("./DEVTRIGGER"); err == nil {
+			checkPath = filepath.Join("forgetool", checkPath)
+		}
+		for _, stagedFile := range stagedFiles {
+			if checkPath == stagedFile {
+				filesToCheck = append(filesToCheck, file)
+				break
+			}
+		}
+	}
+	return filesToCheck
+}
+
+func stageFilteredFiles(files []EncrFileData) error {
+	var filePaths []string
+	for _, file := range files {
+		filePaths = append(filePaths, file.Path)
+	}
+
+	if err := helper.StageFiles(filePaths); err != nil {
+		log.Error().Err(err).Msg("Error staging files")
+		return fmt.Errorf("error staging files: %v", err)
+	}
+	log.Info().Msg("All staged files processed successfully")
+	return nil
+}
+
+func filterUnencryptedFiles(files []EncrFileData) []EncrFileData {
+	var unencryptedFiles []EncrFileData
+	for _, file := range files {
+		if !file.Encrypted {
+			unencryptedFiles = append(unencryptedFiles, file)
+		}
+	}
+	return unencryptedFiles
+}
+
+func handleUnencryptedFiles(unencryptedFiles []EncrFileData, tryEncrypt bool) {
+	log.Warn().Msg("Found unencrypted files")
+	fmt.Println("The following files are not encrypted:")
+
+	for _, file := range unencryptedFiles {
+		fmt.Println(file.Path)
+		if tryEncrypt {
+			tryEncryptAndStageFile(file)
+		}
+	}
+
+	if !tryEncrypt {
+		log.Debug().Msg("tryEncrypt is false")
+		log.Fatal().Msg("Exiting due to unencrypted files")
+		os.Exit(1)
+	}
+
+	stillUnencrypted := findStillUnencrypted(unencryptedFiles)
+	if len(stillUnencrypted) > 0 {
+		log.Warn().Msg("The following files could not be encrypted:")
+		fmt.Println("The following files could not be encrypted:")
+		for _, file := range stillUnencrypted {
+			fmt.Println(file)
+		}
+		log.Fatal().Msg("Exiting due to unencrypted files after encryption attempt")
+		os.Exit(1)
+	}
+
+	shamCheck()
+}
+
+func tryEncryptAndStageFile(file EncrFileData) {
+	err := processFileEncryption(file)
+	if err != nil {
+		log.Error().Err(err).Msgf("Failed to encrypt file %s", file.Path)
+		return
+	}
+
+	log.Info().Msgf("File %s encrypted successfully.", file.Path)
+	if err = helper.StageFile(file.Path); err != nil {
+		log.Error().Err(err).Msgf("Failed to stage file %s after encryption", file.Path)
+		return
+	}
+
+	log.Info().Msgf("File %s staged successfully after encryption.", file.Path)
+}
+
+func findStillUnencrypted(files []EncrFileData) []string {
+	var stillUnencrypted []string
+	for _, file := range files {
+		data, err := os.ReadFile(file.Path)
+		if err != nil {
+			log.Error().Err(err).Msgf("Error reading file %s", file.Path)
+			stillUnencrypted = append(stillUnencrypted, file.Path)
+			continue
+		}
+		if !isEncrypted(data, file.Path) {
+			stillUnencrypted = append(stillUnencrypted, file.Path)
+		}
+	}
+	return stillUnencrypted
 }
 
 // shamCheck checks if clusterenv contains the phrase "shamir_threshold" indicating it is indeed encrypted
