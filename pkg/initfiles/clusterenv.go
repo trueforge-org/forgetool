@@ -224,6 +224,20 @@ func normalizeIPNetmask(ipNetmask string) (string, error) {
 
 func CheckEnvVariables() {
 	LoadTalEnv(false)
+	validateRequiredTalEnvKeys()
+
+	vip := helper.TalEnv["VIP_IP"]
+	master1ip := helper.TalEnv["MASTER1IP_IP"]
+	master1ipCidr := helper.TalEnv["MASTER1IP_CIDR"]
+	gateway := helper.TalEnv["GATEWAY"]
+
+	validateNodeAndGatewayIPs(vip, master1ip, gateway)
+	validateMetalLBExclusions(vip, master1ip, gateway)
+	validateDashboardInMetalLBRange()
+	validatePodAndServiceCIDROverlaps(vip, master1ipCidr, gateway)
+}
+
+func validateRequiredTalEnvKeys() {
 	requiredKeys := []string{
 		"VIP",
 		"MASTER1IP_IP",
@@ -237,76 +251,64 @@ func CheckEnvVariables() {
 		"DOMAIN_0_EMAIL",
 		"DOMAIN_0_CLOUDFLARE_TOKEN",
 	}
+
 	for _, key := range requiredKeys {
 		if helper.TalEnv[key] == "" {
 			log.Info().Msgf("%s cannot be empty\n", key)
 			os.Exit(1)
 		}
 	}
+}
 
-	// Validate VIP and MASTER1IP format and check subnet compatibility
-	vip := helper.TalEnv["VIP_IP"]
-	master1ip := helper.TalEnv["MASTER1IP_IP"]
-	master1ipCidr := helper.TalEnv["MASTER1IP_CIDR"]
-	gateway := helper.TalEnv["GATEWAY"]
-
-	// Check if MASTER1IP matches GATEWAY or VIP
+func validateNodeAndGatewayIPs(vip string, master1ip string, gateway string) {
 	if master1ip == gateway || master1ip == vip {
 		log.Info().Msg("Cannot proceed, MASTER1IP cannot match GATEWAY or VIP")
 		os.Exit(1)
 	}
 
-	// Check if VIP matches any Node IPs
 	if vip == master1ip {
 		log.Info().Msg("Cannot proceed, VIP cannot match any Node IPs")
 		os.Exit(1)
 	}
+}
 
-	// Check ranges against METALLB_RANGE
-	inRange, err := helper.IPInRange(vip, helper.TalEnv["METALLB_RANGE"])
+func validateMetalLBExclusions(vip string, master1ip string, gateway string) {
+	validateIPNotInMetalLBRange(vip, "VIP")
+	validateIPNotInMetalLBRange(master1ip, "MASTER1IP")
+	validateIPNotInMetalLBRange(gateway, "GATEWAY")
+}
+
+func validateIPNotInMetalLBRange(ip string, key string) {
+	inRange, err := helper.IPInRange(ip, helper.TalEnv["METALLB_RANGE"])
 	if err != nil {
-		log.Info().Msgf("Error checking VIP against METALLB_RANGE: %v\n", err)
-		os.Exit(1)
-	}
-	if inRange {
-		log.Info().Msg("Cannot proceed, VIP cannot be in the METALLB_RANGE")
+		log.Info().Msgf("Error checking %s against METALLB_RANGE: %v\n", key, err)
 		os.Exit(1)
 	}
 
-	inRange, err = helper.IPInRange(master1ip, helper.TalEnv["METALLB_RANGE"])
+	if inRange {
+		log.Info().Msgf("Cannot proceed, %s cannot be in the METALLB_RANGE", key)
+		os.Exit(1)
+	}
+}
+
+func validateDashboardInMetalLBRange() {
+	dashboardIP := helper.TalEnv["DASHBOARD_IP"]
+	if dashboardIP == "" {
+		return
+	}
+
+	inRange, err := helper.IPInRange(dashboardIP, helper.TalEnv["METALLB_RANGE"])
 	if err != nil {
-		log.Info().Msgf("Error checking MASTER1IP against METALLB_RANGE: %v\n", err)
+		log.Info().Msgf("Error checking DASHBOARD_IP against METALLB_RANGE: %v\n", err)
 		os.Exit(1)
 	}
-	if inRange {
-		log.Info().Msg("Cannot proceed, MASTER1IP cannot be in the METALLB_RANGE")
+	if !inRange {
+		log.Info().Msg("Cannot proceed, DASHBOARD_IP must be in the METALLB_RANGE")
 		os.Exit(1)
 	}
+}
 
-	inRange, err = helper.IPInRange(gateway, helper.TalEnv["METALLB_RANGE"])
-	if err != nil {
-		log.Info().Msgf("Error checking GATEWAY against METALLB_RANGE: %v\n", err)
-		os.Exit(1)
-	}
-	if inRange {
-		log.Info().Msg("Cannot proceed, GATEWAY cannot be in the METALLB_RANGE")
-		os.Exit(1)
-	}
-
-	// Check DASHBOARD_IP against METALLB_RANGE
-	if helper.TalEnv["DASHBOARD_IP"] != "" {
-		inRange, err = helper.IPInRange(helper.TalEnv["DASHBOARD_IP"], helper.TalEnv["METALLB_RANGE"])
-		if err != nil {
-			log.Info().Msgf("Error checking DASHBOARD_IP against METALLB_RANGE: %v\n", err)
-			os.Exit(1)
-		}
-		if !inRange {
-			log.Info().Msg("Cannot proceed, DASHBOARD_IP must be in the METALLB_RANGE")
-			os.Exit(1)
-		}
-	}
-
-	// Validate other CIDR/IP checks with new netmask support
+func validatePodAndServiceCIDROverlaps(vip string, master1ipCidr string, gateway string) {
 	helper.ValidateIPorCIDRNotInCIDR(vip+"/32", helper.TalEnv["PODNET"], "VIP", "PODNET")
 	helper.ValidateIPorCIDRNotInCIDR(master1ipCidr, helper.TalEnv["PODNET"], "MASTER1IP", "PODNET")
 	helper.ValidateIPorCIDRNotInCIDR(gateway+"/32", helper.TalEnv["PODNET"], "GATEWAY", "PODNET")

@@ -223,42 +223,81 @@ func IsCurrentDirGitRepo() (bool, error) {
 
 // CreateEncrPreCommitHook creates a pre-commit hook script in the .git/hooks directory
 func CreateEncrPreCommitHook() error {
-	isRepo, err := IsCurrentDirGitRepo()
+	shouldContinue, err := validateCurrentRepoForHook()
 	if err != nil {
-		return fmt.Errorf("error checking if current directory is a Git repository: %v", err)
-	} else if isRepo {
-		log.Info().Msg("Bootstrap: The current directory is a valid GIT repository, creating precommit hook...")
-	} else {
-		log.Info().Msg("The current directory is not a valid GIT repository. Skipping precommit hook creation...")
+		return err
+	}
+	if !shouldContinue {
 		return nil
 	}
 
-	// Get the current working directory
 	dir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("could not get current working directory: %v", err)
 	}
 
-	// Define the path to the .git/hooks directory
-	hooksDir := filepath.Join(dir, ".git", "hooks")
-	var hookPath string
-
-	if runtime.GOOS == "windows" {
-		hookPath = filepath.Join(hooksDir, "pre-commit.bat")
-	} else {
-		hookPath = filepath.Join(hooksDir, "pre-commit")
+	hookPath := getPreCommitHookPath(dir)
+	hookScript, err := buildPreCommitHookScript(dir)
+	if err != nil {
+		return err
 	}
 
-	// Define the script path
-	filename := "precommit"
-	scriptPath := filepath.Join(CacheDir, filename)
-	var hookScript string
+	file, err := os.Create(hookPath)
+	if err != nil {
+		return fmt.Errorf("could not create pre-commit hook file: %v", err)
+	}
+	defer file.Close()
 
-	// Check if go.mod exists to decide on the script content
+	_, err = file.WriteString(hookScript)
+	if err != nil {
+		return fmt.Errorf("could not write to pre-commit hook file: %v", err)
+	}
+
+	if runtime.GOOS != "windows" {
+		err = os.Chmod(hookPath, 0755)
+		if err != nil {
+			return fmt.Errorf("could not make pre-commit hook executable: %v", err)
+		}
+	}
+
+	log.Info().Msg("Pre-commit hook created successfully.")
+	return nil
+}
+
+func validateCurrentRepoForHook() (bool, error) {
+	isRepo, err := IsCurrentDirGitRepo()
+	if err != nil {
+		return false, fmt.Errorf("error checking if current directory is a Git repository: %v", err)
+	}
+	if !isRepo {
+		log.Info().Msg("The current directory is not a valid GIT repository. Skipping precommit hook creation...")
+		return false, nil
+	}
+
+	log.Info().Msg("Bootstrap: The current directory is a valid GIT repository, creating precommit hook...")
+	return true, nil
+}
+
+func getPreCommitHookPath(dir string) string {
+	hooksDir := filepath.Join(dir, ".git", "hooks")
+	if runtime.GOOS == "windows" {
+		return filepath.Join(hooksDir, "pre-commit.bat")
+	}
+	return filepath.Join(hooksDir, "pre-commit")
+}
+
+func buildPreCommitHookScript(dir string) (string, error) {
 	goModPath := filepath.Join(dir, "go.mod")
 	if _, err := os.Stat(goModPath); !os.IsNotExist(err) {
-		// If go.mod exists, use `go run . checkcrypt`
-		hookScript = fmt.Sprintf(`#!/bin/sh
+		return buildGoRunHookScript(), nil
+	}
+
+	scriptPath := filepath.Join(CacheDir, "precommit")
+	return buildExecutableHookScript(scriptPath), nil
+}
+
+func buildGoRunHookScript() string {
+	return `#!/bin/sh
 # Pre-commit hook script
 
 # Use go run . checkcrypt if go.mod exists
@@ -268,16 +307,14 @@ if [ $? -ne 0 ]; then
     echo "Pre-commit encryption check failed. Commit aborted."
     exit 1
 fi
-`)
-	} else {
-		// Otherwise, use the file
-		switch runtime.GOOS {
-		case "windows":
-			// On Windows, the script must be a batch file or similar executable
-			scriptPath = filepath.ToSlash(scriptPath) // Ensure path format is correct for Windows
-			// Add .exe suffix for Windows
-			scriptPath = scriptPath + ".exe"
-			hookScript = fmt.Sprintf(`@echo off
+`
+}
+
+func buildExecutableHookScript(scriptPath string) string {
+	switch runtime.GOOS {
+	case "windows":
+		scriptPath = filepath.ToSlash(scriptPath) + ".exe"
+		return fmt.Sprintf(`@echo off
 REM Pre-commit hook script
 
 REM Path to the script to run
@@ -296,10 +333,8 @@ if exist "%%scriptPath%%" (
     exit /b 1
 )
 `, scriptPath)
-
-		default:
-			// For Unix-like systems: Linux, macOS, and FreeBSD
-			hookScript = fmt.Sprintf(`#!/bin/sh
+	default:
+		return fmt.Sprintf(`#!/bin/sh
 # Pre-commit hook script
 
 # Check if the script exists and is executable
@@ -315,30 +350,5 @@ else
     exit 1
 fi
 `, scriptPath, scriptPath, scriptPath)
-		}
 	}
-
-	// Create or overwrite the pre-commit hook file
-	file, err := os.Create(hookPath)
-	if err != nil {
-		return fmt.Errorf("could not create pre-commit hook file: %v", err)
-	}
-	defer file.Close()
-
-	// Write the script content to the file
-	_, err = file.WriteString(hookScript)
-	if err != nil {
-		return fmt.Errorf("could not write to pre-commit hook file: %v", err)
-	}
-
-	// Make the hook script executable on Unix-like systems
-	if runtime.GOOS != "windows" {
-		err = os.Chmod(hookPath, 0755)
-		if err != nil {
-			return fmt.Errorf("could not make pre-commit hook executable: %v", err)
-		}
-	}
-
-	log.Info().Msg("Pre-commit hook created successfully.")
-	return nil
 }

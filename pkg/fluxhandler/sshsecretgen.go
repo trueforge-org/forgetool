@@ -31,98 +31,103 @@ func CreateGitSecret(gitURL string) error {
 		gitURL = "github.com"
 	}
 
-	// Paths for files
 	secretPath := filepath.Join(helper.ClusterPath, "kubernetes", "flux-system", "flux", "deploykey.secret.yaml")
 	publicKeyPath := filepath.Join(".", "ssh-public-key.txt")
 
-	// Check if secret YAML already exists
 	if _, err := os.Stat(secretPath); os.IsNotExist(err) {
-		// Generate ECDSA private key
-		privateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-		if err != nil {
-			return fmt.Errorf("failed to generate ECDSA private key: %w", err)
-		}
-
-		// Encode private key to PEM format
-		privateKeyPEMBlock, err := pemBlockForKey(privateKey)
-		if err != nil {
-			return fmt.Errorf("failed to create PEM block for private key: %w", err)
-		}
-
-		// Generate OpenSSH formatted public key
-		publicKey, err := publicKeyToOpenSSH(&privateKey.PublicKey)
-		if err != nil {
-			return fmt.Errorf("failed to generate OpenSSH public key: %w", err)
-		}
-
-		// Write public key to file
-		err = os.WriteFile(publicKeyPath, []byte(publicKey), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write public key to file: %w", err)
-		}
-		log.Info().Msgf("Public key saved to: %s\n", publicKeyPath)
-
-		// Generate known_hosts entry
-		knownHosts := getKnownHostsEntry(gitURL)
-
-		// Generate Kubernetes secret YAML content
-		secret := map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Secret",
-			"metadata": map[string]interface{}{
-				"name":      "deploy-key",
-				"namespace": "flux-system",
-			},
-			"stringData": map[string]interface{}{
-				"identity":     string(privateKeyPEMBlock),
-				"identity.pub": publicKey,
-				"known_hosts":  knownHosts,
-			},
-			"type": string(corev1.SecretTypeOpaque),
-		}
-
-		secretYAML, err := yaml.Marshal(secret)
-		if err != nil {
-			return fmt.Errorf("failed to marshal secret to YAML: %w", err)
-		}
-
-		// Write Kubernetes secret YAML to file
-		err = os.MkdirAll(filepath.Dir(secretPath), 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create directories: %w", err)
-		}
-		err = os.WriteFile(secretPath, secretYAML, 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write secret YAML to file: %w", err)
-		}
-		log.Info().Msgf("Kubernetes secret YAML saved to: %s\n", secretPath)
-	} else {
-		// Secret YAML already exists, check if public key file exists
-		if _, err := os.Stat(publicKeyPath); os.IsNotExist(err) {
-			// Public key file does not exist, generate from existing secret
-			secretYAML, err := os.ReadFile(secretPath)
-			if err != nil {
-				return fmt.Errorf("failed to read existing secret YAML: %w", err)
-			}
-
-			var secret corev1.Secret
-			if err := yaml.Unmarshal(secretYAML, &secret); err != nil {
-				return fmt.Errorf("failed to unmarshal secret YAML: %w", err)
-			}
-
-			if ppk, ok := secret.StringData["identity.pub"]; ok {
-				err = os.WriteFile(publicKeyPath, []byte(ppk), 0644)
-				if err != nil {
-					return fmt.Errorf("failed to write public key to file: %w", err)
-				}
-				log.Info().Msgf("Public key saved to: %s\n", publicKeyPath)
-			} else {
-				return fmt.Errorf("identity.pub not found in existing secret YAML")
-			}
-		} else {
-			log.Info().Msgf("Public key file already exists: %s\n", publicKeyPath)
-		}
+		return createNewGitSecretFiles(gitURL, secretPath, publicKeyPath)
 	}
+
+	if _, err := os.Stat(publicKeyPath); os.IsNotExist(err) {
+		return writePublicKeyFromExistingSecret(secretPath, publicKeyPath)
+	}
+
+	log.Info().Msgf("Public key file already exists: %s\n", publicKeyPath)
+	return nil
+}
+
+func createNewGitSecretFiles(gitURL string, secretPath string, publicKeyPath string) error {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("failed to generate ECDSA private key: %w", err)
+	}
+
+	privateKeyPEMBlock, err := pemBlockForKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to create PEM block for private key: %w", err)
+	}
+
+	publicKey, err := publicKeyToOpenSSH(&privateKey.PublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to generate OpenSSH public key: %w", err)
+	}
+
+	if err = os.WriteFile(publicKeyPath, []byte(publicKey), 0644); err != nil {
+		return fmt.Errorf("failed to write public key to file: %w", err)
+	}
+	log.Info().Msgf("Public key saved to: %s\n", publicKeyPath)
+
+	secretYAML, err := buildGitSecretYAML(string(privateKeyPEMBlock), publicKey, getKnownHostsEntry(gitURL))
+	if err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(filepath.Dir(secretPath), 0755); err != nil {
+		return fmt.Errorf("failed to create directories: %w", err)
+	}
+	if err = os.WriteFile(secretPath, secretYAML, 0644); err != nil {
+		return fmt.Errorf("failed to write secret YAML to file: %w", err)
+	}
+	log.Info().Msgf("Kubernetes secret YAML saved to: %s\n", secretPath)
+
+	return nil
+}
+
+func buildGitSecretYAML(identity string, identityPub string, knownHosts string) ([]byte, error) {
+	secret := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Secret",
+		"metadata": map[string]interface{}{
+			"name":      "deploy-key",
+			"namespace": "flux-system",
+		},
+		"stringData": map[string]interface{}{
+			"identity":     identity,
+			"identity.pub": identityPub,
+			"known_hosts":  knownHosts,
+		},
+		"type": string(corev1.SecretTypeOpaque),
+	}
+
+	secretYAML, err := yaml.Marshal(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal secret to YAML: %w", err)
+	}
+
+	return secretYAML, nil
+}
+
+func writePublicKeyFromExistingSecret(secretPath string, publicKeyPath string) error {
+	secretYAML, err := os.ReadFile(secretPath)
+	if err != nil {
+		return fmt.Errorf("failed to read existing secret YAML: %w", err)
+	}
+
+	var secret corev1.Secret
+	if err = yaml.Unmarshal(secretYAML, &secret); err != nil {
+		return fmt.Errorf("failed to unmarshal secret YAML: %w", err)
+	}
+
+	ppk, ok := secret.StringData["identity.pub"]
+	if !ok {
+		return fmt.Errorf("identity.pub not found in existing secret YAML")
+	}
+
+	if err = os.WriteFile(publicKeyPath, []byte(ppk), 0644); err != nil {
+		return fmt.Errorf("failed to write public key to file: %w", err)
+	}
+
+	log.Info().Msgf("Public key saved to: %s\n", publicKeyPath)
 
 	return nil
 }

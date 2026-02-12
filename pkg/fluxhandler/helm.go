@@ -137,107 +137,37 @@ func HelmInstall(repoURL string, chartName string, releaseName string, namespace
 		return nil
 	}
 
-	settings := cli.New()
-	actionConfig := new(action.Configuration)
-
-	settings.SetNamespace(namespace)
-
-	var logger func(string, ...interface{})
-	if silent {
-		logger = noOpLog
-
-	} else {
-		logger = log.Printf
+	settings, actionConfig, err := initHelmActionConfig(namespace, silent)
+	if err != nil {
+		return err
 	}
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace,
-		os.Getenv("HELM_DRIVER"), logger); err != nil {
-		return fmt.Errorf("failed to initialize Helm action config: %w", err)
-	}
-
-	// Ensure namespace exists or create it
 	if err := ensureNamespace(actionConfig, namespace); err != nil {
 		return fmt.Errorf("failed to ensure namespace exists: %w", err)
 	}
 
-	var chartPath string
-	var err error
-
-	// Determine chart path based on chartName format
-	if strings.HasPrefix(repoURL, "http://") || strings.HasPrefix(repoURL, "https://") || strings.HasPrefix(repoURL, "oci://") {
-		// Handle HTTP or OCI URL
-		err = HelmPull(repoURL, chartName, version, "", true)
-		if err != nil {
-			return fmt.Errorf("failed to pull chart %s: %w", chartName, err)
-		}
-		chartPath = path.Join(helper.HelmCache, fmt.Sprintf("%s-%s.tgz", chartName, version))
-
-	} else {
-		// Local chart path
-		chartPath = repoURL
+	chartPath, err := resolveChartPath(repoURL, chartName, version)
+	if err != nil {
+		return err
 	}
 
-	// Load the Helm chart using loader.Load
 	chart, err := loader.Load(chartPath)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 
-	// Set up Helm install action
 	client := action.NewInstall(actionConfig)
 	client.Namespace = namespace
 	client.ReleaseName = releaseName
 	client.DryRun = dryRun
 	client.Version = version
 
-	tempValuesName := releaseName + "tempvalues.yaml"
-	tempValuesPath := path.Join(helper.HelmCache, tempValuesName)
-	// Create values.yaml from chart.Values
-	err = createValuesYAML(chart.Values, tempValuesPath)
+	valueFiles, err := buildReleaseValueFiles(releaseName, valuesFile, chart.Values, false)
 	if err != nil {
-		return fmt.Errorf("error creating tempvalues.yaml: %w", err)
-	}
-	valueFiles := []string{tempValuesPath}
-
-	// Get the directory part of the path
-	directory := filepath.Dir(valuesFile)
-
-	helmreleasePath := path.Join(directory, "helm-release.yaml")
-
-	helmRelease, err := LoadHelmRelease(helmreleasePath)
-	if err != nil {
-
-	}
-	tempHRValuesName := releaseName + "temphrvalues.yaml"
-	tempHRValuesPath := path.Join(helper.HelmCache, tempHRValuesName)
-	err = createValuesYAML(helmRelease.Spec.Values, tempHRValuesPath)
-	if err != nil {
-		return fmt.Errorf("error creating temphrvalues.yaml: %w", err)
-	}
-	helper.EnvSubst(tempHRValuesPath, helper.TalEnv)
-	valueFiles = append(valueFiles, tempHRValuesPath)
-
-	if _, err := os.Stat(valuesFile); err == nil {
-		valueFiles = append(valueFiles, valuesFile)
-
+		return err
 	}
 
-	overrideValuesPath := path.Join(directory, "bootstrap-values.yaml.ct")
-
-	if _, err := os.Stat(overrideValuesPath); err == nil {
-		valueFiles = append(valueFiles, overrideValuesPath)
-	}
-
-	// Prepare values for installation
-	valOpts := &values.Options{
-		ValueFiles: valueFiles, // Specify value file to merge
-	}
-
-	// Create getter to fetch values from file
-	valProviders := getter.All(settings)
-
-	// Merge values with chart's default values
-	vals, err := valOpts.MergeValues(valProviders)
+	vals, err := mergeValueFiles(settings, valueFiles)
 	if err != nil {
 		return fmt.Errorf("failed to merge values: %w", err)
 	}
@@ -293,103 +223,35 @@ func ensureNamespace(actionConfig *action.Configuration, namespace string) error
 // HelmUpgrade upgrades a Helm release with provided parameters
 // HelmUpgrade upgrades a Helm release with provided parameters
 func HelmUpgrade(repoURL string, chartName string, releaseName string, namespace string, valuesFile string, version string, wait bool, silent bool) error {
-	settings := cli.New()
-	actionConfig := new(action.Configuration)
-
-	settings.SetNamespace(namespace)
-
-	var logger func(string, ...interface{})
-	if silent {
-		logger = noOpLog
-	} else {
-		logger = log.Printf
+	settings, actionConfig, err := initHelmActionConfig(namespace, silent)
+	if err != nil {
+		return err
 	}
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), namespace,
-		os.Getenv("HELM_DRIVER"), logger); err != nil {
-		return fmt.Errorf("failed to initialize Helm action config: %w", err)
-	}
-
-	// Ensure namespace exists or create it
 	if err := ensureNamespace(actionConfig, namespace); err != nil {
 		return fmt.Errorf("failed to ensure namespace exists: %w", err)
 	}
 
-	var chartPath string
-	var err error
-
-	// Determine chart path based on chartName format
-	if strings.HasPrefix(repoURL, "http://") || strings.HasPrefix(repoURL, "https://") || strings.HasPrefix(repoURL, "oci://") {
-		// Handle HTTP or OCI URL
-		err = HelmPull(repoURL, chartName, version, "", true)
-		if err != nil {
-			return fmt.Errorf("failed to pull chart %s: %w", chartName, err)
-		}
-		chartPath = path.Join(helper.HelmCache, fmt.Sprintf("%s-%s.tgz", chartName, version))
-
-	} else {
-		// Local chart path
-		chartPath = repoURL
+	chartPath, err := resolveChartPath(repoURL, chartName, version)
+	if err != nil {
+		return err
 	}
 
-	// Load the Helm chart using loader.Load
 	chart, err := loader.Load(chartPath)
 	if err != nil {
 		return fmt.Errorf("failed to load chart: %w", err)
 	}
 
-	// Set up Helm upgrade action
 	client := action.NewUpgrade(actionConfig)
 	client.Namespace = namespace
 	client.Version = version
 
-	tempValuesName := releaseName + "tempvalues.yaml"
-	tempValuesPath := path.Join(helper.HelmCache, tempValuesName)
-	err = createValuesYAML(chart.Values, tempValuesPath)
+	valueFiles, err := buildReleaseValueFiles(releaseName, valuesFile, chart.Values, true)
 	if err != nil {
-		return fmt.Errorf("error creating tempvalues.yaml: %w", err)
-	}
-	valueFiles := []string{tempValuesPath}
-
-	// Get the directory part of the path
-	directory := filepath.Dir(valuesFile)
-
-	helmreleasePath := path.Join(directory, "helm-release.yaml")
-
-	helmRelease, err := LoadHelmRelease(helmreleasePath)
-	if err != nil {
-		return fmt.Errorf("error loading helm-release.yaml: %w", err)
+		return err
 	}
 
-	tempHRValuesName := releaseName + "temphrvalues.yaml"
-	tempHRValuesPath := path.Join(helper.HelmCache, tempHRValuesName)
-	err = createValuesYAML(helmRelease.Spec.Values, tempHRValuesPath)
-	if err != nil {
-		return fmt.Errorf("error creating temphrvalues.yaml: %w", err)
-	}
-	helper.EnvSubst(tempHRValuesPath, helper.TalEnv)
-	valueFiles = append(valueFiles, tempHRValuesPath)
-
-	if _, err := os.Stat(valuesFile); err == nil {
-		valueFiles = append(valueFiles, valuesFile)
-	}
-
-	overrideValuesPath := path.Join(directory, "bootstrap-values.yaml.ct")
-
-	if _, err := os.Stat(overrideValuesPath); err == nil {
-		valueFiles = append(valueFiles, overrideValuesPath)
-	}
-
-	// Prepare values for upgrade
-	valOpts := &values.Options{
-		ValueFiles: valueFiles, // Specify value file to merge
-	}
-
-	// Create getter to fetch values from file
-	valProviders := getter.All(settings)
-
-	// Merge values with chart's default values
-	vals, err := valOpts.MergeValues(valProviders)
+	vals, err := mergeValueFiles(settings, valueFiles)
 	if err != nil {
 		return fmt.Errorf("failed to merge values: %w", err)
 	}
@@ -408,6 +270,81 @@ func HelmUpgrade(repoURL string, chartName string, releaseName string, namespace
 	log.Printf("Upgraded Chart values: %v\n", release.Config)
 
 	return nil
+}
+
+func initHelmActionConfig(namespace string, silent bool) (*cli.EnvSettings, *action.Configuration, error) {
+	settings := cli.New()
+	settings.SetNamespace(namespace)
+
+	var logger func(string, ...interface{})
+	if silent {
+		logger = noOpLog
+	} else {
+		logger = log.Printf
+	}
+
+	actionConfig := new(action.Configuration)
+	if err := actionConfig.Init(settings.RESTClientGetter(), namespace, os.Getenv("HELM_DRIVER"), logger); err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize Helm action config: %w", err)
+	}
+
+	return settings, actionConfig, nil
+}
+
+func resolveChartPath(repoURL string, chartName string, version string) (string, error) {
+	if strings.HasPrefix(repoURL, "http://") || strings.HasPrefix(repoURL, "https://") || strings.HasPrefix(repoURL, "oci://") {
+		err := HelmPull(repoURL, chartName, version, "", true)
+		if err != nil {
+			return "", fmt.Errorf("failed to pull chart %s: %w", chartName, err)
+		}
+		return path.Join(helper.HelmCache, fmt.Sprintf("%s-%s.tgz", chartName, version)), nil
+	}
+
+	return repoURL, nil
+}
+
+func buildReleaseValueFiles(releaseName string, valuesFile string, chartValues map[string]interface{}, strictHelmRelease bool) ([]string, error) {
+	tempValuesPath := path.Join(helper.HelmCache, releaseName+"tempvalues.yaml")
+	err := createValuesYAML(chartValues, tempValuesPath)
+	if err != nil {
+		return nil, fmt.Errorf("error creating tempvalues.yaml: %w", err)
+	}
+
+	valueFiles := []string{tempValuesPath}
+	directory := filepath.Dir(valuesFile)
+	helmreleasePath := path.Join(directory, "helm-release.yaml")
+
+	helmRelease, err := LoadHelmRelease(helmreleasePath)
+	if err != nil {
+		if strictHelmRelease {
+			return nil, fmt.Errorf("error loading helm-release.yaml: %w", err)
+		}
+	} else {
+		tempHRValuesPath := path.Join(helper.HelmCache, releaseName+"temphrvalues.yaml")
+		err = createValuesYAML(helmRelease.Spec.Values, tempHRValuesPath)
+		if err != nil {
+			return nil, fmt.Errorf("error creating temphrvalues.yaml: %w", err)
+		}
+		helper.EnvSubst(tempHRValuesPath, helper.TalEnv)
+		valueFiles = append(valueFiles, tempHRValuesPath)
+	}
+
+	if _, err = os.Stat(valuesFile); err == nil {
+		valueFiles = append(valueFiles, valuesFile)
+	}
+
+	overrideValuesPath := path.Join(directory, "bootstrap-values.yaml.ct")
+	if _, err = os.Stat(overrideValuesPath); err == nil {
+		valueFiles = append(valueFiles, overrideValuesPath)
+	}
+
+	return valueFiles, nil
+}
+
+func mergeValueFiles(settings *cli.EnvSettings, valueFiles []string) (map[string]interface{}, error) {
+	valOpts := &values.Options{ValueFiles: valueFiles}
+	valProviders := getter.All(settings)
+	return valOpts.MergeValues(valProviders)
 }
 
 func namespaceExists(actionConfig *action.Configuration, namespace string) (bool, error) {
