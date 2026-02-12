@@ -1,9 +1,9 @@
 package cmd
 
 import (
-    "strings"
+	"strings"
 
-    "github.com/spf13/cobra"
+	"github.com/spf13/cobra"
 )
 
 //nolint:unused
@@ -13,14 +13,14 @@ originally created to make it easier to install/upgrade/edit flux-based clusterr
 `)
 
 var helmrelease = &cobra.Command{
-    Use:           "helmrelease",
-    Short:         "A toolkit to load helm-release files onto a cluster without flux",
-    Example:       "forgetool helmrelease <install/upgrade>",
-    Long:          advLongHelp,
-    SilenceUsage:  true,
-    SilenceErrors: true,
+	Use:           "helmrelease",
+	Short:         "A toolkit to load helm-release files onto a cluster without flux",
+	Example:       "forgetool helmrelease <install/upgrade>",
+	Long:          advLongHelp,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func init() {
-    RootCmd.AddCommand(helmrelease)
+	RootCmd.AddCommand(helmrelease)
 }
