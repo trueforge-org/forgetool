@@ -36,12 +36,19 @@ jobs:
         with:
           go-version: stable
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: build
+        run:  |
+          set -o pipefail
+          go build -o /tmp/forgetool
+      - name: run
+        run:  |
+          set -o pipefail
+          /tmp/forgetool
       - name: Unit Tests
         run:  |
           set -o pipefail
           go build -o /tmp/forgetool
           go test -v ./... -race -covermode=atomic -coverprofile=coverage.txt 2>&1 | tee test_output.txt
-          forgetool
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
