@@ -8,6 +8,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-git/go-git/v5"
+	gitobject "github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
@@ -88,39 +89,11 @@ func (o *ChangelogOptions) Generate() error {
 	start := time.Now()
 	skipCommitsWithBadMessage = o.SkipCommitsWithBadMessage
 	log.Info().Msgf("Starting changelog generation at %s", start)
-	if err := o.validate(); err != nil {
-		return err
-	}
-	// Get active train and charts
-	if err := helper.WalkCharts2([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
-		return err
-	}
-	log.Info().Msgf("Found [%d] active charts in [%s]", len(activeCharts.items), time.Since(start))
-
-	// Load existing json file
-	log.Info().Msgf("Loading json %s", o.JSONOutputPath)
-	if err := changedData.LoadFromFile(o.JSONOutputPath); err != nil {
-		return fmt.Errorf("failed to load existing json file, maybe it is not matching the current structure: %w", err)
-	}
-	if changedData.LastCommit == "" {
-		log.Info().Msgf("No last commit found in [%s], starting from the beginning", o.JSONOutputPath)
-	} else {
-		log.Info().Msgf("Last commit found in [%s], will start from [%s]", o.JSONOutputPath, changedData.LastCommit)
-	}
-
-	// Open repo
-	repo, err := git.PlainOpen(o.RepoPath)
-	if err != nil {
+	if err := o.prepareGenerate(start); err != nil {
 		return err
 	}
 
-	// Get list of commits. Order by committer time and only keep commits that are in the charts dir
-	// the iterator will yield the newer commits first, so we need to reverse the order
-	cIter, err := repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
-	if err != nil {
-		return err
-	}
-	commits, err := o.reverseCommits(cIter, changedData.LastCommit)
+	commits, err := o.loadCommitsForGenerate()
 	if err != nil {
 		return err
 	}
@@ -133,27 +106,7 @@ func (o *ChangelogOptions) Generate() error {
 	stop := make(chan struct{}) // Stop channel
 	defer close(stop)
 	go o.statusPrinter(stop)
-
-	// TODO: Once go-git is thread safe, we can parallelize this
-	// https://github.com/go-git/go-git/issues/773
-	for _, c := range commits {
-		changedData.mu.Lock()
-		changedData.LastCommit = c.Hash.String()
-		changedData.mu.Unlock()
-		commitStart := time.Now()
-
-		if err := processCommit(c); err != nil {
-			log.Error().Err(err).Msgf("Error processing commit: %s", c.Hash.String())
-			// TODO check if we shouldn't fail on a failed commit
-			// return err
-		}
-
-		currentStatus.mu.Lock()
-		currentStatus.processedCount++
-		currentStatus.totalProcessingTime += time.Since(commitStart)
-		currentStatus.avgTime = currentStatus.totalProcessingTime / time.Duration(currentStatus.processedCount+currentStatus.skippedCount)
-		currentStatus.mu.Unlock()
-	}
+	o.processCommits(commits)
 
 	stop <- struct{}{}
 
@@ -169,6 +122,62 @@ func (o *ChangelogOptions) Generate() error {
 	return nil
 }
 
+func (o *ChangelogOptions) prepareGenerate(start time.Time) error {
+	if err := o.validate(); err != nil {
+		return err
+	}
+
+	if err := helper.WalkCharts2([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
+		return err
+	}
+	log.Info().Msgf("Found [%d] active charts in [%s]", len(activeCharts.items), time.Since(start))
+
+	log.Info().Msgf("Loading json %s", o.JSONOutputPath)
+	if err := changedData.LoadFromFile(o.JSONOutputPath); err != nil {
+		return fmt.Errorf("failed to load existing json file, maybe it is not matching the current structure: %w", err)
+	}
+	if changedData.LastCommit == "" {
+		log.Info().Msgf("No last commit found in [%s], starting from the beginning", o.JSONOutputPath)
+	} else {
+		log.Info().Msgf("Last commit found in [%s], will start from [%s]", o.JSONOutputPath, changedData.LastCommit)
+	}
+
+	return nil
+}
+
+func (o *ChangelogOptions) loadCommitsForGenerate() ([]*gitobject.Commit, error) {
+	repo, err := git.PlainOpen(o.RepoPath)
+	if err != nil {
+		return nil, err
+	}
+
+	cIter, err := repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
+	if err != nil {
+		return nil, err
+	}
+
+	return o.reverseCommits(cIter, changedData.LastCommit)
+}
+
+func (o *ChangelogOptions) processCommits(commits []*gitobject.Commit) {
+	for _, c := range commits {
+		changedData.mu.Lock()
+		changedData.LastCommit = c.Hash.String()
+		changedData.mu.Unlock()
+
+		commitStart := time.Now()
+		if err := processCommit(c); err != nil {
+			log.Error().Err(err).Msgf("Error processing commit: %s", c.Hash.String())
+		}
+
+		currentStatus.mu.Lock()
+		currentStatus.processedCount++
+		currentStatus.totalProcessingTime += time.Since(commitStart)
+		currentStatus.avgTime = currentStatus.totalProcessingTime / time.Duration(currentStatus.processedCount+currentStatus.skippedCount)
+		currentStatus.mu.Unlock()
+	}
+}
+
 // We have to go over the stagingData, for each chart,
 // we sort the versions from the changelogData
 // and we add the commits from stagingData to the nearest next version in changelogData
@@ -181,80 +190,80 @@ func mergeStagingToCurrent() error {
 	stagingData.mu.Lock()
 	defer stagingData.mu.Unlock()
 	for chart, stagingChartItem := range stagingData.Charts {
-		// If the staging chart doesn't exist in the changelogData, we add it and go to the next chart
-		chartItem, ok := changedData.Charts[chart]
-		if !ok {
-			changedData.Charts[chart] = stagingChartItem
-			continue
-		}
-
-		// If the chart exists in the changelogData but does not have any versions
-		// we add the versions from stagingData and go to the next chart (probably a new chart)
-		if chartItem.Versions == nil || len(chartItem.Versions) == 0 {
-			chartItem.Versions = stagingChartItem.Versions
-			continue
-		}
-
-		// Get all the versions from the changedData chart
-		chartVersions, err := chartItem.SortVersions(false)
-		if err != nil {
+		if err := mergeChartStaging(chart, stagingChartItem); err != nil {
 			return err
 		}
-
-		// Go over the versions in stagingData chart,
-		// for each version, we find the immediately next version in changedData chart
-		for versionKey := range stagingData.Charts[chart].Versions {
-			stagingVer, err := semver.NewVersion(versionKey)
-			if err != nil { // This should never happen
-				return err
-			}
-
-			foundGreater := false
-			// Go over the versions in the changedData chart versions
-			for _, chartVer := range chartVersions {
-				// If the changedData version is greater than the staging version,
-				// we add the commits to this version and break
-				if !chartVer.GreaterThan(stagingVer) {
-					continue
-				}
-				foundGreater = true
-				chartVerItem, ok := chartItem.Versions[versionKey]
-				if !ok {
-					chartItem.AddVersion(versionKey, stagingChartItem.Versions[versionKey].Train)
-					chartVerItem = chartItem.Versions[versionKey]
-				}
-
-				// Add the commits from stagingData to the given version in the changedData chart
-				for commitKey, commit := range stagingChartItem.Versions[versionKey].Commits {
-					if chartVerItem.Commits == nil {
-						log.Warn().Msgf("Commits were nil for version [%s] in chart [%s]", versionKey, chart)
-						chartVerItem.Commits = make(map[string]*Commit)
-					}
-
-					if _, ok := chartVerItem.Commits[commitKey]; ok {
-						// This should never happen, but we log it just in case
-						log.Warn().Msgf("Commit [%s] already exists in version [%s]", commitKey, versionKey)
-						continue
-					}
-					chartVerItem.Commits[commitKey] = commit
-				}
-				break
-			}
-			if !foundGreater {
-				// Add the version to the changedData chart
-				for commitKey, commit := range stagingChartItem.Versions[versionKey].Commits {
-					if _, ok := chartItem.Versions[versionKey].Commits[commitKey]; ok {
-						// This should never happen, but we log it just in case
-						log.Warn().Msgf("Commit [%s] already exists in version [%s]", commitKey, versionKey)
-						continue
-					}
-					chartItem.Versions[versionKey].Commits[commitKey] = commit
-				}
-			}
-		}
-
 	}
 
 	log.Info().Msgf("Finished merging in %s", time.Since(start))
 	return nil
+}
+
+func mergeChartStaging(chart string, stagingChartItem *Chart) error {
+	chartItem, ok := changedData.Charts[chart]
+	if !ok {
+		changedData.Charts[chart] = stagingChartItem
+		return nil
+	}
+
+	if chartItem.Versions == nil || len(chartItem.Versions) == 0 {
+		chartItem.Versions = stagingChartItem.Versions
+		return nil
+	}
+
+	chartVersions, err := chartItem.SortVersions(false)
+	if err != nil {
+		return err
+	}
+
+	for versionKey := range stagingData.Charts[chart].Versions {
+		if err = mergeVersionStaging(chart, versionKey, chartItem, stagingChartItem, chartVersions); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func mergeVersionStaging(chart string, versionKey string, chartItem *Chart, stagingChartItem *Chart, chartVersions []*semver.Version) error {
+	stagingVer, err := semver.NewVersion(versionKey)
+	if err != nil {
+		return err
+	}
+
+	for _, chartVer := range chartVersions {
+		if !chartVer.GreaterThan(stagingVer) {
+			continue
+		}
+		chartVerItem := ensureChartVersion(chartItem, versionKey, stagingChartItem)
+		mergeVersionCommits(chart, versionKey, chartVerItem, stagingChartItem.Versions[versionKey].Commits)
+		return nil
+	}
+
+	mergeVersionCommits(chart, versionKey, chartItem.Versions[versionKey], stagingChartItem.Versions[versionKey].Commits)
+	return nil
+}
+
+func ensureChartVersion(chartItem *Chart, versionKey string, stagingChartItem *Chart) *Version {
+	chartVerItem, ok := chartItem.Versions[versionKey]
+	if !ok {
+		chartItem.AddVersion(versionKey, stagingChartItem.Versions[versionKey].Train)
+		chartVerItem = chartItem.Versions[versionKey]
+	}
+	return chartVerItem
+}
+
+func mergeVersionCommits(chart string, versionKey string, chartVerItem *Version, commits map[string]*Commit) {
+	if chartVerItem.Commits == nil {
+		log.Warn().Msgf("Commits were nil for version [%s] in chart [%s]", versionKey, chart)
+		chartVerItem.Commits = make(map[string]*Commit)
+	}
+
+	for commitKey, commit := range commits {
+		if _, ok := chartVerItem.Commits[commitKey]; ok {
+			log.Warn().Msgf("Commit [%s] already exists in version [%s]", commitKey, versionKey)
+			continue
+		}
+		chartVerItem.Commits[commitKey] = commit
+	}
 }
