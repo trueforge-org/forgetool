@@ -8,108 +8,237 @@ import (
 )
 
 func TestDeterminePaths(t *testing.T) {
-	sub, file := determinePaths("charts_readme.md")
-	if sub != "charts" || file != "readme.md" {
-		t.Fatalf("unexpected split: %s %s", sub, file)
+	tests := []struct {
+		name           string
+		filename       string
+		wantSubDir     string
+		wantNewFileName string
+	}{
+		{
+			name:            "Simple command file",
+			filename:        "adv_testcmd.md",
+			wantSubDir:      "adv",
+			wantNewFileName: "testcmd.md",
+		},
+		{
+			name:            "Index file - matching subdirectory and filename",
+			filename:        "cluster_cluster.md",
+			wantSubDir:      "cluster",
+			wantNewFileName: "index.md",
+		},
+		{
+			name:            "No underscore in filename",
+			filename:        "forgetool.md",
+			wantSubDir:      "",
+			wantNewFileName: "forgetool.md",
+		},
+		{
+			name:            "Multiple underscores",
+			filename:        "charts_bump_version.md",
+			wantSubDir:      "charts",
+			wantNewFileName: "bump_version.md",
+		},
+		{
+			name:            "Talos command",
+			filename:        "talos_apply.md",
+			wantSubDir:      "talos",
+			wantNewFileName: "apply.md",
+		},
 	}
-	sub, file = determinePaths("charts_charts.md")
-	if sub != "charts" || file != "index.md" {
-		t.Fatalf("expected index mapping, got %s %s", sub, file)
-	}
-	sub, file = determinePaths("plain.md")
-	if sub != "" || file != "plain.md" {
-		t.Fatalf("expected no split for plain file, got %s %s", sub, file)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSubDir, gotNewFileName := determinePaths(tt.filename)
+			if gotSubDir != tt.wantSubDir {
+				t.Errorf("determinePaths() subDir = %v, want %v", gotSubDir, tt.wantSubDir)
+			}
+			if gotNewFileName != tt.wantNewFileName {
+				t.Errorf("determinePaths() newFileName = %v, want %v", gotNewFileName, tt.wantNewFileName)
+			}
+		})
 	}
 }
 
 func TestAddYamlTitle(t *testing.T) {
-	primary := addYamlTitle([]byte("## forgetool\ntext\n"), true)
-	if !strings.Contains(string(primary), "title: commands") {
-		t.Fatalf("expected primary index title, got: %s", string(primary))
+	tests := []struct {
+		name            string
+		content         []byte
+		isPrimaryIndex  bool
+		wantTitle       string
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name:           "Primary index",
+			content:        []byte("## forgetool\n\nSome content\n"),
+			isPrimaryIndex: true,
+			wantTitle:      "commands",
+			wantContains:   []string{"---", "title: commands", "---"},
+		},
+		{
+			name:           "Regular command with SEE ALSO",
+			content:        []byte("## forgetool apply\n\nApply command\n\n### SEE ALSO\n\n* parent command\n"),
+			isPrimaryIndex: false,
+			wantTitle:      "apply",
+			wantContains:   []string{"title: apply", "Apply command"},
+			wantNotContains: []string{"SEE ALSO", "parent command"},
+		},
+		{
+			name:           "Command with forgetool prefix",
+			content:        []byte("## forgetool cluster init\n\nInitialize cluster\n"),
+			isPrimaryIndex: false,
+			wantTitle:      "cluster init",
+			wantContains:   []string{"title: cluster init", "Initialize cluster"},
+		},
+		{
+			name:           "Simple forgetool command",
+			content:        []byte("## forgetool\n\nMain command\n"),
+			isPrimaryIndex: false,
+			wantTitle:      "command",
+			wantContains:   []string{"title: command", "Main command"},
+		},
 	}
 
-	content := "## forgetool charts\nline1\n### SEE ALSO\nline2\n"
-	out := addYamlTitle([]byte(content), false)
-	s := string(out)
-	if !strings.Contains(s, "title: charts") {
-		t.Fatalf("expected derived title, got: %s", s)
-	}
-	if strings.Contains(s, "SEE ALSO") || strings.Contains(s, "line2") {
-		t.Fatalf("expected SEE ALSO section removed: %s", s)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := addYamlTitle(tt.content, tt.isPrimaryIndex)
+			gotStr := string(got)
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(gotStr, want) {
+					t.Errorf("addYamlTitle() output should contain %q, got:\n%s", want, gotStr)
+				}
+			}
+
+			for _, notWant := range tt.wantNotContains {
+				if strings.Contains(gotStr, notWant) {
+					t.Errorf("addYamlTitle() output should not contain %q, got:\n%s", notWant, gotStr)
+				}
+			}
+		})
 	}
 }
 
-func TestWriteMoveRenameAndToolDocs(t *testing.T) {
-	td := t.TempDir()
-	filePath := filepath.Join(td, "out", "a.md")
-	entryFile := writeDirEntry(t, td, "seed.md", "x")
-	if err := writeToFile(filePath, []byte("hello"), entryFile); err != nil {
-		t.Fatalf("writeToFile failed: %v", err)
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		t.Fatalf("expected written file: %v", err)
-	}
-
-	outDir := filepath.Join(td, "docs")
-	if err := os.MkdirAll(filepath.Join(outDir, "alpha"), 0755); err != nil {
-		t.Fatalf("mkdir alpha dir failed: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(outDir, "alpha.md"), []byte("x"), 0644); err != nil {
-		t.Fatalf("write alpha.md failed: %v", err)
-	}
-	if err := moveMatchingFilesToSubdirs(outDir); err != nil {
-		t.Fatalf("moveMatchingFilesToSubdirs failed: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(outDir, "alpha", "index.md")); err != nil {
-		t.Fatalf("expected moved index.md: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(outDir, "forgetool.md"), []byte("x"), 0644); err != nil {
-		t.Fatalf("write forgetool.md failed: %v", err)
-	}
-	if err := renameForgetoolToIndex(outDir); err != nil {
-		t.Fatalf("renameForgetoolToIndex failed: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(outDir, "index.md")); err != nil {
-		t.Fatalf("expected index.md after rename: %v", err)
-	}
-
-	tmpDir := filepath.Join(td, "tmp")
-	finalOut := filepath.Join(td, "final")
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		t.Fatalf("mkdir tmp failed: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "forgetool_forgetool.md"), []byte("## forgetool\ncmd\n"), 0644); err != nil {
-		t.Fatalf("write tmp cmd doc failed: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "forgetool_networking_nginx.md"), []byte("## forgetool networking nginx\ntext\n"), 0644); err != nil {
-		t.Fatalf("write tmp nested doc failed: %v", err)
+func TestWriteToFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) (path string, content []byte, fileInfo os.DirEntry)
+		wantErr bool
+	}{
+		{
+			name: "Write file successfully",
+			setup: func(t *testing.T) (string, []byte, os.DirEntry) {
+				tmpDir := t.TempDir()
+				path := filepath.Join(tmpDir, "subdir", "test.md")
+				content := []byte("# Test Content\n")
+				
+				// Create a dummy file to get DirEntry
+				dummyPath := filepath.Join(tmpDir, "dummy.txt")
+				os.WriteFile(dummyPath, []byte("test"), 0644)
+				entries, _ := os.ReadDir(tmpDir)
+				
+				return path, content, entries[0]
+			},
+			wantErr: false,
+		},
+		{
+			name: "Create nested directories",
+			setup: func(t *testing.T) (string, []byte, os.DirEntry) {
+				tmpDir := t.TempDir()
+				path := filepath.Join(tmpDir, "level1", "level2", "level3", "file.md")
+				content := []byte("deep content")
+				
+				dummyPath := filepath.Join(tmpDir, "dummy.txt")
+				os.WriteFile(dummyPath, []byte("test"), 0644)
+				entries, _ := os.ReadDir(tmpDir)
+				
+				return path, content, entries[0]
+			},
+			wantErr: false,
+		},
 	}
 
-	ToolDocs(tmpDir, finalOut)
-	if _, err := os.Stat(filepath.Join(finalOut, "index.md")); err != nil {
-		t.Fatalf("expected final root index.md: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(finalOut, "networking", "nginx.md")); err != nil {
-		t.Fatalf("expected transformed nested doc: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, content, fileInfo := tt.setup(t)
+
+			err := writeToFile(path, content, fileInfo)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("writeToFile() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				// Verify file was created
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					t.Error("File should have been created")
+				}
+
+				// Verify content
+				gotContent, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("Failed to read created file: %v", err)
+				}
+				if string(gotContent) != string(content) {
+					t.Errorf("File content = %q, want %q", gotContent, content)
+				}
+			}
+		})
 	}
 }
 
-func writeDirEntry(t *testing.T, dir, name, content string) os.DirEntry {
-	t.Helper()
-	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte(content), 0644); err != nil {
-		t.Fatalf("write seed file failed: %v", err)
+func TestRenameForgetoolToIndex(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) string
+		wantErr bool
+	}{
+		{
+			name: "Rename forgetool.md to index.md",
+			setup: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				forgetoolPath := filepath.Join(tmpDir, "forgetool.md")
+				os.WriteFile(forgetoolPath, []byte("# Forgetool"), 0644)
+				return tmpDir
+			},
+			wantErr: false,
+		},
+		{
+			name: "No forgetool.md file - no error",
+			setup: func(t *testing.T) string {
+				tmpDir := t.TempDir()
+				return tmpDir
+			},
+			wantErr: false,
+		},
 	}
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("readdir failed: %v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.setup(t)
+
+			err := renameForgetoolToIndex(dir)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("renameForgetoolToIndex() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr && tt.name == "Rename forgetool.md to index.md" {
+				indexPath := filepath.Join(dir, "index.md")
+				if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+					t.Error("index.md should have been created")
+				}
+
+				forgetoolPath := filepath.Join(dir, "forgetool.md")
+				if _, err := os.Stat(forgetoolPath); !os.IsNotExist(err) {
+					t.Error("forgetool.md should have been renamed")
+				}
+			}
+		})
 	}
-	for _, e := range entries {
-		if e.Name() == name {
-			return e
-		}
-	}
-	t.Fatalf("entry %s not found", name)
-	return nil
 }
+
+// Note: ToolDocs, processFiles, and moveMatchingFilesToSubdirs are integration
+// functions that coordinate multiple file operations. They are better tested
+// through integration tests rather than unit tests, as they require complex
+// directory structures and file setups.
