@@ -77,11 +77,11 @@ Sorted from lowest to highest coverage.
 - [ ]  16.67% (1/6) - cmd/flux_bootstrap.go
 - [ ]  25.00% (1/4) - cmd/adv_precommit.go
 - [ ]  25.00% (1/4) - cmd/charts_tagclean.go
-- [ ]  25.00% (1/4) - cmd/checkcrypt.go
+- [x]  25.00% (1/4) - cmd/checkcrypt.go
 - [ ]  33.33% (1/3) - cmd/charts_bump.go
 - [ ]  33.33% (1/3) - cmd/cluster_init.go
-- [ ]  33.33% (1/3) - cmd/decrypt.go
-- [ ]  33.33% (1/3) - cmd/encrypt.go
+- [x]  33.33% (1/3) - cmd/decrypt.go
+- [x]  33.33% (1/3) - cmd/encrypt.go
 - [ ]  48.84% (42/86) - pkg/charts/chartFile/updater.go
 - [ ]  50.00% (1/2) - cmd/cluster_genconfig.go
 - [ ]  50.00% (1/2) - cmd/info.go
