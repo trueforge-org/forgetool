@@ -146,6 +146,36 @@ func copyDependency(chartFolder string, repo string, repoDir string, name string
 	return nil
 }
 
+func processChartDependency(chartFolder string, name string, version string, repo string) error {
+	repoURL := fmt.Sprintf("%s/index.yaml", strings.TrimRight(repo, "/"))
+
+	fmt.Print("\n")
+	log.Info().Msgf("📦 Dependency [%s]", name)
+	log.Info().Msgf("🆚 Version [%s]", version)
+	log.Info().Msgf("📥 Repo [%s]", repo)
+	log.Info().Msgf("🔗 URL [%s]", repoURL)
+
+	repoDir := repo
+	for _, prefix := range []string{"http://", "https://", "oci://"} {
+		repoDir = strings.TrimPrefix(repoDir, prefix)
+	}
+
+	if err := fetchIndexFile(repo, repoDir, repoURL); err != nil {
+		return fmt.Errorf("❌ Failed to fetch index file: %s", err)
+	}
+
+	if err := fetchDependency(repo, repoDir, name, version, repoURL); err != nil {
+		log.Fatal().Err(err).Msg("❌ Failed to fetch dependency")
+	}
+
+	if err := copyDependency(chartFolder, repo, repoDir, name, version); err != nil {
+		log.Fatal().Err(err).Msg("❌ Failed to copy dependency")
+	}
+
+	log.Info().Msg("✅ Dependency processed!")
+	return nil
+}
+
 func DownloadDeps(chartPath string, placeholder string) error {
 	chartFolder := filepath.Dir(chartPath)
 
@@ -166,36 +196,9 @@ func DownloadDeps(chartPath string, placeholder string) error {
 
 	// Process dependencies as needed
 	for _, dep := range helmChart.Metadata.Dependencies {
-		name := dep.Name
-		version := dep.Version
-		repo := dep.Repository
-		repoURL := fmt.Sprintf("%s/index.yaml", strings.TrimRight(repo, "/"))
-
-		fmt.Print("\n")
-		log.Info().Msgf("📦 Dependency [%s]", name)
-		log.Info().Msgf("🆚 Version [%s]", version)
-		log.Info().Msgf("📥 Repo [%s]", repo)
-		log.Info().Msgf("🔗 URL [%s]", repoURL)
-
-		repoDir := repo
-		// Remove protocol(s) from repoDir
-		for _, prefix := range []string{"http://", "https://", "oci://"} {
-			repoDir = strings.TrimPrefix(repoDir, prefix)
+		if err := processChartDependency(chartFolder, dep.Name, dep.Version, dep.Repository); err != nil {
+			return err
 		}
-
-		if err := fetchIndexFile(repo, repoDir, repoURL); err != nil {
-			return fmt.Errorf("❌ Failed to fetch index file: %s", err)
-		}
-
-		if err := fetchDependency(repo, repoDir, name, version, repoURL); err != nil {
-			log.Fatal().Err(err).Msg("❌ Failed to fetch dependency")
-		}
-
-		if err := copyDependency(chartFolder, repo, repoDir, name, version); err != nil {
-			log.Fatal().Err(err).Msg("❌ Failed to copy dependency")
-		}
-
-		log.Info().Msg("✅ Dependency processed!")
 	}
 
 	log.Info().Msg("✅ Processing complete!")

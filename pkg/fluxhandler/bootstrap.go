@@ -85,6 +85,29 @@ func setupFluxCD(ctx context.Context, fluxPath string) error {
 	log.Info().Msg("Bootstrap: Loading fluxcd onto the cluster...")
 
 	// Rename files for kustomize application
+	if err := renameFluxBootstrapFiles(fluxPath, bootstrapFile, kustomFile, tmpFile); err != nil {
+		return err
+	}
+
+	if err := kubectlcmds.KubectlApplyKustomize(ctx, fluxPath); err != nil {
+		log.Error().Err(err).Str("path", fluxPath).Msg("Error applying FluxCD manifest")
+		log.Debug().Msg("Reverting renamed files for fluxbootstrap")
+		if revertErr := revertFluxBootstrapFiles(fluxPath, bootstrapFile, kustomFile, tmpFile); revertErr != nil {
+			log.Error().Err(revertErr).Msg("Error reverting Flux bootstrap files")
+			return revertErr
+		}
+		return err
+	}
+
+	if err := revertFluxBootstrapFiles(fluxPath, bootstrapFile, kustomFile, tmpFile); err != nil {
+		log.Error().Err(err).Msg("Error reverting Flux bootstrap files")
+		return err
+	}
+
+	return nil
+}
+
+func renameFluxBootstrapFiles(fluxPath, bootstrapFile, kustomFile, tmpFile string) error {
 	if err := os.Rename(filepath.Join(fluxPath, kustomFile), filepath.Join(fluxPath, tmpFile)); err != nil {
 		log.Error().Err(err).Msg("Error renaming kustomization file")
 		return err
@@ -93,22 +116,10 @@ func setupFluxCD(ctx context.Context, fluxPath string) error {
 		log.Error().Err(err).Msg("Error renaming bootstrap file")
 		return err
 	}
+	return nil
+}
 
-	if err := kubectlcmds.KubectlApplyKustomize(ctx, fluxPath); err != nil {
-		log.Error().Err(err).Str("path", fluxPath).Msg("Error applying FluxCD manifest")
-		log.Debug().Msg("Reverting renamed files for fluxbootstrap")
-		if err := os.Rename(filepath.Join(fluxPath, kustomFile), filepath.Join(fluxPath, bootstrapFile)); err != nil {
-			log.Error().Err(err).Msg("Error renaming kustomization file back after previous error")
-			return err
-		}
-		if err := os.Rename(filepath.Join(fluxPath, tmpFile), filepath.Join(fluxPath, kustomFile)); err != nil {
-			log.Error().Err(err).Msg("Error renaming placeholder file after previous back")
-			return err
-		}
-		return err
-	}
-
-	// Revert file renames
+func revertFluxBootstrapFiles(fluxPath, bootstrapFile, kustomFile, tmpFile string) error {
 	if err := os.Rename(filepath.Join(fluxPath, kustomFile), filepath.Join(fluxPath, bootstrapFile)); err != nil {
 		log.Error().Err(err).Msg("Error renaming kustomization file back")
 		return err
@@ -117,7 +128,6 @@ func setupFluxCD(ctx context.Context, fluxPath string) error {
 		log.Error().Err(err).Msg("Error renaming placeholder file back")
 		return err
 	}
-
 	return nil
 }
 

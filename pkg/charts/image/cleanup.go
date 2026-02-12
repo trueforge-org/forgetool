@@ -45,35 +45,12 @@ func CleanTag(tag string) (string, error) {
 		return tag, nil
 	}
 
-	switch {
-	case releasePattern.MatchString(tag):
-		tag = cleanRelease(tag)
-	case archPattern.MatchString(tag):
-		tag = cleanArch(tag)
-	case prefixYearMonthDayPattern.MatchString(tag):
-		tag = cleanPrefixYearMonthDay(tag)
-	case yearMonthDayPattern.MatchString(tag):
-		tag = cleanYearMonthDay(tag)
-	case incompleteSemVerPattern.MatchString(tag):
-		tag = cleanIncompleteSemVer(tag)
-	case shortCommitHashSuffixPattern.MatchString(tag):
-		tag = keepShortCommitHashSuffix(tag)
-	case leadingSymbolPattern.MatchString(tag):
-		tag = cleanLeadingSymbol(tag)
-	}
+	tag = cleanTagByPattern(tag)
 
 	// If string contains `-` the second part is usually
 	// either a commit hash or things like "debian" or "alpine"
 	// Make sure the first part is some kind of versioning and strip the rest
-	if strings.Contains(tag, "-") {
-		split := strings.Split(tag, "-")
-		switch {
-		case semVerPattern.MatchString(split[0]):
-			tag = split[0]
-		case incompleteSemVerPattern.MatchString(split[0]):
-			tag = split[0]
-		}
-	}
+	tag = trimTrailingTagSuffix(tag)
 
 	// Re-check for incomplete SemVer after cleaning
 	if incompleteSemVerPattern.MatchString(tag) {
@@ -90,6 +67,43 @@ func CleanTag(tag string) (string, error) {
 
 	// Build and return the updated SemVer string
 	return tag, nil
+}
+
+func cleanTagByPattern(tag string) string {
+	switch {
+	case releasePattern.MatchString(tag):
+		return cleanRelease(tag)
+	case archPattern.MatchString(tag):
+		return cleanArch(tag)
+	case prefixYearMonthDayPattern.MatchString(tag):
+		return cleanPrefixYearMonthDay(tag)
+	case yearMonthDayPattern.MatchString(tag):
+		return cleanYearMonthDay(tag)
+	case incompleteSemVerPattern.MatchString(tag):
+		return cleanIncompleteSemVer(tag)
+	case shortCommitHashSuffixPattern.MatchString(tag):
+		return keepShortCommitHashSuffix(tag)
+	case leadingSymbolPattern.MatchString(tag):
+		return cleanLeadingSymbol(tag)
+	default:
+		return tag
+	}
+}
+
+func trimTrailingTagSuffix(tag string) string {
+	if !strings.Contains(tag, "-") {
+		return tag
+	}
+
+	split := strings.Split(tag, "-")
+	switch {
+	case semVerPattern.MatchString(split[0]):
+		return split[0]
+	case incompleteSemVerPattern.MatchString(split[0]):
+		return split[0]
+	default:
+		return tag
+	}
 }
 
 func Clean(tag string) error {

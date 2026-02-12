@@ -148,20 +148,11 @@ func isPathIgnored(file string, prefixes []string) bool {
 // for both the unprefixed path and the path prefixed with /forgetool.
 // It ignores files that are listed in .gitignore.
 func IsFileFullyStaged(filePath string) (bool, error) {
-	// Get the Git root directory
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+	gitRoot, forgetoolExists, err := getGitRootAndForgetoolExists()
 	if err != nil {
 		return false, err
 	}
-	gitRoot := strings.TrimSpace(out.String())
-
-	// Check if the forgetool directory exists in the Git root
-	forgetoolPath := filepath.Join(gitRoot, "forgetool")
-	_, err = exec.Command("test", "-d", forgetoolPath).Output()
-	forgetoolExists := (err == nil)
+	_ = gitRoot
 
 	// Create a slice of file paths to check
 	filePaths := []string{filePath}
@@ -180,23 +171,43 @@ func IsFileFullyStaged(filePath string) (bool, error) {
 			continue // Skip this file since it's ignored
 		}
 
-		// If the file is not ignored, check for unstaged changes
-		diffCmd := exec.Command("git", "diff", path) // Check for unstaged changes
-		var diffOut bytes.Buffer
-		diffCmd.Stdout = &diffOut
-		err = diffCmd.Run()
+		hasChanges, err := hasUnstagedChanges(path)
 		if err != nil {
 			return false, err
 		}
-
-		// If there's output from git diff, it means there are unstaged changes
-		if strings.TrimSpace(diffOut.String()) != "" {
+		if hasChanges {
 			return false, nil // Found unstaged changes
 		}
 	}
 
 	// If no unstaged changes were found for both paths and files were not ignored
 	return true, nil
+}
+
+func getGitRootAndForgetoolExists() (string, bool, error) {
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", false, err
+	}
+
+	gitRoot := strings.TrimSpace(out.String())
+	forgetoolPath := filepath.Join(gitRoot, "forgetool")
+	_, err := exec.Command("test", "-d", forgetoolPath).Output()
+
+	return gitRoot, err == nil, nil
+}
+
+func hasUnstagedChanges(path string) (bool, error) {
+	diffCmd := exec.Command("git", "diff", path)
+	var diffOut bytes.Buffer
+	diffCmd.Stdout = &diffOut
+	if err := diffCmd.Run(); err != nil {
+		return false, err
+	}
+
+	return strings.TrimSpace(diffOut.String()) != "", nil
 }
 
 // IsCurrentDirGitRepo checks if the current directory is a Git repository.
@@ -236,12 +247,37 @@ func CreateEncrPreCommitHook() error {
 		return fmt.Errorf("could not get current working directory: %v", err)
 	}
 
-	hookPath := getPreCommitHookPath(dir)
-	hookScript, err := buildPreCommitHookScript(dir)
+	hookPath, hookScript, err := buildHookFileData(dir)
 	if err != nil {
 		return err
 	}
 
+	if err := writeHookScript(hookPath, hookScript); err != nil {
+		return err
+	}
+
+	if runtime.GOOS != "windows" {
+		err = os.Chmod(hookPath, 0755)
+		if err != nil {
+			return fmt.Errorf("could not make pre-commit hook executable: %v", err)
+		}
+	}
+
+	log.Info().Msg("Pre-commit hook created successfully.")
+	return nil
+}
+
+func buildHookFileData(dir string) (string, string, error) {
+	hookPath := getPreCommitHookPath(dir)
+	hookScript, err := buildPreCommitHookScript(dir)
+	if err != nil {
+		return "", "", err
+	}
+
+	return hookPath, hookScript, nil
+}
+
+func writeHookScript(hookPath, hookScript string) error {
 	file, err := os.Create(hookPath)
 	if err != nil {
 		return fmt.Errorf("could not create pre-commit hook file: %v", err)
@@ -253,14 +289,6 @@ func CreateEncrPreCommitHook() error {
 		return fmt.Errorf("could not write to pre-commit hook file: %v", err)
 	}
 
-	if runtime.GOOS != "windows" {
-		err = os.Chmod(hookPath, 0755)
-		if err != nil {
-			return fmt.Errorf("could not make pre-commit hook executable: %v", err)
-		}
-	}
-
-	log.Info().Msg("Pre-commit hook created successfully.")
 	return nil
 }
 

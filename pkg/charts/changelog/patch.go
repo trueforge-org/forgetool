@@ -118,9 +118,7 @@ func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, ch
 		// If the old version is empty, (chart addition)
 		// we add the new version to the changedData
 		if oldVer == "" {
-			changedData.mu.Lock()
-			changedData.AddOrUpdateChart(chartName, newVer, getChartTrain(paths.new.Path()), c)
-			changedData.mu.Unlock()
+			addChartToChangedData(chartName, newVer, paths.new.Path(), c)
 			continue
 		}
 
@@ -135,9 +133,7 @@ func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, ch
 
 		// if new version is greater than the old version, we add the new version to the changedData
 		if newSemVer.GreaterThan(oldSemVer) {
-			changedData.mu.Lock()
-			changedData.AddOrUpdateChart(chartName, newVer, getChartTrain(paths.new.Path()), c)
-			changedData.mu.Unlock()
+			addChartToChangedData(chartName, newVer, paths.new.Path(), c)
 			continue
 		}
 
@@ -147,9 +143,19 @@ func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, ch
 		// so it should go to the "next" version, we do that at the end
 		// although if its less, it will be hard to actually get which is the "next" version
 		// but we can't really do anything about it, so just put it on the immediate next version
-		stagingData.mu.Lock()
-		stagingData.AddOrUpdateChart(chartName, newVer, getChartTrain(paths.new.Path()), c)
-		stagingData.mu.Unlock()
+		addChartToStagingData(chartName, newVer, paths.new.Path(), c)
 	}
 	return nil
+}
+
+func addChartToChangedData(chartName, version, chartPath string, c *object.Commit) {
+	changedData.mu.Lock()
+	changedData.AddOrUpdateChart(chartName, version, getChartTrain(chartPath), c)
+	changedData.mu.Unlock()
+}
+
+func addChartToStagingData(chartName, version, chartPath string, c *object.Commit) {
+	stagingData.mu.Lock()
+	stagingData.AddOrUpdateChart(chartName, version, getChartTrain(chartPath), c)
+	stagingData.mu.Unlock()
 }

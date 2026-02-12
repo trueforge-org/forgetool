@@ -66,24 +66,7 @@ func ApprovePendingCertificates(clientset *kubernetes.Clientset, stopCh <-chan s
 				log.Debug().Str("CSRName", csr.Name).Msg("Checking CSR for approval")
 
 				if csr.Status.Conditions == nil || len(csr.Status.Conditions) == 0 {
-					// Create a copy of the CSR object
-					csrCopy := csr.DeepCopy()
-
-					// Prepare approval conditions
-					conditions := []certificatesv1.CertificateSigningRequestCondition{
-						{
-							Type:           certificatesv1.CertificateApproved,
-							Reason:         "AutoApproved",
-							Message:        "This CSR was approved automatically by controller.",
-							LastUpdateTime: metav1.Now(),
-							Status:         "True",
-						},
-					}
-					csrCopy.Status.Conditions = conditions
-
-					// Update approval for the CSR using the copied object
-					_, err := clientset.CertificatesV1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr.Name, csrCopy, metav1.UpdateOptions{})
-					if err != nil {
+					if err := approveCSR(clientset, csr); err != nil {
 						log.Error().Str("CSRName", csr.Name).Err(err).Msg("Error approving CSR")
 					} else {
 						log.Info().Str("CSRName", csr.Name).Msg("Approved CSR")
@@ -97,4 +80,20 @@ func ApprovePendingCertificates(clientset *kubernetes.Clientset, stopCh <-chan s
 			time.Sleep(5 * time.Second)
 		}
 	}
+}
+
+func approveCSR(clientset *kubernetes.Clientset, csr certificatesv1.CertificateSigningRequest) error {
+	csrCopy := csr.DeepCopy()
+	csrCopy.Status.Conditions = []certificatesv1.CertificateSigningRequestCondition{
+		{
+			Type:           certificatesv1.CertificateApproved,
+			Reason:         "AutoApproved",
+			Message:        "This CSR was approved automatically by controller.",
+			LastUpdateTime: metav1.Now(),
+			Status:         "True",
+		},
+	}
+
+	_, err := clientset.CertificatesV1().CertificateSigningRequests().UpdateApproval(context.TODO(), csr.Name, csrCopy, metav1.UpdateOptions{})
+	return err
 }

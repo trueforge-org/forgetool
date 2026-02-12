@@ -38,25 +38,10 @@ func EncryptWithAgeKey(body []byte, regex string, format string) ([]byte, error)
 	}
 	log.Debug().Msg("Successfully loaded Sops config")
 
-	var groups []sops.KeyGroup
-	var ageKeys []string
-
-	// Iterate over each creation rule and find matching files
-	for _, rule := range sopsConfig.CreationRules {
-		if err != nil {
-			log.Error().Err(err).Msg("Invalid path regex in .sops.yaml")
-			return nil, fmt.Errorf("invalid path regex in .sops.yaml: %v", err)
-		}
-		ageKeys = append(ageKeys, rule.Age)
-	}
-
+	ageKeys := collectAgeKeys(sopsConfig)
 	log.Debug().Strs("ageKeys", ageKeys).Msg("Collected age keys from creation rules")
 
-	for _, ageKey := range helper.UniqueNonEmptyElementsOf(ageKeys) {
-		var keyGroup sops.KeyGroup
-		keyGroup = append(keyGroup, NewMasterKey(ageKey))
-		groups = append(groups, keyGroup)
-	}
+	groups := buildAgeKeyGroups(ageKeys)
 
 	log.Debug().Msg("Key groups created for encryption")
 
@@ -77,6 +62,26 @@ func EncryptWithAgeKey(body []byte, regex string, format string) ([]byte, error)
 
 	log.Debug().Msg("Data encrypted successfully")
 	return encryptedData, nil
+}
+
+func collectAgeKeys(sopsConfig SopsConfig) []string {
+	var ageKeys []string
+	for _, rule := range sopsConfig.CreationRules {
+		ageKeys = append(ageKeys, rule.Age)
+	}
+
+	return ageKeys
+}
+
+func buildAgeKeyGroups(ageKeys []string) []sops.KeyGroup {
+	var groups []sops.KeyGroup
+	for _, ageKey := range helper.UniqueNonEmptyElementsOf(ageKeys) {
+		var keyGroup sops.KeyGroup
+		keyGroup = append(keyGroup, NewMasterKey(ageKey))
+		groups = append(groups, keyGroup)
+	}
+
+	return groups
 }
 
 /// Custom keygroup

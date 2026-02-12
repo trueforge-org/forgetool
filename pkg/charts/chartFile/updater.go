@@ -16,14 +16,9 @@ import (
 
 // UpdateChartFile updates the specified Chart.yaml file with an optional bump parameter.
 func UpdateChartFile(chartPathOrFolder, bump string) error {
-	fileInfo, err := os.Stat(chartPathOrFolder)
+	chartPath, err := resolveChartPath(chartPathOrFolder)
 	if err != nil {
 		return err
-	}
-
-	chartPath := chartPathOrFolder
-	if fileInfo.IsDir() {
-		chartPath = filepath.Join(chartPathOrFolder, "Chart.yaml")
 	}
 
 	log.Info().Msgf("🏃 Processing chart [%s]", chartPath)
@@ -32,24 +27,15 @@ func UpdateChartFile(chartPathOrFolder, bump string) error {
 		return err
 	}
 
-	if chart.Metadata.Annotations == nil {
-		chart.Metadata.Annotations = make(map[string]string)
-	}
-
+	initializeAnnotations(chart)
 	train := GetTrain(chartPath, chart)
 	setMetadata(chart, train)
 
-	var values image.Images
-	// Fetch image details from values.yaml
-	if err := values.LoadValuesFile(filepath.Join(filepath.Dir(chartPath), "values.yaml")); err != nil {
+	values, imageLinks, err := loadChartImages(chartPath)
+	if err != nil {
 		return err
 	}
-	setAppVersionFromImage(chart, &values, "image")
-
-	var imageLinks []string
-	for _, details := range values.ImagesMap {
-		imageLinks = append(imageLinks, details.Link)
-	}
+	setAppVersionFromImage(chart, values, "image")
 
 	// Attempt to update sources
 	if err := updateSources(chart, train, imageLinks); err != nil {
@@ -57,14 +43,7 @@ func UpdateChartFile(chartPathOrFolder, bump string) error {
 	}
 
 	// Update appVersion, icon, and home URLs
-	if bump == version.Major || bump == version.Minor || bump == version.Patch {
-		newVersion, err := version.IncrementVersion(chart.Metadata.Version, bump)
-		log.Info().Msgf("🆚 Bumping [%s], from [%s] to [%s]", chart.Metadata.Name, chart.Metadata.Version, newVersion)
-		if err != nil {
-			log.Error().Err(err).Msg("Error bumping version")
-		}
-		chart.Metadata.Version = newVersion
-	}
+	bumpChartVersion(chart, bump)
 
 	// Save the modified metadata back to the file
 	if err := chart.SaveToFile(chartPath); err != nil {
@@ -73,24 +52,79 @@ func UpdateChartFile(chartPathOrFolder, bump string) error {
 
 	log.Info().Msgf("Chart file updated and saved to [%s]", chartPath)
 
+	if err := generateChartArtifacts(chartPath, chart.Metadata.Name, train); err != nil {
+		return err
+	}
+	return nil
+}
+
+func initializeAnnotations(chart *HelmChart) {
+	if chart.Metadata.Annotations == nil {
+		chart.Metadata.Annotations = make(map[string]string)
+	}
+}
+
+func loadChartImages(chartPath string) (*image.Images, []string, error) {
+	var values image.Images
+	if err := values.LoadValuesFile(filepath.Join(filepath.Dir(chartPath), "values.yaml")); err != nil {
+		return nil, nil, err
+	}
+
+	var imageLinks []string
+	for _, details := range values.ImagesMap {
+		imageLinks = append(imageLinks, details.Link)
+	}
+
+	return &values, imageLinks, nil
+}
+
+func bumpChartVersion(chart *HelmChart, bump string) {
+	if bump != version.Major && bump != version.Minor && bump != version.Patch {
+		return
+	}
+
+	newVersion, err := version.IncrementVersion(chart.Metadata.Version, bump)
+	log.Info().Msgf("🆚 Bumping [%s], from [%s] to [%s]", chart.Metadata.Name, chart.Metadata.Version, newVersion)
+	if err != nil {
+		log.Error().Err(err).Msg("Error bumping version")
+	}
+	chart.Metadata.Version = newVersion
+}
+
+func resolveChartPath(chartPathOrFolder string) (string, error) {
+	fileInfo, err := os.Stat(chartPathOrFolder)
+	if err != nil {
+		return "", err
+	}
+
+	if fileInfo.IsDir() {
+		return filepath.Join(chartPathOrFolder, "Chart.yaml"), nil
+	}
+
+	return chartPathOrFolder, nil
+}
+
+func generateChartArtifacts(chartPath, chartName, train string) error {
+
 	templateDir := chartPath
 	for i := 0; i < 4; i++ {
 		templateDir = filepath.Dir(templateDir)
 	}
 
 	// Generate README.md for the specified train and chart
-	readmeErr := readme.GenerateReadme(templateDir, chartPath, chart.Metadata.Name, train)
+	readmeErr := readme.GenerateReadme(templateDir, chartPath, chartName, train)
 	if readmeErr != nil {
-		log.Info().Msgf("Error Generating readme for %v: %v\n", chart.Metadata.Name, readmeErr)
+		log.Info().Msgf("Error Generating readme for %v: %v\n", chartName, readmeErr)
 		os.Exit(1)
 	}
 
 	// Generate .helmignore for the specified train and chart
 	helmignoreErr := helmignore.GenerateHelmIgnore(templateDir, chartPath)
 	if helmignoreErr != nil {
-		log.Info().Msgf("Error Generating helmignore for %v: %v\n", chart.Metadata.Name, helmignoreErr)
+		log.Info().Msgf("Error Generating helmignore for %v: %v\n", chartName, helmignoreErr)
 		os.Exit(1)
 	}
+
 	return nil
 }
 

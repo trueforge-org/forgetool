@@ -26,50 +26,75 @@ func (o *ChangelogOptions) Render() error {
 	}
 
 	for _, chart := range activeCharts.items {
-		if changelogData.Charts[chart.Name] == nil {
-			log.Error().Msgf("chart [%s] not found in %s", chart.Name, o.JSONOutputPath)
-			continue
-
-		}
-		if changelogData.Charts[chart.Name].Versions == nil {
-			log.Error().Msgf("chart [%s] has no versions in %s", chart.Name, o.JSONOutputPath)
-			continue
-		}
-		// load template
-		tmpl, err := template.ParseFiles(o.TemplatePath)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to parse %s", o.TemplatePath)
-		}
-
-		if _, err := changelogData.Charts[chart.Name].SortVersions(true); err != nil {
-			log.Fatal().Err(err).Msgf("failed to sort versions for %s", chart.Name)
-		}
-		for _, version := range changelogData.Charts[chart.Name].Versions {
-			version.SortedCommits, err = version.SortCommits(true)
-			if err != nil {
-				log.Fatal().Err(err).Msgf("failed to sort commits for version [%s] in chart [%s]", version.Version, chart.Name)
-			}
-		}
-
-		changelogData.Charts[chart.Name].Name = chart.Name
-		changelogData.Charts[chart.Name].Train = chart.Train
-		// render template
-		var buf bytes.Buffer
-		err = tmpl.Execute(&buf, changelogData.Charts[chart.Name])
-		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to render %s", o.TemplatePath)
-		}
-
-		output := filepath.Join(o.ChartsDir, chart.Train, chart.Name)
-		if err := os.MkdirAll(output, os.ModePerm); err != nil {
-			log.Fatal().Err(err).Msgf("failed to create %s directory", output)
-		}
-		// write rendered template to file
-		if err := os.WriteFile(filepath.Join(output, o.ChangelogFileName), buf.Bytes(), 0644); err != nil {
-			log.Fatal().Err(err).Msgf("failed to write %s", o.ChangelogFileName)
+		if err := o.renderChartChangelog(&changelogData, chart.Name, chart.Train); err != nil {
+			log.Fatal().Err(err).Msgf("failed to render changelog for chart [%s]", chart.Name)
 		}
 	}
 
 	log.Info().Msgf("Finished in %s", time.Since(start))
+	return nil
+}
+
+func (o *ChangelogOptions) renderChartChangelog(changelogData *ChangedData, chartName, train string) error {
+	chartData := changelogData.Charts[chartName]
+	if !o.hasRenderableChartData(chartData, chartName) {
+		return nil
+	}
+
+	tmpl, err := template.ParseFiles(o.TemplatePath)
+	if err != nil {
+		return err
+	}
+
+	if err := o.prepareChartVersions(chartData); err != nil {
+		return err
+	}
+
+	chartData.Name = chartName
+	chartData.Train = train
+
+	var buf bytes.Buffer
+	if err = tmpl.Execute(&buf, chartData); err != nil {
+		return err
+	}
+
+	output := filepath.Join(o.ChartsDir, train, chartName)
+	if err := os.MkdirAll(output, os.ModePerm); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(output, o.ChangelogFileName), buf.Bytes(), 0644); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (o *ChangelogOptions) hasRenderableChartData(chartData *Chart, chartName string) bool {
+	if chartData == nil {
+		log.Error().Msgf("chart [%s] not found in %s", chartName, o.JSONOutputPath)
+		return false
+	}
+	if chartData.Versions == nil {
+		log.Error().Msgf("chart [%s] has no versions in %s", chartName, o.JSONOutputPath)
+		return false
+	}
+
+	return true
+}
+
+func (o *ChangelogOptions) prepareChartVersions(chartData *Chart) error {
+	if _, err := chartData.SortVersions(true); err != nil {
+		return err
+	}
+
+	for _, version := range chartData.Versions {
+		sortedCommits, err := version.SortCommits(true)
+		if err != nil {
+			return err
+		}
+		version.SortedCommits = sortedCommits
+	}
+
 	return nil
 }

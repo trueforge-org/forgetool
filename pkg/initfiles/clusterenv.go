@@ -64,27 +64,7 @@ func checkQuotedNumbersInFile() (bool, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		// Skip lines that start with a number
-		trimmedLine := strings.TrimSpace(line)
-		if len(trimmedLine) > 0 && unicode.IsDigit(rune(trimmedLine[0])) {
-			continue
-		}
-
-		// Find matches for entries in each line
-		matches := re.FindStringSubmatch(line)
-		if len(matches) < 2 {
-			continue // Skip lines without a colon and value
-		}
-
-		// Get the value after the colon
-		value := strings.TrimSpace(matches[1])
-
-		// Check if the value is a valid number (int or float with a single dot)
-		isValidNumber := regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`).MatchString(value)
-
-		// If it's a valid number, log an error
-		if isValidNumber {
+		if lineHasUnquotedNumber(line, re) {
 			log.Error().Msgf("Unquoted number found %s line: %s", filePath, line)
 			os.Exit(1)
 			return false, nil
@@ -98,6 +78,21 @@ func checkQuotedNumbersInFile() (bool, error) {
 	}
 
 	return true, nil
+}
+
+func lineHasUnquotedNumber(line string, re *regexp.Regexp) bool {
+	trimmedLine := strings.TrimSpace(line)
+	if len(trimmedLine) > 0 && unicode.IsDigit(rune(trimmedLine[0])) {
+		return false
+	}
+
+	matches := re.FindStringSubmatch(line)
+	if len(matches) < 2 {
+		return false
+	}
+
+	value := strings.TrimSpace(matches[1])
+	return regexp.MustCompile(`^[0-9]+(\.[0-9]+)?$`).MatchString(value)
 }
 
 func clusterName() {

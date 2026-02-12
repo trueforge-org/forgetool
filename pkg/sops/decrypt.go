@@ -29,35 +29,9 @@ func DecryptFiles() error {
 		return err
 	}
 
-	// Flag to track if any files were marked as encrypted
-	encryptedFound := false
-
-	// Decrypt each encrypted file
-	for _, file := range files {
-		if file.Encrypted {
-			encryptedFound = true
-			log.Debug().Msgf("Decrypting file: %s", file.Path)
-
-			data, err := os.ReadFile(file.Path)
-			if err != nil {
-				log.Error().Err(err).Msgf("Error reading file %s", file.Path)
-				return fmt.Errorf("error reading file %s: %v", file.Path, err)
-			}
-
-			// Decrypt data with retry mechanism
-			decrypted, err := decryptDataWithRetry(data, GetFormat(file.Path))
-			if err != nil {
-				log.Error().Err(err).Msgf("Error decrypting file %s", file.Path)
-				return fmt.Errorf("error decrypting file %s: %v", file.Path, err)
-			}
-
-			// Write decrypted data back to file
-			if err := os.WriteFile(file.Path, decrypted, 0644); err != nil {
-				log.Error().Err(err).Msgf("Error writing decrypted data to file %s", file.Path)
-				return fmt.Errorf("error writing decrypted data to file %s: %v", file.Path, err)
-			}
-			log.Debug().Msgf("Successfully decrypted file: %s", file.Path)
-		}
+	encryptedFound, err := decryptMarkedFiles(files)
+	if err != nil {
+		return err
 	}
 
 	// Check if any encrypted files were found
@@ -67,6 +41,46 @@ func DecryptFiles() error {
 
 	initfiles.LoadTalEnv(true)
 	log.Info().Msg("All files decrypted successfully")
+	return nil
+}
+
+func decryptMarkedFiles(files []EncrFileData) (bool, error) {
+	encryptedFound := false
+	for _, file := range files {
+		if !file.Encrypted {
+			continue
+		}
+
+		encryptedFound = true
+		if err := decryptFile(file.Path); err != nil {
+			return encryptedFound, err
+		}
+	}
+
+	return encryptedFound, nil
+}
+
+func decryptFile(path string) error {
+	log.Debug().Msgf("Decrypting file: %s", path)
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Error().Err(err).Msgf("Error reading file %s", path)
+		return fmt.Errorf("error reading file %s: %v", path, err)
+	}
+
+	decrypted, err := decryptDataWithRetry(data, GetFormat(path))
+	if err != nil {
+		log.Error().Err(err).Msgf("Error decrypting file %s", path)
+		return fmt.Errorf("error decrypting file %s: %v", path, err)
+	}
+
+	if err = os.WriteFile(path, decrypted, 0644); err != nil {
+		log.Error().Err(err).Msgf("Error writing decrypted data to file %s", path)
+		return fmt.Errorf("error writing decrypted data to file %s: %v", path, err)
+	}
+	log.Debug().Msgf("Successfully decrypted file: %s", path)
+
 	return nil
 }
 

@@ -56,15 +56,9 @@ func (o *ChartListOptions) GetChartData(path string, entry os.DirEntry, err erro
 		o.list = &ChartList{}
 	}
 
-	if err != nil {
-		return err
+	if walkErr := o.validateChartEntry(entry, err); walkErr != nil {
+		return walkErr
 	}
-
-	// Skip directories that are excluded
-	if entry.IsDir() && slices.Contains(helper.ExcludedDirs, entry.Name()) {
-		return filepath.SkipDir
-	}
-
 	if entry.Name() != "Chart.yaml" {
 		return nil
 	}
@@ -85,7 +79,26 @@ func (o *ChartListOptions) GetChartData(path string, entry os.DirEntry, err erro
 	defer o.Unlock()
 	// Increment the total count
 	o.list.TotalCount++
-	webChart := Chart{
+	webChart := buildWebChart(path, chart)
+	o.addChartToTrain(webChart)
+
+	return nil
+}
+
+func (o *ChartListOptions) validateChartEntry(entry os.DirEntry, err error) error {
+	if err != nil {
+		return err
+	}
+
+	if entry.IsDir() && slices.Contains(helper.ExcludedDirs, entry.Name()) {
+		return filepath.SkipDir
+	}
+
+	return nil
+}
+
+func buildWebChart(path string, chart *chartFile.HelmChart) Chart {
+	return Chart{
 		Name:        chart.Metadata.Name,
 		Description: chart.Metadata.Description,
 		Icon:        chart.Metadata.Icon,
@@ -93,27 +106,22 @@ func (o *ChartListOptions) GetChartData(path string, entry os.DirEntry, err erro
 		Version:     chart.Metadata.Version,
 		Train:       chartFile.GetTrain(path, chart),
 	}
+}
 
-	trainExists := false
+func (o *ChartListOptions) addChartToTrain(webChart Chart) {
 	for idx, train := range o.list.Trains {
-		if train.Name == webChart.Train {
-			trainExists = true
-			// Increase chart count for the existing train
-			o.list.Trains[idx].Count++
-			// Add the chart to the existing train
-			o.list.Trains[idx].Charts = append(o.list.Trains[idx].Charts, webChart)
+		if train.Name != webChart.Train {
+			continue
 		}
-	}
-	if trainExists {
-		return nil
+
+		o.list.Trains[idx].Count++
+		o.list.Trains[idx].Charts = append(o.list.Trains[idx].Charts, webChart)
+		return
 	}
 
-	// Add a new train with the chart
 	o.list.Trains = append(o.list.Trains, Train{
 		Name:   webChart.Train,
 		Count:  1,
 		Charts: []Chart{webChart},
 	})
-
-	return nil
 }

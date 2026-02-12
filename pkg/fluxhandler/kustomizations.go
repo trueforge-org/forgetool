@@ -63,36 +63,19 @@ resources:
 		return err
 	}
 
-	// Collect resources to add to kustomization.yaml
-	var resources []string
-	for _, file := range files {
-		name := file.Name()
-		// Ignore kustomization.yaml and ks.yaml files
-		if name == "kustomization.yaml" || name == "ks.yaml" {
-			continue
-		}
-		// Include only YAML files and directories
-		if strings.HasSuffix(name, ".yaml") || file.IsDir() {
-			if file.IsDir() && fileExists(filepath.Join(path, name, "ks.yaml")) {
-				// Update folder entry to include ks.yaml
-				name = fmt.Sprintf("%s/ks.yaml", name)
-			}
-			// Check if the file/folder is already listed
-			if !strings.Contains(content, name) {
-				if name == "namespace.yaml" {
-					resources = append([]string{name}, resources...)
-				} else {
-					resources = append(resources, name)
-				}
-			}
-		}
-	}
+	resources := collectKustomizationResources(path, files, content)
 
 	// Update kustomization.yaml content
 	for _, resource := range resources {
 		content += fmt.Sprintf("  - %s\n", resource)
 	}
+	content = removeResourcePrefixesForKs(content)
 
+	// Write back the updated kustomization.yaml file
+	return ioutil.WriteFile(kustomizationPath, []byte(content), 0644)
+}
+
+func removeResourcePrefixesForKs(content string) string {
 	contentLines := strings.Split(content, "\n")
 	for _, item := range contentLines {
 
@@ -109,10 +92,37 @@ resources:
 			contentLines = updatedContent
 		}
 	}
-	content = strings.Join(contentLines, "\n")
 
-	// Write back the updated kustomization.yaml file
-	return ioutil.WriteFile(kustomizationPath, []byte(content), 0644)
+	return strings.Join(contentLines, "\n")
+}
+
+func collectKustomizationResources(path string, files []os.FileInfo, content string) []string {
+	var resources []string
+	for _, file := range files {
+		name := file.Name()
+		if name == "kustomization.yaml" || name == "ks.yaml" {
+			continue
+		}
+		if !strings.HasSuffix(name, ".yaml") && !file.IsDir() {
+			continue
+		}
+
+		if file.IsDir() && fileExists(filepath.Join(path, name, "ks.yaml")) {
+			name = fmt.Sprintf("%s/ks.yaml", name)
+		}
+		if strings.Contains(content, name) {
+			continue
+		}
+
+		if name == "namespace.yaml" {
+			resources = append([]string{name}, resources...)
+			continue
+		}
+
+		resources = append(resources, name)
+	}
+
+	return resources
 }
 
 // processDirectory processes each directory recursively

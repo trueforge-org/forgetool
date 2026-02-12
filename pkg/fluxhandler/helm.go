@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"helm.sh/helm/v3/pkg/action"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/cli/values"
@@ -82,29 +83,13 @@ func HelmPull(repo string, name string, version string, dest string, silent bool
 	if err := os.MkdirAll(client.DestDir, os.ModePerm); err != nil {
 		return fmt.Errorf("❌ Failed to create cache directory: %s", err)
 	}
+	configureHelmPullVerification(client, repo)
 
-	switch repo {
-	case "https://charts.trueforge.org",
-		"https://library-charts.trueforge.org",
-		"https://deps.trueforge.org":
-		client.Keyring = helper.GpgDir + "/pubring.gpg"
-		client.Verify = true
-	case "https://charts.jetstack.io":
-		client.Keyring = helper.GpgDir + "/certman.gpg"
-		client.Verify = true
-	default:
-		// Do nothing for other repositories
-	}
-
-	link := ""
+	link, repoURL := resolveHelmPullLink(repo, name)
+	client.RepoURL = repoURL
 	if strings.HasPrefix(repo, "http") {
-		link = name
 		repoName := cleanRepoURL(repo)
 		updateHelmRepo(repoName, repo, silent)
-		// repo = repoName  (Commented out by Boemeltrein, seems unused, changed for linting purposes)
-	} else {
-		link = repo + "/" + name
-		client.RepoURL = ""
 	}
 
 	output, err := client.Run(link)
@@ -126,6 +111,27 @@ func HelmPull(repo string, name string, version string, dest string, silent bool
 		log.Info().Msgf("☸ Helm output: %s", output)
 	}
 	return nil
+}
+
+func configureHelmPullVerification(client *action.Pull, repo string) {
+	switch repo {
+	case "https://charts.trueforge.org",
+		"https://library-charts.trueforge.org",
+		"https://deps.trueforge.org":
+		client.Keyring = helper.GpgDir + "/pubring.gpg"
+		client.Verify = true
+	case "https://charts.jetstack.io":
+		client.Keyring = helper.GpgDir + "/certman.gpg"
+		client.Verify = true
+	}
+}
+
+func resolveHelmPullLink(repo, chartName string) (string, string) {
+	if strings.HasPrefix(repo, "http") {
+		return chartName, repo
+	}
+
+	return repo + "/" + chartName, ""
 }
 
 func noOpLog(format string, v ...interface{}) {}
@@ -172,24 +178,9 @@ func HelmInstall(repoURL string, chartName string, releaseName string, namespace
 		return fmt.Errorf("failed to merge values: %w", err)
 	}
 
-	// Install the chart with merged values
-	log.Debug().Msg("Installing chart...")
-	release, err := client.Run(chart, vals)
+	release, err := runInstallWithTimeoutRetry(client, chart, vals)
 	if err != nil {
-		log.Debug().Msg("Chart install returned an error")
-		if strings.Contains(err.Error(), "timed out") {
-			// Wait for 15 seconds and try again
-			log.Warn().Msg("Chart install recieved a timeout, retrying in 15 seconds...")
-			time.Sleep(15 * time.Second)
-			release, err = client.Run(chart, vals)
-			if err != nil && strings.Contains(err.Error(), "timed out") {
-				return fmt.Errorf("failed to install chart after retry, with another timeout: %w", err)
-			} else if err != nil {
-				return fmt.Errorf("failed to install chart after retry: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to install chart: %w", err)
-		}
+		return err
 	}
 
 	if wait {
@@ -200,6 +191,31 @@ func HelmInstall(repoURL string, chartName string, releaseName string, namespace
 	log.Printf("Installed Chart values: %v\n", release.Config)
 
 	return nil
+}
+
+func runInstallWithTimeoutRetry(client *action.Install, chart *chart.Chart, vals map[string]interface{}) (*release.Release, error) {
+	log.Debug().Msg("Installing chart...")
+	rel, err := client.Run(chart, vals)
+	if err == nil {
+		return rel, nil
+	}
+
+	log.Debug().Msg("Chart install returned an error")
+	if !strings.Contains(err.Error(), "timed out") {
+		return nil, fmt.Errorf("failed to install chart: %w", err)
+	}
+
+	log.Warn().Msg("Chart install recieved a timeout, retrying in 15 seconds...")
+	time.Sleep(15 * time.Second)
+	rel, err = client.Run(chart, vals)
+	if err == nil {
+		return rel, nil
+	}
+	if strings.Contains(err.Error(), "timed out") {
+		return nil, fmt.Errorf("failed to install chart after retry, with another timeout: %w", err)
+	}
+
+	return nil, fmt.Errorf("failed to install chart after retry: %w", err)
 }
 
 func ensureNamespace(actionConfig *action.Configuration, namespace string) error {

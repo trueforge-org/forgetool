@@ -14,15 +14,9 @@ import (
 // If replaceExisting is true, it will overwrite existing files in the destination.
 // The filter string specifies files to be included (can be a regex pattern).
 func copyDirInternal(src, dest string, replaceExisting bool, filter string) error {
-	var regexFilter *regexp.Regexp
-	var err error
-
-	if filter != "" {
-		// Compile filter string into regex pattern
-		regexFilter, err = regexp.Compile(filter)
-		if err != nil {
-			return err
-		}
+	regexFilter, err := compileCopyFilter(filter)
+	if err != nil {
+		return err
 	}
 
 	err = filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
@@ -39,38 +33,60 @@ func copyDirInternal(src, dest string, replaceExisting bool, filter string) erro
 		// Add debug output to verify the files being processed
 		// log.Info().Msgf("Processing: %s\n", relPath)
 
-		if regexFilter != nil && !regexFilter.MatchString(relPath) {
-			// Skip files that do not match the regex filter
+		skip, skipErr := shouldSkipByFilter(info, relPath, regexFilter)
+		if skipErr != nil {
+			return skipErr
+		}
+		if skip {
 			if info.IsDir() {
-				// log.Info().Msgf("Skipping directory (filtered): %s\n", relPath)
-				return filepath.SkipDir // Skip entire directory if filtered out
+				return filepath.SkipDir
 			}
-			// log.Info().Msgf("Skipping file (filtered): %s\n", relPath)
-			return nil // Skip the file itself if filtered out
+			return nil
 		}
 
-		// Replace DOTREPLACE in the destination path
-		destPath := filepath.Join(dest, relPath)
-		destPath = ReplaceDotInFilename(destPath)
-
-		if info.IsDir() {
-			// If it's a directory, create the directory in the destination
-			if err := os.MkdirAll(destPath, os.ModePerm); err != nil {
-				return err
-			}
-		} else {
-			// If it's a file, copy the file
-			if _, err := os.Stat(destPath); os.IsNotExist(err) || replaceExisting {
-				if err := CopyFile(path, destPath, replaceExisting); err != nil {
-					return err
-				}
-			} else {
-				//log.Info().Msgf("Skipping existing file: %s\n", destPath)
-			}
+		destPath := getDestinationPath(dest, relPath)
+		if err := copyPathEntry(path, destPath, info, replaceExisting); err != nil {
+			return err
 		}
 		return nil
 	})
 	return err
+}
+
+func compileCopyFilter(filter string) (*regexp.Regexp, error) {
+	if filter == "" {
+		return nil, nil
+	}
+
+	return regexp.Compile(filter)
+}
+
+func copyPathEntry(sourcePath, destPath string, info os.FileInfo, replaceExisting bool) error {
+	if info.IsDir() {
+		return os.MkdirAll(destPath, os.ModePerm)
+	}
+
+	if _, err := os.Stat(destPath); os.IsNotExist(err) || replaceExisting {
+		return CopyFile(sourcePath, destPath, replaceExisting)
+	}
+
+	return nil
+}
+
+func shouldSkipByFilter(info os.FileInfo, relPath string, regexFilter *regexp.Regexp) (bool, error) {
+	if regexFilter == nil {
+		return false, nil
+	}
+
+	if regexFilter.MatchString(relPath) {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func getDestinationPath(dest, relPath string) string {
+	return ReplaceDotInFilename(filepath.Join(dest, relPath))
 }
 
 // replaceDotInFilename replaces DOTREPLACE with a dot (.) in the given filename.

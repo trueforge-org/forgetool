@@ -87,54 +87,7 @@ func getFilteredRootLevelKeys(k *koanf.Koanf) []string {
 
 // constructLink constructs a link based on the repository using the logic from the main function.
 func constructLink(repository string) string {
-	prefix := ""
-
-	switch {
-	case strings.HasPrefix(repository, "lscr.io/linuxserver/"):
-		prefix = "https://fleet.linuxserver.io/image?name="
-		repository = strings.TrimPrefix(repository, "lscr.io/")
-	case strings.HasPrefix(repository, "oci.trueforge.org/containerforge/"):
-		prefix = "https://github.com/trueforge-org/containers/tree/main/apps/"
-		repository = strings.TrimPrefix(repository, "oci.trueforge.org/containerforge/")
-	case strings.HasPrefix(repository, "mcr.microsoft.com/"):
-		prefix = "https://mcr.microsoft.com/en-us/product/"
-		repository = strings.TrimPrefix(repository, "mcr.microsoft.com/")
-	case strings.HasPrefix(repository, "public.ecr.aws/"):
-		prefix = "https://gallery.ecr.aws/"
-		repository = strings.TrimPrefix(repository, "public.ecr.aws/")
-	case strings.HasPrefix(repository, "ghcr.io/"):
-		prefix = "https://"
-	case strings.HasPrefix(repository, "quay.io/"):
-		prefix = "https://"
-	case strings.HasPrefix(repository, "gcr.io/"):
-		prefix = "https://"
-	case strings.Contains(repository, ".azurecr.io/"):
-		reg := fmt.Sprintf(`%s.azurecr.io/`, strings.Split(repository, ".")[0])
-		prefix = fmt.Sprintf("https://%s", reg)
-		repository = strings.TrimPrefix(repository, reg)
-	case strings.Contains(repository, ".ocir.io/"):
-		prefix = ""
-	default:
-		// Docker Hub or unknown registry
-		prefix = "https://hub.docker.com/r/"
-		repository = strings.TrimPrefix(repository, "docker.io/")
-		repository = strings.TrimPrefix(repository, "index.docker.io/")
-		repository = strings.TrimPrefix(repository, "registry-1.docker.io/")
-		repository = strings.TrimPrefix(repository, "registry.hub.docker.com/")
-
-		// Check for Docker Official Image
-		if strings.Count(repository, "/") == 0 || strings.HasPrefix(repository, "library/") {
-			prefix = "https://hub.docker.com/_/"
-			repository = strings.TrimPrefix(repository, "library/")
-		}
-
-		// Avoid creating a bad link if the image name has more than 1 slash
-		slashes := strings.Count(repository, "/")
-		if slashes > 1 {
-			prefix = ""
-			log.Warn().Msgf("WARNING: Could not determine source repository url for [%s]", repository)
-		}
-	}
+	prefix, repository := resolveLinkPrefix(repository)
 
 	if prefix == "" {
 		log.Warn().Msgf("WARNING: Could not determine source repository url for [%s]", repository)
@@ -143,4 +96,50 @@ func constructLink(repository string) string {
 
 	containerURL := fmt.Sprintf("%s%s", prefix, repository)
 	return containerURL
+}
+
+func resolveLinkPrefix(repository string) (string, string) {
+	switch {
+	case strings.HasPrefix(repository, "lscr.io/linuxserver/"):
+		return "https://fleet.linuxserver.io/image?name=", strings.TrimPrefix(repository, "lscr.io/")
+	case strings.HasPrefix(repository, "oci.trueforge.org/containerforge/"):
+		return "https://github.com/trueforge-org/containers/tree/main/apps/", strings.TrimPrefix(repository, "oci.trueforge.org/containerforge/")
+	case strings.HasPrefix(repository, "mcr.microsoft.com/"):
+		return "https://mcr.microsoft.com/en-us/product/", strings.TrimPrefix(repository, "mcr.microsoft.com/")
+	case strings.HasPrefix(repository, "public.ecr.aws/"):
+		return "https://gallery.ecr.aws/", strings.TrimPrefix(repository, "public.ecr.aws/")
+	case strings.HasPrefix(repository, "ghcr.io/"):
+		return "https://", repository
+	case strings.HasPrefix(repository, "quay.io/"):
+		return "https://", repository
+	case strings.HasPrefix(repository, "gcr.io/"):
+		return "https://", repository
+	case strings.Contains(repository, ".azurecr.io/"):
+		reg := fmt.Sprintf(`%s.azurecr.io/`, strings.Split(repository, ".")[0])
+		return fmt.Sprintf("https://%s", reg), strings.TrimPrefix(repository, reg)
+	case strings.Contains(repository, ".ocir.io/"):
+		return "", repository
+	default:
+		return dockerHubLinkParts(repository)
+	}
+}
+
+func dockerHubLinkParts(repository string) (string, string) {
+	prefix := "https://hub.docker.com/r/"
+	repository = strings.TrimPrefix(repository, "docker.io/")
+	repository = strings.TrimPrefix(repository, "index.docker.io/")
+	repository = strings.TrimPrefix(repository, "registry-1.docker.io/")
+	repository = strings.TrimPrefix(repository, "registry.hub.docker.com/")
+
+	if strings.Count(repository, "/") == 0 || strings.HasPrefix(repository, "library/") {
+		prefix = "https://hub.docker.com/_/"
+		repository = strings.TrimPrefix(repository, "library/")
+	}
+
+	if strings.Count(repository, "/") > 1 {
+		log.Warn().Msgf("WARNING: Could not determine source repository url for [%s]", repository)
+		return "", repository
+	}
+
+	return prefix, repository
 }

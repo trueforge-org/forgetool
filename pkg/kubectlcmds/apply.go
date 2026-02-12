@@ -64,18 +64,26 @@ func applyYAML(k8sClient client.Client, yamlData []byte) error {
 			log.Error().Err(err).Msg("Failed to unmarshal node")
 			return fmt.Errorf("failed to unmarshal node: %v", err)
 		}
-		if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
-			log.Warn().Err(err).Msg("Failed to apply yaml object... trying again in 15 seconds...")
-			time.Sleep(15 * time.Second)
-			if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
-				log.Error().Err(err).Msg("Failed to apply object")
-				return fmt.Errorf("failed to apply object: %v", err)
-			}
+		if err := applyObjectWithRetry(k8sClient, obj); err != nil {
+			return err
 		}
 		log.Info().Msgf("Successfully applied object: %s of kind: %s in namespace: %s", obj.GetName(), obj.GetKind(), obj.GetNamespace())
 	}
 
 	log.Debug().Msg("YAML application completed")
+	return nil
+}
+
+func applyObjectWithRetry(k8sClient client.Client, obj *unstructured.Unstructured) error {
+	if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
+		log.Warn().Err(err).Msg("Failed to apply yaml object... trying again in 15 seconds...")
+		time.Sleep(15 * time.Second)
+		if err := k8sClient.Patch(context.TODO(), obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
+			log.Error().Err(err).Msg("Failed to apply object")
+			return fmt.Errorf("failed to apply object: %v", err)
+		}
+	}
+
 	return nil
 }
 
@@ -132,16 +140,7 @@ func KubectlApplyKustomize(ctx context.Context, filePath string) error {
 		return fmt.Errorf("failed to stat path: %v", err)
 	}
 
-	var kustomizePath string
-	if fileInfo.IsDir() {
-		// If it's a directory, use it as the kustomize path
-		kustomizePath = filePath
-		log.Debug().Msgf("Using directory as kustomize path: %s", kustomizePath)
-	} else {
-		// If it's a file, use its directory as the kustomize path
-		kustomizePath = filepath.Dir(filePath)
-		log.Debug().Msgf("Using file's directory as kustomize path: %s", kustomizePath)
-	}
+	kustomizePath := resolveKustomizePath(filePath, fileInfo)
 
 	// Process kustomize to get the YAML output
 	fSys := filesys.MakeFsOnDisk()
@@ -175,4 +174,15 @@ func KubectlApplyKustomize(ctx context.Context, filePath string) error {
 	log.Info().Msg("KubectlApplyKustomize operation completed")
 
 	return nil
+}
+
+func resolveKustomizePath(filePath string, fileInfo os.FileInfo) string {
+	if fileInfo.IsDir() {
+		log.Debug().Msgf("Using directory as kustomize path: %s", filePath)
+		return filePath
+	}
+
+	kustomizePath := filepath.Dir(filePath)
+	log.Debug().Msgf("Using file's directory as kustomize path: %s", kustomizePath)
+	return kustomizePath
 }

@@ -27,47 +27,55 @@ func CheckHealth(node string, status string, silent bool) error {
 		log.Info().Msgf("Healthcheck: node currently reporting status:  %v %v", node, out)
 	}
 
-	if status != "" && strings.Contains(out, status) {
-		if !silent {
-			response := "Healthcheck: detected node " + node + " in mode " + status + " , continuing..."
-			log.Info().Msg(response)
-		}
-	} else if status == "" && strings.Contains(out, "maintenance") {
-		response := "Healthcheck: WARN detected node " + node + " in mode " + "maintenance" + ".\nLikely a new node, so trying commands anyway. Continuing..."
-		log.Warn().Msg(response)
-	} else if status == "" && strings.Contains(out, "running") {
-		_, err = CheckReadyStatus(node, silent)
-		if err != nil {
-
-			errstring := "healthcheck failed. status: " + string(out) + " error: " + err.Error()
-
-			if !silent {
-				log.Error().Err(err).Str("node", node).Msg("Healthcheck failed while checking readiness")
-			}
-			return errors.New(errstring)
-		}
-	} else {
-		if !silent {
-			log.Info().Msgf("Healthcheck: check on node : failed %v", node)
-			log.Error().Str("node", node).Msg("Healthcheck failed with unexpected status")
-		}
-
-		return errors.New("healthcheck failed")
+	if err = evaluateHealthStatus(node, status, out, silent); err != nil {
+		return err
 	}
 	log.Debug().Str("node", node).Msg("Health check completed successfully")
 	return nil
 }
 
-func WaitForHealth(node string, status []string) (string, error) {
-	statusmsg := ""
-	if len(status) > 0 {
-		for _, check := range status {
-			statusmsg += ", " + check
+func evaluateHealthStatus(node string, status string, out string, silent bool) error {
+	if status != "" && strings.Contains(out, status) {
+		if !silent {
+			response := "Healthcheck: detected node " + node + " in mode " + status + " , continuing..."
+			log.Info().Msg(response)
 		}
-	} else {
-		statusmsg = "running"
-		status = []string{""}
+		return nil
 	}
+
+	if status == "" && strings.Contains(out, "maintenance") {
+		response := "Healthcheck: WARN detected node " + node + " in mode " + "maintenance" + ".\nLikely a new node, so trying commands anyway. Continuing..."
+		log.Warn().Msg(response)
+		return nil
+	}
+
+	if status == "" && strings.Contains(out, "running") {
+		return validateReadyStatus(node, out, silent)
+	}
+
+	if !silent {
+		log.Info().Msgf("Healthcheck: check on node : failed %v", node)
+		log.Error().Str("node", node).Msg("Healthcheck failed with unexpected status")
+	}
+
+	return errors.New("healthcheck failed")
+}
+
+func validateReadyStatus(node string, out string, silent bool) error {
+	_, err := CheckReadyStatus(node, silent)
+	if err != nil {
+		errstring := "healthcheck failed. status: " + out + " error: " + err.Error()
+		if !silent {
+			log.Error().Err(err).Str("node", node).Msg("Healthcheck failed while checking readiness")
+		}
+		return errors.New(errstring)
+	}
+
+	return nil
+}
+
+func WaitForHealth(node string, status []string) (string, error) {
+	statusmsg, checks := buildStatusChecks(status)
 
 	log.Info().Msgf("Healthcheck: Waiting for Node %s to reach status: %s", node, statusmsg)
 
@@ -84,7 +92,7 @@ func WaitForHealth(node string, status []string) (string, error) {
 	defer timer.Stop()
 
 	// Initial health check before starting the ticker
-	for _, check := range status {
+	for _, check := range checks {
 		log.Debug().Str("node", node).Str("check", check).Msg("Performing initial health check")
 		err := CheckHealth(node, check, true)
 		if err == nil {
@@ -98,7 +106,7 @@ func WaitForHealth(node string, status []string) (string, error) {
 		select {
 		case <-ticker.C:
 			log.Debug().Msg("Running periodic health checks")
-			for _, check := range status {
+			for _, check := range checks {
 				err := CheckHealth(node, check, true)
 				if err == nil {
 					log.Info().Str("node", node).Str("status", check).Msg("Periodic health check passed")
@@ -111,4 +119,17 @@ func WaitForHealth(node string, status []string) (string, error) {
 			return "ERROR", errors.New("timeout waiting for Node to boot")
 		}
 	}
+}
+
+func buildStatusChecks(status []string) (string, []string) {
+	if len(status) == 0 {
+		return "running", []string{""}
+	}
+
+	statusmsg := ""
+	for _, check := range status {
+		statusmsg += ", " + check
+	}
+
+	return statusmsg, status
 }

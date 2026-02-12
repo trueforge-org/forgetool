@@ -246,28 +246,15 @@ func shamCheck() {
 func filesToCheck(config SopsConfig) ([]EncrFileData, error) {
 	log.Debug().Msg("Starting filesToCheck")
 
-	// Ensure the config is loaded
 	var files []EncrFileData
-	// Iterate over each creation rule and find matching files
 	for _, rule := range config.CreationRules {
-		// Compile the path regex from the rule
 		pathRegex, err := regexp.Compile(rule.PathRegex)
 		if err != nil {
 			log.Error().Err(err).Msg("Invalid path regex in .sops.yaml")
 			return nil, fmt.Errorf("invalid path regex in .sops.yaml: %v", err)
 		}
 
-		// Find files that match the regex
-		err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			if !info.IsDir() && pathRegex.MatchString(path) {
-				files = append(files, EncrFileData{Path: path, Encrypted: false})
-				log.Debug().Msgf("Matched file: %s", path)
-			}
-			return nil
-		})
+		err = walkRuleFiles(pathRegex, &files)
 		if err != nil {
 			log.Error().Err(err).Msg("Error walking file paths")
 			return nil, err
@@ -275,6 +262,19 @@ func filesToCheck(config SopsConfig) ([]EncrFileData, error) {
 	}
 
 	return files, nil
+}
+
+func walkRuleFiles(pathRegex *regexp.Regexp, files *[]EncrFileData) error {
+	return filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && pathRegex.MatchString(path) {
+			*files = append(*files, EncrFileData{Path: path, Encrypted: false})
+			log.Debug().Msgf("Matched file: %s", path)
+		}
+		return nil
+	})
 }
 
 // isEncrypted checks if the given data is encrypted based on the criteria defined in .sops.yaml.
