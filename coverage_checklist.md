@@ -2,96 +2,99 @@
 
 Sorted from lowest to highest coverage.
 
-- [x]   3.33% (2/60) - pkg/sops/decrypt.go
-- [x]   9.52% (4/42) - pkg/gencmd/genconfig.go
-- [x]  11.11% (1/9) - cmd/adv_gentooldocs.go
-- [x]  11.11% (1/9) - cmd/charts_genmeta.go
-- [x]  12.05% (10/83) - pkg/fluxhandler/helmrelease.go
-- [x]  12.50% (1/8) - cmd/charts_genchangelog.go
-- [x]  12.50% (10/80) - pkg/gencmd/execcmd.go
-- [x]  14.29% (3/21) - pkg/gencmd/upgrade.go
-- [x]  16.67% (1/6) - cmd/charts_deps.go
-- [x]  16.67% (1/6) - cmd/charts_genchartlist.go
-- [x]  18.32% (50/273) - pkg/fluxhandler/helm.go
-- [x]  18.46% (12/65) - pkg/sops/wrapper.go
-- [x]  19.67% (12/61) - pkg/nodestatus/health.go
-- [x]  22.73% (15/66) - pkg/sops/encrypt.go
-- [x]  23.66% (22/93) - pkg/gencmd/bootstrap.go
-- [x]  25.00% (1/4) - cmd/adv_precommit.go
-- [x]  25.00% (1/4) - cmd/charts_tagclean.go
-- [x]  25.68% (66/257) - pkg/initfiles/initfiles.go
-- [x]  30.30% (40/132) - pkg/helper/git.go
-- [x]  31.21% (49/157) - pkg/initfiles/clusterenv.go
-- [x]  33.11% (49/148) - pkg/sops/checkencrypt.go
-- [x]  33.33% (1/3) - cmd/charts_bump.go
-- [x]  33.33% (1/3) - cmd/cluster_init.go
-- [x]  36.62% (26/71) - pkg/fluxhandler/bootstrap.go
-- [x]  40.00% (4/10) - cmd/helmrelease_install.go
-- [x]  40.00% (4/10) - cmd/helmrelease_upgrade.go
-- [x]  41.18% (14/34) - pkg/talassist/load.go
-- [x]  41.27% (52/126) - pkg/charts/changelog/changelog.go
-- [x]  42.11% (16/38) - cmd/talos_apply.go
-- [x]  45.65% (21/46) - embed/embed.go
-- [x]  50.00% (1/2) - cmd/cluster_genconfig.go
-- [x]  51.79% (29/56) - pkg/nodestatus/status.go
-- [x]  52.94% (18/34) - pkg/charts/changelog/commit.go
-- [x]  53.73% (36/67) - pkg/charts/changelog/utils.go
-- [x]  54.17% (26/48) - pkg/helper/netvalidate.go
-- [x]  55.45% (56/101) - pkg/charts/deps/deps.go
-- [x]  56.25% (9/16) - pkg/helper/time.go
-- [x]  57.14% (4/7) - cmd/talos_bootstrap.go
-- [x]  60.00% (6/10) - cmd/adv_testcmd.go
-- [x]  67.57% (25/37) - pkg/charts/changelog/render.go
-- [x]  68.75% (11/16) - pkg/charts/valuesYaml/parse.go
-- [x]  68.92% (51/74) - pkg/charts/changelog/patch.go
-- [x]  69.23% (18/26) - main.go
-- [x]  70.42% (50/71) - pkg/charts/changelog/changed_data.go
-- [x]  71.43% (5/7) - pkg/helper/var2file.go
-- [x]  73.47% (36/49) - pkg/helper/copy.go
-- [x]  75.00% (9/12) - pkg/charts/info/info.go
-- [x]  75.00% (9/12) - pkg/info/info.go
-- [x]  76.19% (16/21) - pkg/sops/loadsops.go
-- [x]  76.39% (55/72) - pkg/fluxhandler/sshsecretgen.go
-- [x]  77.78% (14/18) - pkg/charts/valuesYaml/updater.go
-- [x]  77.89% (74/95) - pkg/helper/tooldocs.go
-- [x]  80.00% (8/10) - pkg/charts/helmignore/helmignore.go
-- [x]  80.33% (49/61) - pkg/helper/envsubst.go
-- [x]  83.33% (10/12) - pkg/charts/readme/readme.go
-- [x]  83.33% (10/12) - pkg/helper/dns.go
-- [x]  83.33% (10/12) - pkg/helper/marshaller.go
-- [x]  84.62% (11/13) - pkg/helper/prompts.go
-- [x]  85.71% (30/35) - pkg/helper/helper.go
-- [x]  85.71% (36/42) - pkg/helper/replace.go
-- [x]  85.71% (12/14) - pkg/helper/walker.go
-- [x]  86.05% (74/86) - pkg/charts/chartFile/updater.go
-- [x]  86.36% (19/22) - pkg/gencmd/plain.go
-- [x]  87.50% (14/16) - pkg/charts/version/bump.go
-- [x]  89.23% (58/65) - pkg/fluxhandler/kustomizations.go
-- [x]  89.47% (17/19) - pkg/gencmd/apply.go
-- [x]  90.91% (20/22) - pkg/charts/changelog/active_charts.go
-- [x]  91.30% (21/23) - pkg/fluxhandler/helmrepo.go
-- [x]  92.00% (23/25) - pkg/talhelperutil/extractfromtalconfig.go
-- [x]  92.31% (24/26) - pkg/helper/runcmd.go
-- [x]  93.10% (54/58) - pkg/charts/image/image.go
-- [x]  93.33% (28/30) - pkg/helper/talhelperextract.go
-- [x]  93.33% (14/15) - pkg/helper/yamlutil.go
-- [x]  93.75% (15/16) - cmd/talos_kubeconfig.go
-- [x]  93.75% (15/16) - cmd/talos_reset.go
-- [x]  94.29% (33/35) - pkg/charts/website/chart_list.go
-- [x]  95.45% (21/22) - cmd/talos_upgrade.go
-- [x]  98.18% (54/55) - pkg/charts/chartFile/chart_file.go
-- [x]  98.33% (59/60) - pkg/charts/image/cleanup.go
-- [x] 100.00% (1/1) - cmd/adv.go
-- [x] 100.00% (1/1) - cmd/charts.go
-- [x] 100.00% (4/4) - cmd/checkcrypt.go
-- [x] 100.00% (1/1) - cmd/cluster.go
-- [x] 100.00% (3/3) - cmd/decrypt.go
-- [x] 100.00% (3/3) - cmd/encrypt.go
-- [x] 100.00% (1/1) - cmd/flux.go
-- [x] 100.00% (6/6) - cmd/flux_bootstrap.go
-- [x] 100.00% (1/1) - cmd/helmrelease.go
-- [x] 100.00% (2/2) - cmd/info.go
-- [x] 100.00% (13/13) - cmd/root.go
-- [x] 100.00% (1/1) - cmd/talos.go
-- [x] 100.00% (8/8) - cmd/talos_health.go
-- [x] 100.00% (3/3) - partial_builds/precommit/main.go
+- [ ]  11.11% (1/9) - cmd/adv_gentooldocs.go
+- [ ]  11.11% (1/9) - cmd/charts_genmeta.go
+- [ ]  12.05% (10/83) - pkg/fluxhandler/helmrelease.go
+- [ ]  12.24% (6/49) - pkg/kubectlcmds/checkstatus.go
+- [ ]  12.50% (1/8) - cmd/charts_genchangelog.go
+- [ ]  12.50% (10/80) - pkg/gencmd/execcmd.go
+- [ ]  14.29% (3/21) - pkg/gencmd/upgrade.go
+- [ ]  16.67% (1/6) - cmd/charts_deps.go
+- [ ]  16.67% (1/6) - cmd/charts_genchartlist.go
+- [ ]  18.32% (50/273) - pkg/fluxhandler/helm.go
+- [ ]  23.66% (22/93) - pkg/gencmd/bootstrap.go
+- [ ]  25.00% (1/4) - cmd/adv_precommit.go
+- [ ]  25.00% (1/4) - cmd/charts_tagclean.go
+- [ ]  25.00% (10/40) - pkg/kubectlcmds/approvecerts.go
+- [ ]  28.02% (72/257) - pkg/initfiles/initfiles.go
+- [ ]  31.82% (42/132) - pkg/helper/git.go
+- [ ]  33.33% (1/3) - cmd/charts_bump.go
+- [ ]  33.33% (1/3) - cmd/cluster_init.go
+- [ ]  33.33% (20/60) - pkg/sops/decrypt.go
+- [ ]  33.85% (22/65) - pkg/sops/wrapper.go
+- [ ]  34.85% (23/66) - pkg/sops/encrypt.go
+- [ ]  36.31% (57/157) - pkg/initfiles/clusterenv.go
+- [ ]  36.49% (54/148) - pkg/sops/checkencrypt.go
+- [ ]  40.00% (4/10) - cmd/helmrelease_install.go
+- [ ]  40.00% (4/10) - cmd/helmrelease_upgrade.go
+- [ ]  40.85% (29/71) - pkg/fluxhandler/bootstrap.go
+- [ ]  41.18% (14/34) - pkg/talassist/load.go
+- [ ]  41.46% (34/82) - pkg/kubectlcmds/apply.go
+- [ ]  42.11% (16/38) - cmd/talos_apply.go
+- [ ]  45.24% (19/42) - pkg/gencmd/genconfig.go
+- [ ]  50.00% (1/2) - cmd/cluster_genconfig.go
+- [ ]  50.79% (64/126) - pkg/charts/changelog/changelog.go
+- [ ]  52.94% (18/34) - pkg/charts/changelog/commit.go
+- [ ]  56.44% (57/101) - pkg/charts/deps/deps.go
+- [ ]  56.52% (26/46) - embed/embed.go
+- [ ]  57.14% (4/7) - cmd/talos_bootstrap.go
+- [ ]  58.82% (10/17) - pkg/helper/time.go
+- [ ]  60.00% (6/10) - cmd/adv_testcmd.go
+- [ ]  67.57% (25/37) - pkg/charts/changelog/render.go
+- [ ]  68.92% (51/74) - pkg/charts/changelog/patch.go
+- [ ]  69.23% (18/26) - main.go
+- [ ]  75.00% (9/12) - pkg/charts/info/info.go
+- [ ]  75.00% (9/12) - pkg/info/info.go
+- [ ]  77.78% (56/72) - pkg/fluxhandler/sshsecretgen.go
+- [ ]  80.00% (8/10) - pkg/charts/helmignore/helmignore.go
+- [ ]  82.09% (55/67) - pkg/charts/changelog/utils.go
+- [ ]  83.33% (10/12) - pkg/charts/readme/readme.go
+- [ ]  83.33% (15/18) - pkg/charts/valuesYaml/updater.go
+- [ ]  83.61% (51/61) - pkg/nodestatus/health.go
+- [ ]  84.21% (80/95) - pkg/helper/tooldocs.go
+- [ ]  84.62% (11/13) - pkg/helper/prompts.go
+- [ ]  85.71% (18/21) - pkg/sops/loadsops.go
+- [ ]  86.05% (74/86) - pkg/charts/chartFile/updater.go
+- [ ]  86.36% (19/22) - pkg/gencmd/plain.go
+- [ ]  87.50% (14/16) - pkg/charts/valuesYaml/parse.go
+- [ ]  87.50% (14/16) - pkg/charts/version/bump.go
+- [ ]  88.52% (54/61) - pkg/helper/envsubst.go
+- [ ]  88.57% (31/35) - pkg/helper/helper.go
+- [ ]  88.73% (63/71) - pkg/charts/changelog/changed_data.go
+- [ ]  89.23% (58/65) - pkg/fluxhandler/kustomizations.go
+- [ ]  89.29% (50/56) - pkg/nodestatus/status.go
+- [ ]  89.47% (17/19) - pkg/gencmd/apply.go
+- [ ]  90.48% (38/42) - pkg/helper/replace.go
+- [ ]  91.67% (11/12) - pkg/helper/marshaller.go
+- [ ]  91.84% (45/49) - pkg/helper/copy.go
+- [ ]  92.00% (23/25) - pkg/talhelperutil/extractfromtalconfig.go
+- [ ]  92.31% (24/26) - pkg/helper/runcmd.go
+- [ ]  93.33% (28/30) - pkg/helper/talhelperextract.go
+- [ ]  93.33% (14/15) - pkg/helper/yamlutil.go
+- [ ]  93.75% (15/16) - cmd/talos_kubeconfig.go
+- [ ]  93.75% (15/16) - cmd/talos_reset.go
+- [ ]  94.29% (33/35) - pkg/charts/website/chart_list.go
+- [ ]  95.45% (21/22) - cmd/talos_upgrade.go
+- [ ]  96.55% (56/58) - pkg/charts/image/image.go
+- [ ]  98.04% (50/51) - pkg/helper/netvalidate.go
+- [ ]  98.18% (54/55) - pkg/charts/chartFile/chart_file.go
+- [ ]  98.33% (59/60) - pkg/charts/image/cleanup.go
+- [ ] 100.00% (1/1) - cmd/adv.go
+- [ ] 100.00% (1/1) - cmd/charts.go
+- [ ] 100.00% (4/4) - cmd/checkcrypt.go
+- [ ] 100.00% (1/1) - cmd/cluster.go
+- [ ] 100.00% (3/3) - cmd/decrypt.go
+- [ ] 100.00% (3/3) - cmd/encrypt.go
+- [ ] 100.00% (1/1) - cmd/flux.go
+- [ ] 100.00% (6/6) - cmd/flux_bootstrap.go
+- [ ] 100.00% (1/1) - cmd/helmrelease.go
+- [ ] 100.00% (2/2) - cmd/info.go
+- [ ] 100.00% (13/13) - cmd/root.go
+- [ ] 100.00% (1/1) - cmd/talos.go
+- [ ] 100.00% (8/8) - cmd/talos_health.go
+- [ ] 100.00% (3/3) - partial_builds/precommit/main.go
+- [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
+- [ ] 100.00% (23/23) - pkg/fluxhandler/helmrepo.go
+- [ ] 100.00% (12/12) - pkg/helper/dns.go
+- [ ] 100.00% (7/7) - pkg/helper/var2file.go
+- [ ] 100.00% (14/14) - pkg/helper/walker.go
