@@ -25,7 +25,7 @@ Sorted from lowest to highest coverage.
 - [x]   0.00% (0/65) - pkg/fluxhandler/kustomizations.go
 - [x]   0.00% (0/72) - pkg/fluxhandler/sshsecretgen.go
 - [x]   0.00% (0/19) - pkg/gencmd/apply.go
-- [ ]   0.00% (0/93) - pkg/gencmd/bootstrap.go
+- [x]   0.00% (0/93) - pkg/gencmd/bootstrap.go
 - [x]   0.00% (0/80) - pkg/gencmd/execcmd.go
 - [x]   0.00% (0/42) - pkg/gencmd/genconfig.go
 - [x]   0.00% (0/22) - pkg/gencmd/plain.go

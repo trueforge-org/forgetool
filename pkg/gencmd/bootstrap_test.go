@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	talhelperCfg "github.com/budimanjojo/talhelper/v3/pkg/config"
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
 func TestManifestPathsShape(t *testing.T) {
@@ -22,4 +24,21 @@ func TestManifestPathsShape(t *testing.T) {
 		t.Fatalf("expected flux-system/flux segment in first manifest path")
 	}
 	_ = helper.KubernetesPath
+}
+
+func TestRunBootstrapPanicsWithoutNodes(t *testing.T) {
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{}
+
+	defer func() {
+		if recover() == nil {
+			t.Fatalf("expected panic when TalConfig has no nodes")
+		}
+	}()
+
+	RunBootstrap([]string{"bootstrap", "--dry"})
 }
