@@ -28,12 +28,6 @@ changelog:
   filters:
     exclude:
       - '^Merge pull request #\d+ from'
-      - "^docs"
-      - "^test"
-    include:
-      - "forgetool"
-      - "Forgetool"
-      - "ForgeTool"
 release:
   name_template: "{{.ProjectName}}-{{.Tag}}"
   github:
