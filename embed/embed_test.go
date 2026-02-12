@@ -1,6 +1,8 @@
 package embed
 
 import (
+	"io/fs"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -49,5 +51,40 @@ func TestGetTalosExec_ReturnsPathForPlatform(t *testing.T) {
 
 	if filepath.Base(got) != expect {
 		t.Fatalf("expected exec basename %s, got %s", expect, filepath.Base(got))
+	}
+}
+
+func TestFilesToCache_WritesGenericFiles(t *testing.T) {
+	oldCache := helper.CacheDir
+	helper.CacheDir = t.TempDir()
+	t.Cleanup(func() {
+		helper.CacheDir = oldCache
+	})
+
+	filesToCache(GenericFiles, "generic")
+
+	foundFile := false
+	err := filepath.WalkDir(helper.CacheDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			foundFile = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking cache failed: %v", err)
+	}
+	if !foundFile {
+		t.Fatalf("expected generic embedded files to be written to cache")
+	}
+
+	entries, err := os.ReadDir(helper.CacheDir)
+	if err != nil {
+		t.Fatalf("reading cache dir failed: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatalf("expected cache directory to contain entries")
 	}
 }

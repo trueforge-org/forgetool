@@ -3,8 +3,16 @@ package website
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestWriteChartList_NilList(t *testing.T) {
+	opts := &ChartListOptions{OutputPath: filepath.Join(t.TempDir(), "out.json")}
+	if err := opts.WriteChartList(); err == nil {
+		t.Fatalf("expected error when list is nil")
+	}
+}
 
 func TestWriteChartList_WritesFile(t *testing.T) {
 	td := t.TempDir()
@@ -29,5 +37,14 @@ func TestWriteChartList_WritesFile(t *testing.T) {
 	}
 	if cl.TotalCount != 1 || len(cl.Trains) != 1 || cl.Trains[0].Name != "t" {
 		t.Fatalf("unexpected content: %+v", cl)
+	}
+}
+
+func TestWriteChartList_WriteError(t *testing.T) {
+	td := t.TempDir()
+	opts := &ChartListOptions{OutputPath: td}
+	opts.list = &ChartList{TotalCount: 1}
+	if err := opts.WriteChartList(); err == nil {
+		t.Fatalf("expected write error when output path is a directory")
 	}
 }
