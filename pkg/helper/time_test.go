@@ -16,7 +16,7 @@ func TestIsTimeWithinThreshold_WithinThreshold(t *testing.T) {
 func TestIsTimeWithinThreshold_ExactlyAtThreshold(t *testing.T) {
 	now := time.Now()
 	ref := now.Add(-10 * time.Second)
-	// At exactly the threshold boundary the difference equals threshold, so >= is false
+	// Difference equals threshold exactly; strict inequality (< threshold) means this is outside
 	if IsTimeWithinThreshold(now, ref, 10*time.Second) {
 		t.Fatal("expected time exactly at threshold boundary to be out of range")
 	}
@@ -55,7 +55,8 @@ func TestIsTimeWithinThreshold_ZeroDifference(t *testing.T) {
 
 func TestIsTimeWithinThreshold_ZeroThreshold(t *testing.T) {
 	now := time.Now()
+	// Zero threshold uses strict inequality: 0 > -0 is false, so zero difference is rejected
 	if IsTimeWithinThreshold(now, now, 0) {
-		t.Fatal("expected zero threshold to reject even zero difference (strict inequality)")
+		t.Fatal("expected zero threshold to reject even zero difference (strict inequality: 0 < 0 is false)")
 	}
 }

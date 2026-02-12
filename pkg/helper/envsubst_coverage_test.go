@@ -117,7 +117,11 @@ func TestLoadEnvFromFile_WithDocDelimiter(t *testing.T) {
 		t.Fatalf("LoadEnvFromFile failed: %v", err)
 	}
 	if output["KEY"] != "val" {
-		t.Fatalf("expected KEY=val, got %s", output["KEY"])
+		t.Fatalf("expected KEY=val after stripping doc delimiter, got %q", output["KEY"])
+	}
+	// Verify the --- delimiter was properly handled and didn't end up as a key
+	if _, exists := output["---"]; exists {
+		t.Fatal("expected --- delimiter to be stripped, but it appeared as a key")
 	}
 }
 
