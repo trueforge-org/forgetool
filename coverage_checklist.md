@@ -111,6 +111,6 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (9/9) - pkg/sops/hooks.go
 - [ ] 100.00% (21/21) - pkg/sops/loadsops.go
 - [ ] 100.00% (63/63) - pkg/sops/wrapper.go
-- [ ] 100.00% (46/46) - pkg/talassist/load.go
+- [ ] 100.00% (47/47) - pkg/talassist/load.go
 - [ ] 100.00% (35/35) - pkg/talhelperutil/extractfromtalconfig.go
 - [ ] 100.00% (12/12) - pkg/talosctl/talosctl.go
