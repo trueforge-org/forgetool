@@ -40,7 +40,7 @@ func AllToCache() {
 	}
 	GOOSARCH := runtime.GOOS + "_" + runtime.GOARCH
 	filesToCache(StaticFiles, GOOSARCH)
-	filesToCache(GenericFiles, "generic")
+	clusterTemplateToCache()
 }
 
 func filesToCache(embededfs embed.FS, sub string) {

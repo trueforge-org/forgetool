@@ -26,6 +26,8 @@ func resetEmbedHooks() {
 	walkDir = defaultWalkDir
 	fromEmbeddedFS = defaultFromEmbeddedFS
 	fatalErr = defaultFatalErr
+	resolveClusterTemplateVersionHook = func() (string, error) { return "", errors.New("test stub") }
+	downloadClusterTemplateReleaseHook = func(string) error { return errors.New("test stub") }
 }
 
 type readFileStubFS struct {
