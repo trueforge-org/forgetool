@@ -118,23 +118,6 @@ jobs:
           echo "=== talos-worker-1 logs ==="
           docker logs talos-worker-1
 
-      - name: Wait for Talos API
-        run: |
-          set -euo pipefail
-          for node in "${CONTROL_IP}" "${WORKER_IP}"; do
-            for attempt in $(seq 1 90); do
-              if go run . talosctl -n "${node}" version --insecure >/dev/null 2>&1; then
-                echo "Talos API is reachable on ${node}"
-                break
-              fi
-              if [ "${attempt}" -eq 90 ]; then
-                echo "Timed out waiting for Talos API on ${node}"
-                exit 1
-              fi
-              sleep 2
-            done
-          done
-
       - name: Run ForgeTool Apply-Bootstrap
         run: |
           set -euo pipefail
