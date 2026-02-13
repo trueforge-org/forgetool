@@ -9,6 +9,12 @@ import (
 	"github.com/beevik/ntp"
 )
 
+var (
+	checkSystemTimeNTPTimeFn = ntp.Time
+	checkSystemTimeNowFn     = time.Now
+	checkSystemTimeExitFn    = os.Exit
+)
+
 // IsTimeWithinThreshold checks whether the difference between two times is
 // within the given threshold. This is extracted so it can be unit-tested
 // without requiring NTP access.
@@ -23,14 +29,14 @@ func CheckSystemTime() bool {
 	threshold := 10 * time.Second
 
 	// Get the time from an NTP server
-	ntpTime, err := ntp.Time("pool.ntp.org")
+	ntpTime, err := checkSystemTimeNTPTimeFn("pool.ntp.org")
 	if err != nil {
 		log.Info().Msgf("Failed to get NTP time: %v", err)
 		return true
 	}
 
 	// Get the current system time
-	systemTime := time.Now()
+	systemTime := checkSystemTimeNowFn()
 
 	// Check if the time difference is within the acceptable threshold
 	if IsTimeWithinThreshold(systemTime, ntpTime, threshold) {
@@ -40,7 +46,7 @@ func CheckSystemTime() bool {
 		log.Info().Msgf("System time: %v", systemTime)
 		log.Info().Msgf("NTP time: %v", ntpTime)
 		log.Info().Msgf("Aborting command!")
-		os.Exit(1)
+		checkSystemTimeExitFn(1)
 	}
 	return IsTimeWithinThreshold(systemTime, ntpTime, threshold)
 }

@@ -9,10 +9,20 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	hookGetwdFn                = os.Getwd
+	hookStatFn                 = os.Stat
+	hookCreateFn               = os.Create
+	hookWriteStringFn          = func(file *os.File, content string) (int, error) { return file.WriteString(content) }
+	hookChmodFn                = os.Chmod
+	hookGOOS                   = runtime.GOOS
+	buildPreCommitHookScriptFn = buildPreCommitHookScript
+)
+
 // IsCurrentDirGitRepo checks if the current directory is a Git repository.
 func IsCurrentDirGitRepo() (bool, error) {
 	// Get the current working directory
-	dir, err := os.Getwd()
+	dir, err := hookGetwdFn()
 	if err != nil {
 		return false, err
 	}
@@ -21,7 +31,7 @@ func IsCurrentDirGitRepo() (bool, error) {
 	gitDir := filepath.Join(dir, ".git")
 
 	// Check if the .git directory exists and is a directory
-	info, err := os.Stat(gitDir)
+	info, err := hookStatFn(gitDir)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
@@ -41,7 +51,7 @@ func CreateEncrPreCommitHook() error {
 		return nil
 	}
 
-	dir, err := os.Getwd()
+	dir, err := hookGetwdFn()
 	if err != nil {
 		return fmt.Errorf("could not get current working directory: %v", err)
 	}
@@ -55,8 +65,8 @@ func CreateEncrPreCommitHook() error {
 		return err
 	}
 
-	if runtime.GOOS != "windows" {
-		err = os.Chmod(hookPath, 0755)
+	if hookGOOS != "windows" {
+		err = hookChmodFn(hookPath, 0755)
 		if err != nil {
 			return fmt.Errorf("could not make pre-commit hook executable: %v", err)
 		}
@@ -68,7 +78,7 @@ func CreateEncrPreCommitHook() error {
 
 func buildHookFileData(dir string) (string, string, error) {
 	hookPath := getPreCommitHookPath(dir)
-	hookScript, err := buildPreCommitHookScript(dir)
+	hookScript, err := buildPreCommitHookScriptFn(dir)
 	if err != nil {
 		return "", "", err
 	}
@@ -77,13 +87,13 @@ func buildHookFileData(dir string) (string, string, error) {
 }
 
 func writeHookScript(hookPath, hookScript string) error {
-	file, err := os.Create(hookPath)
+	file, err := hookCreateFn(hookPath)
 	if err != nil {
 		return fmt.Errorf("could not create pre-commit hook file: %v", err)
 	}
 	defer file.Close()
 
-	_, err = file.WriteString(hookScript)
+	_, err = hookWriteStringFn(file, hookScript)
 	if err != nil {
 		return fmt.Errorf("could not write to pre-commit hook file: %v", err)
 	}
@@ -107,7 +117,7 @@ func validateCurrentRepoForHook() (bool, error) {
 
 func getPreCommitHookPath(dir string) string {
 	hooksDir := filepath.Join(dir, ".git", "hooks")
-	if runtime.GOOS == "windows" {
+	if hookGOOS == "windows" {
 		return filepath.Join(hooksDir, "pre-commit.bat")
 	}
 	return filepath.Join(hooksDir, "pre-commit")
@@ -115,7 +125,7 @@ func getPreCommitHookPath(dir string) string {
 
 func buildPreCommitHookScript(dir string) (string, error) {
 	goModPath := filepath.Join(dir, "go.mod")
-	if _, err := os.Stat(goModPath); !os.IsNotExist(err) {
+	if _, err := hookStatFn(goModPath); !os.IsNotExist(err) {
 		return buildGoRunHookScript(), nil
 	}
 
@@ -138,7 +148,7 @@ fi
 }
 
 func buildExecutableHookScript(scriptPath string) string {
-	switch runtime.GOOS {
+	switch hookGOOS {
 	case "windows":
 		scriptPath = filepath.ToSlash(scriptPath) + ".exe"
 		return fmt.Sprintf(`@echo off

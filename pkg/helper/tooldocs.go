@@ -10,26 +10,48 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	toolDocsProcessFilesFn      = processFiles
+	toolDocsMoveMatchingFilesFn = moveMatchingFilesToSubdirs
+	toolDocsRenameForgetoolFn   = renameForgetoolToIndex
+
+	processFilesReadDirFn     = os.ReadDir
+	processFilesReadFileFn    = os.ReadFile
+	processFilesWriteToFileFn = writeToFile
+	processFilesRemoveFn      = os.Remove
+
+	writeToFileMkdirAllFn  = os.MkdirAll
+	writeToFileWriteFileFn = os.WriteFile
+	writeToFileChmodFn     = os.Chmod
+
+	moveMatchingReadDirFn = os.ReadDir
+	moveMatchingStatFn    = os.Stat
+	moveMatchingRenameFn  = os.Rename
+
+	renameForgetoolStatFn   = os.Stat
+	renameForgetoolRenameFn = os.Rename
+)
+
 func ToolDocs(tmpDir string, outputDir string) {
 	log.Info().Msg("Starting file processing")
 
-	if err := processFiles(tmpDir, outputDir); err != nil {
+	if err := toolDocsProcessFilesFn(tmpDir, outputDir); err != nil {
 		log.Error().Err(err).Msg("Error processing files")
 		return
 	}
-	if err := moveMatchingFilesToSubdirs(outputDir); err != nil {
+	if err := toolDocsMoveMatchingFilesFn(outputDir); err != nil {
 		log.Error().Err(err).Msg("Error organizing files into subdirectories")
 		return
 	}
 
-	renameForgetoolToIndex(outputDir)
+	toolDocsRenameForgetoolFn(outputDir)
 
 	log.Info().Msg("File processing completed successfully")
 }
 
 // processFiles reads and processes each file, writing modified content to output directories.
 func processFiles(tmpDir string, outputDir string) error {
-	files, err := os.ReadDir(tmpDir)
+	files, err := processFilesReadDirFn(tmpDir)
 	if err != nil {
 		return fmt.Errorf("reading input directory: %w", err)
 	}
@@ -46,19 +68,19 @@ func processFiles(tmpDir string, outputDir string) error {
 
 		log.Info().Str("file", file.Name()).Str("new_path", newPath).Msg("Processing file")
 
-		content, err := os.ReadFile(filepath.Join(tmpDir, file.Name()))
+		content, err := processFilesReadFileFn(filepath.Join(tmpDir, file.Name()))
 		if err != nil {
 			log.Error().Err(err).Str("file", file.Name()).Msg("Error reading file")
 			continue
 		}
 
 		modifiedContent := addYamlTitle(content, newFileName == "index.md" && subDir == "")
-		if err := writeToFile(newPath, modifiedContent, file); err != nil {
+		if err := processFilesWriteToFileFn(newPath, modifiedContent, file); err != nil {
 			log.Error().Err(err).Str("path", newPath).Msg("Error writing file")
 			continue
 		}
 
-		if err := os.Remove(filepath.Join(tmpDir, file.Name())); err != nil {
+		if err := processFilesRemoveFn(filepath.Join(tmpDir, file.Name())); err != nil {
 			log.Error().Err(err).Str("file", file.Name()).Msg("Error deleting original file")
 		} else {
 			log.Debug().Str("file", file.Name()).Msg("Original file deleted")
@@ -119,15 +141,15 @@ func addYamlTitle(content []byte, isPrimaryIndex bool) []byte {
 
 // writeToFile writes the content to the specified path, creating directories as needed.
 func writeToFile(path string, content []byte, file os.DirEntry) error {
-	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+	if err := writeToFileMkdirAllFn(filepath.Dir(path), os.ModePerm); err != nil {
 		return fmt.Errorf("creating directory for path %s: %w", path, err)
 	}
-	if err := os.WriteFile(path, content, file.Type()); err != nil {
+	if err := writeToFileWriteFileFn(path, content, file.Type()); err != nil {
 		return fmt.Errorf("writing file to path %s: %w", path, err)
 	}
 
 	// Set file permissions to 777
-	if err := os.Chmod(path, 0666); err != nil {
+	if err := writeToFileChmodFn(path, 0666); err != nil {
 		return fmt.Errorf("setting permissions for path %s: %w", path, err)
 	}
 
@@ -137,7 +159,7 @@ func writeToFile(path string, content []byte, file os.DirEntry) error {
 
 // moveMatchingFilesToSubdirs moves files to matching subdirectories as index.md if a subdirectory exists.
 func moveMatchingFilesToSubdirs(outputDir string) error {
-	files, err := os.ReadDir(outputDir)
+	files, err := moveMatchingReadDirFn(outputDir)
 	if err != nil {
 		return fmt.Errorf("reading output directory: %w", err)
 	}
@@ -149,9 +171,9 @@ func moveMatchingFilesToSubdirs(outputDir string) error {
 
 		fileBase := strings.TrimSuffix(file.Name(), ".md")
 		subDir := filepath.Join(outputDir, fileBase)
-		if info, err := os.Stat(subDir); err == nil && info.IsDir() {
+		if info, err := moveMatchingStatFn(subDir); err == nil && info.IsDir() {
 			newPath := filepath.Join(subDir, "index.md")
-			if err := os.Rename(filepath.Join(outputDir, file.Name()), newPath); err != nil {
+			if err := moveMatchingRenameFn(filepath.Join(outputDir, file.Name()), newPath); err != nil {
 				log.Error().Err(err).Str("file", file.Name()).Str("new_path", newPath).Msg("Error moving file to subdirectory")
 				return err
 			}
@@ -167,13 +189,13 @@ func renameForgetoolToIndex(dir string) error {
 	newPath := filepath.Join(dir, "index.md")
 
 	// Check if forgetool.md exists
-	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
+	if _, err := renameForgetoolStatFn(oldPath); os.IsNotExist(err) {
 		log.Warn().Str("file", oldPath).Msg("forgetool.md does not exist")
 		return nil // No error, just return since file doesn't exist
 	}
 
 	// Rename forgetool.md to index.md
-	if err := os.Rename(oldPath, newPath); err != nil {
+	if err := renameForgetoolRenameFn(oldPath, newPath); err != nil {
 		return fmt.Errorf("renaming %s to %s: %w", oldPath, newPath, err)
 	}
 

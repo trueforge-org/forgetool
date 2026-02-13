@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+var (
+	checkIgnoreFn             = checkIgnore
+	hasUnstagedChangesInGitFn = hasUnstagedChanges
+)
+
 // getStagedFiles lists all files that are staged for commit
 func GetStagedFiles() ([]string, error) {
 	// Run git diff --cached --name-only to get staged files
@@ -75,7 +80,7 @@ func GetGitStagedFiles() ([]string, error) {
 // IsFileIgnored checks if a file is ignored by Git.
 func IsFileIgnored(file string) (bool, error) {
 	// Check if the file is ignored as-is
-	ignored, err := checkIgnore(file)
+	ignored, err := checkIgnoreFn(file)
 	if err != nil {
 		return false, err // Return error if checking fails
 	}
@@ -85,7 +90,7 @@ func IsFileIgnored(file string) (bool, error) {
 
 	// Check if the file is ignored with "forgetool/" prefix
 	prefixedFile := "forgetool/" + file
-	ignored, err = checkIgnore(prefixedFile)
+	ignored, err = checkIgnoreFn(prefixedFile)
 	if err != nil {
 		return false, err // Return error if checking fails
 	}
@@ -168,7 +173,7 @@ func IsFileFullyStaged(filePath string) (bool, error) {
 			continue // Skip this file since it's ignored
 		}
 
-		hasChanges, err := hasUnstagedChanges(path)
+		hasChanges, err := hasUnstagedChangesInGitFn(path)
 		if err != nil {
 			return false, err
 		}

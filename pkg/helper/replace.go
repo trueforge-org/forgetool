@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var replaceBlockContentFn = replaceBlockContent
+
 // ReplaceInFile reads the content of a file, performs regex replacement, and writes the modified content back to the file.
 func ReplaceInFile(filename string, pattern string, replacement string) error {
 	// Read the file content
@@ -45,7 +47,7 @@ func ReplaceContentBetweenLines(targetFilePath string, sourceFilePath string, fr
 	}
 	defer targetFile.Close()
 
-	result, err := replaceBlockContent(targetFile, sourceContentStr, from, till)
+	result, err := replaceBlockContentFn(targetFile, sourceContentStr, from, till)
 	if err != nil {
 		return err
 	}

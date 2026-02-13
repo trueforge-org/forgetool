@@ -9,12 +9,17 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	promptNewReaderFn  = func() *bufio.Reader { return bufio.NewReader(os.Stdin) }
+	promptReadStringFn = func(reader *bufio.Reader) (string, error) { return reader.ReadString('\n') }
+)
+
 // getYesOrNo prompts the user with a question and returns true for yes and false for no
 func GetYesOrNo(prompt string) bool {
-	reader := bufio.NewReader(os.Stdin)
+	reader := promptNewReaderFn()
 	for {
 		fmt.Print(prompt)
-		input, err := reader.ReadString('\n')
+		input, err := promptReadStringFn(reader)
 		if err != nil {
 			log.Info().Msgf("An error occurred: %v", err)
 			continue

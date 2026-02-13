@@ -10,6 +10,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	copyRelFn                = filepath.Rel
+	copyShouldSkipByFilterFn = shouldSkipByFilter
+	copyPathEntryFn          = copyPathEntry
+)
+
 // copyDirInternal copies files and directories from src to dest, preserving the directory structure.
 // If replaceExisting is true, it will overwrite existing files in the destination.
 // The filter string specifies files to be included (can be a regex pattern).
@@ -25,7 +31,7 @@ func copyDirInternal(src, dest string, replaceExisting bool, filter string) erro
 		}
 
 		// Determine the new path relative to the source directory
-		relPath, err := filepath.Rel(src, path)
+		relPath, err := copyRelFn(src, path)
 		if err != nil {
 			return err
 		}
@@ -33,7 +39,7 @@ func copyDirInternal(src, dest string, replaceExisting bool, filter string) erro
 		// Add debug output to verify the files being processed
 		// log.Info().Msgf("Processing: %s\n", relPath)
 
-		skip, skipErr := shouldSkipByFilter(info, relPath, regexFilter)
+		skip, skipErr := copyShouldSkipByFilterFn(info, relPath, regexFilter)
 		if skipErr != nil {
 			return skipErr
 		}
@@ -45,7 +51,7 @@ func copyDirInternal(src, dest string, replaceExisting bool, filter string) erro
 		}
 
 		destPath := getDestinationPath(dest, relPath)
-		if err := copyPathEntry(path, destPath, info, replaceExisting); err != nil {
+		if err := copyPathEntryFn(path, destPath, info, replaceExisting); err != nil {
 			return err
 		}
 		return nil

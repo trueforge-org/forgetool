@@ -3,7 +3,6 @@
 Sorted from lowest to highest coverage.
 
 - [ ]   0.00% (0/39) - pkg/fluxhandler/helmrelease_upgrade.go
-- [ ]   4.49% (4/89) - pkg/helper/git.go
 - [ ]   9.58% (16/167) - pkg/fluxhandler/helm.go
 - [ ]  15.48% (26/168) - pkg/initfiles/initfiles.go
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
@@ -11,22 +10,9 @@ Sorted from lowest to highest coverage.
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
 - [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
 - [ ]  47.22% (34/72) - pkg/initfiles/initfiles_age_sops.go
-- [ ]  58.82% (10/17) - pkg/helper/time.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
 - [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
-- [ ]  78.12% (50/64) - pkg/helper/git_precommit_hook.go
-- [ ]  84.21% (80/95) - pkg/helper/tooldocs.go
-- [ ]  84.62% (11/13) - pkg/helper/prompts.go
-- [ ]  88.52% (54/61) - pkg/helper/envsubst.go
-- [ ]  88.57% (31/35) - pkg/helper/helper.go
 - [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
-- [ ]  90.00% (45/50) - pkg/helper/replace.go
-- [ ]  91.67% (11/12) - pkg/helper/marshaller.go
-- [ ]  92.31% (24/26) - pkg/helper/runcmd.go
-- [ ]  93.10% (54/58) - pkg/helper/copy.go
-- [ ]  93.33% (28/30) - pkg/helper/talhelperextract.go
-- [ ]  93.33% (14/15) - pkg/helper/yamlutil.go
-- [ ]  98.04% (50/51) - pkg/helper/netvalidate.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
@@ -89,9 +75,23 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (51/51) - pkg/gencmd/genconfig.go
 - [ ] 100.00% (22/22) - pkg/gencmd/plain.go
 - [ ] 100.00% (35/35) - pkg/gencmd/upgrade.go
+- [ ] 100.00% (58/58) - pkg/helper/copy.go
 - [ ] 100.00% (12/12) - pkg/helper/dns.go
+- [ ] 100.00% (61/61) - pkg/helper/envsubst.go
+- [ ] 100.00% (89/89) - pkg/helper/git.go
+- [ ] 100.00% (65/65) - pkg/helper/git_precommit_hook.go
+- [ ] 100.00% (35/35) - pkg/helper/helper.go
+- [ ] 100.00% (12/12) - pkg/helper/marshaller.go
+- [ ] 100.00% (51/51) - pkg/helper/netvalidate.go
+- [ ] 100.00% (15/15) - pkg/helper/prompts.go
+- [ ] 100.00% (50/50) - pkg/helper/replace.go
+- [ ] 100.00% (26/26) - pkg/helper/runcmd.go
+- [ ] 100.00% (30/30) - pkg/helper/talhelperextract.go
+- [ ] 100.00% (17/17) - pkg/helper/time.go
+- [ ] 100.00% (95/95) - pkg/helper/tooldocs.go
 - [ ] 100.00% (7/7) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
+- [ ] 100.00% (15/15) - pkg/helper/yamlutil.go
 - [ ] 100.00% (12/12) - pkg/info/info.go
 - [ ] 100.00% (33/33) - pkg/kubectlcmds/apply.go
 - [ ] 100.00% (22/22) - pkg/kubectlcmds/approvecerts.go
