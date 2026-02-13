@@ -14,7 +14,6 @@ import (
 )
 
 var thisversion string
-var globalNonInteractive bool
 
 var RootCmd = &cobra.Command{
 	Use:           "forgetool",
@@ -28,7 +27,7 @@ var RootCmd = &cobra.Command{
 func init() {
 	// Define the --cluster flag
 	RootCmd.PersistentFlags().StringVar(&helper.ClusterName, "cluster", "main", "Cluster name")
-	RootCmd.PersistentFlags().BoolVar(&globalNonInteractive, "non-interactive", false, "Bootstrap automatically when needed, without asking for confirmation")
+	RootCmd.PersistentFlags().BoolVar(&helper.NonInteractive, "non-interactive", false, "Bootstrap automatically when needed, without asking for confirmation")
 }
 
 func applyClusterContext(clusterName string) {

@@ -38,7 +38,7 @@ func TestBootstrapFunc_TalosOnlyPath(t *testing.T) {
 
 	helper.TalosConfigFile = filepath.Join(t.TempDir(), "talosconfig")
 	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{Hostname: "cp1", IPAddress: "10.0.0.10"}}}
-	talosBootstrapGetYesOrNo = func(string) bool { return false }
+	talosBootstrapGetYesOrNo = func(string, bool) bool { return false }
 	talosBootstrapGenPlain = func(action string, node string, extraArgs []string) []string {
 		if action != "bootstrap" || node != "10.0.0.10" {
 			t.Fatalf("unexpected gen plain input: %s %s", action, node)
@@ -75,7 +75,7 @@ func TestBootstrapFunc_ForgeBootstrapPath(t *testing.T) {
 	loadedEnv := false
 	loadedCfg := false
 	calledArgs := []string{}
-	talosBootstrapGetYesOrNo = func(string) bool { return true }
+	talosBootstrapGetYesOrNo = func(string, bool) bool { return true }
 	talosBootstrapLoadTalEnv = func(bool) error { loadedEnv = true; return nil }
 	talosBootstrapLoadTalConfig = func() { loadedCfg = true }
 	talosBootstrapRunBootstrap = func(args []string) { calledArgs = append([]string{}, args...) }

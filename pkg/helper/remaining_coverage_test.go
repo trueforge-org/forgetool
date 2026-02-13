@@ -64,7 +64,7 @@ func TestCoverage_GetYesOrNoReadErrorBranch(t *testing.T) {
 		}
 		return "y\n", nil
 	}
-	if !GetYesOrNo("continue?") {
+	if !GetYesOrNo("continue?", false) {
 		t.Fatalf("expected true after transient read error")
 	}
 }

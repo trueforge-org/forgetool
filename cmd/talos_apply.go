@@ -72,18 +72,10 @@ func runTalosApply(args []string) {
 
 		if bootstrapNeeded {
 			log.Info().Msg("First Node requires to be bootstrapped before it can be used.")
-			if globalNonInteractive {
-				log.Info().Msg("Non-interactive mode enabled, bootstrapping without confirmation prompt.")
-				talosApplyRunBootstrap(extraArgs)
-				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ") {
-					talosApplyRunApply(false, "", extraArgs)
-				}
-				return
-			}
 
-			if talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ") {
+			if talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ", false) {
 				talosApplyRunBootstrap(extraArgs)
-				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ") {
+				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ", false) {
 					talosApplyRunApply(false, "", extraArgs)
 				}
 			} else {
