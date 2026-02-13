@@ -17,7 +17,7 @@ var chartsGenChartsListLongHelp = strings.TrimSpace(`
 `)
 
 var (
-	chartsGenChartListWalkCharts2 = helper.WalkCharts2
+	chartsGenChartListWalkCharts2    = helper.WalkCharts2
 	chartsGenChartListOptionsFactory = func() *website.ChartListOptions {
 		return &website.ChartListOptions{
 			OutputPath:  "./charts.json",
@@ -26,6 +26,8 @@ var (
 	}
 	chartsGenChartListGetChartData = func(opts *website.ChartListOptions) fs.WalkDirFunc { return opts.GetChartData }
 	chartsGenChartListWrite        = func(opts *website.ChartListOptions) error { return opts.WriteChartList() }
+	chartsGenChartListRunner       = runChartsGenChartList
+	chartsGenChartListOnError      = func(err error) { log.Fatal().Err(err).Msg("chart list generation failed") }
 )
 
 func runChartsGenChartList(args []string) error {
@@ -47,8 +49,8 @@ var genChartListCmd = &cobra.Command{
 	Long:    chartsGenChartsListLongHelp,
 	Example: "forgetool charts genchartlist <path to charts folder>",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runChartsGenChartList(args); err != nil {
-			log.Fatal().Err(err).Msg("chart list generation failed")
+		if err := chartsGenChartListRunner(args); err != nil {
+			chartsGenChartListOnError(err)
 		}
 
 	},

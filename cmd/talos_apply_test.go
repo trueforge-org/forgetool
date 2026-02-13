@@ -1,13 +1,314 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"reflect"
 	"testing"
 
+	talhelperCfg "github.com/budimanjojo/talhelper/v3/pkg/config"
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
+
+func TestParseTalosApplyArgs(t *testing.T) {
+	node, extra := parseTalosApplyArgs([]string{"all", "--foo"})
+	if node != "" {
+		t.Fatalf("expected empty node for all, got %q", node)
+	}
+	if !reflect.DeepEqual(extra, []string{"--foo"}) {
+		t.Fatalf("unexpected extra args: %#v", extra)
+	}
+
+	node, extra = parseTalosApplyArgs([]string{"10.0.0.2", "--bar"})
+	if node != "10.0.0.2" {
+		t.Fatalf("unexpected node: %q", node)
+	}
+	if !reflect.DeepEqual(extra, []string{"--bar"}) {
+		t.Fatalf("unexpected extra args: %#v", extra)
+	}
+}
+
+func TestRunTalosApplyRunningCallsRunApply(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(node string, states []string) (string, error) {
+		if node != "10.0.0.1" {
+			t.Fatalf("unexpected node: %s", node)
+		}
+		if !reflect.DeepEqual(states, []string{"running", "maintenance"}) {
+			t.Fatalf("unexpected states: %#v", states)
+		}
+		return "running", nil
+	}
+
+	called := false
+	talosApplyRunApply = func(kubeconfig bool, node string, extraArgs []string) {
+		called = true
+		if !kubeconfig || node != "10.0.0.2" || !reflect.DeepEqual(extraArgs, []string{"--x"}) {
+			t.Fatalf("unexpected runapply args: %v %s %#v", kubeconfig, node, extraArgs)
+		}
+	}
+
+	runTalosApply([]string{"10.0.0.2", "--x"})
+	if !called {
+		t.Fatalf("expected RunApply call")
+	}
+}
+
+func TestRunTalosApplyMaintenanceBootstrapFlow(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldNeedBootstrap := talosApplyCheckNeedBootstrap
+	oldPrompt := talosApplyGetYesOrNo
+	oldRunBootstrap := talosApplyRunBootstrap
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyCheckNeedBootstrap = oldNeedBootstrap
+		talosApplyGetYesOrNo = oldPrompt
+		talosApplyRunBootstrap = oldRunBootstrap
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "maintenance", nil }
+	talosApplyCheckNeedBootstrap = func(string) (bool, error) { return true, nil }
+
+	promptCount := 0
+	talosApplyGetYesOrNo = func(string) bool {
+		promptCount++
+		return true
+	}
+
+	bootstrapped := false
+	talosApplyRunBootstrap = func(args []string) {
+		bootstrapped = true
+		if !reflect.DeepEqual(args, []string{"--flag"}) {
+			t.Fatalf("unexpected bootstrap args: %#v", args)
+		}
+	}
+
+	applied := false
+	talosApplyRunApply = func(kubeconfig bool, node string, extraArgs []string) {
+		applied = true
+		if kubeconfig {
+			t.Fatalf("expected kubeconfig=false on post-bootstrap all apply")
+		}
+		if node != "" || !reflect.DeepEqual(extraArgs, []string{"--flag"}) {
+			t.Fatalf("unexpected runapply args: %q %#v", node, extraArgs)
+		}
+	}
+
+	runTalosApply([]string{"all", "--flag"})
+	if !bootstrapped || !applied || promptCount != 2 {
+		t.Fatalf("expected bootstrap+apply flow with two prompts")
+	}
+}
+
+func TestRunTalosApplyMaintenanceNoBootstrapCallsApply(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldNeedBootstrap := talosApplyCheckNeedBootstrap
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyCheckNeedBootstrap = oldNeedBootstrap
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "maintenance", nil }
+	talosApplyCheckNeedBootstrap = func(string) (bool, error) { return false, nil }
+
+	called := false
+	talosApplyRunApply = func(kubeconfig bool, node string, extraArgs []string) {
+		called = true
+		if !kubeconfig || node != "10.0.0.2" || !reflect.DeepEqual(extraArgs, []string{"--y"}) {
+			t.Fatalf("unexpected runapply args")
+		}
+	}
+
+	runTalosApply([]string{"10.0.0.2", "--y"})
+	if !called {
+		t.Fatalf("expected apply to be called")
+	}
+}
+
+func TestRunTalosApplyStopsOnHealthError(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "", errors.New("health failed") }
+
+	called := false
+	talosApplyRunApply = func(bool, string, []string) { called = true }
+
+	runTalosApply([]string{"10.0.0.2"})
+	if called {
+		t.Fatalf("did not expect apply call when health check errors")
+	}
+}
+
+func TestTalosApplyCommandRunCallsHelper(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "running", nil }
+
+	called := false
+	talosApplyRunApply = func(bool, string, []string) { called = true }
+
+	apply.Run(apply, []string{"10.0.0.2"})
+	if !called {
+		t.Fatalf("expected apply command Run to call helper flow")
+	}
+}
+
+func TestRunTalosApplyMaintenanceBootstrapCheckErrorStops(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldNeedBootstrap := talosApplyCheckNeedBootstrap
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyCheckNeedBootstrap = oldNeedBootstrap
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "maintenance", nil }
+	talosApplyCheckNeedBootstrap = func(string) (bool, error) { return false, errors.New("boom") }
+
+	called := false
+	talosApplyRunApply = func(bool, string, []string) { called = true }
+
+	runTalosApply([]string{"10.0.0.2"})
+	if called {
+		t.Fatalf("did not expect apply call on bootstrap-check error")
+	}
+}
+
+func TestRunTalosApplyMaintenanceBootstrapDeclined(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldNeedBootstrap := talosApplyCheckNeedBootstrap
+	oldPrompt := talosApplyGetYesOrNo
+	oldRunBootstrap := talosApplyRunBootstrap
+	oldRunApply := talosApplyRunApply
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyCheckNeedBootstrap = oldNeedBootstrap
+		talosApplyGetYesOrNo = oldPrompt
+		talosApplyRunBootstrap = oldRunBootstrap
+		talosApplyRunApply = oldRunApply
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return errors.New("decrypt failed") }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "maintenance", nil }
+	talosApplyCheckNeedBootstrap = func(string) (bool, error) { return true, nil }
+	talosApplyGetYesOrNo = func(string) bool { return false }
+
+	bootstrapped := false
+	talosApplyRunBootstrap = func([]string) { bootstrapped = true }
+	applied := false
+	talosApplyRunApply = func(bool, string, []string) { applied = true }
+
+	runTalosApply([]string{"all"})
+	if bootstrapped || applied {
+		t.Fatalf("expected no bootstrap/apply when first prompt is declined")
+	}
+}
 
 func TestRunApplyWithoutKubeconfig(t *testing.T) {
 	oldGenApply := talosApplyGenApply

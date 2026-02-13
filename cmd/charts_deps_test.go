@@ -82,3 +82,48 @@ func TestRunChartsDepsReturnsWalkError(t *testing.T) {
 		t.Fatalf("expected walk error, got %v", err)
 	}
 }
+
+func TestDepsCommandRunCallsRunner(t *testing.T) {
+	oldRunner := chartsDepsRunner
+	t.Cleanup(func() { chartsDepsRunner = oldRunner })
+
+	called := false
+	chartsDepsRunner = func(args []string) error {
+		called = true
+		if len(args) != 2 || args[0] != "a" || args[1] != "b" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	depsCmd.Run(depsCmd, []string{"a", "b"})
+
+	if !called {
+		t.Fatalf("expected deps command run to call runner")
+	}
+}
+
+func TestDepsCommandRunCallsOnError(t *testing.T) {
+	oldRunner := chartsDepsRunner
+	oldOnError := chartsDepsOnError
+	t.Cleanup(func() {
+		chartsDepsRunner = oldRunner
+		chartsDepsOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	chartsDepsRunner = func([]string) error { return want }
+	called := false
+	chartsDepsOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	depsCmd.Run(depsCmd, []string{"a"})
+
+	if !called {
+		t.Fatalf("expected deps command run to call error handler")
+	}
+}

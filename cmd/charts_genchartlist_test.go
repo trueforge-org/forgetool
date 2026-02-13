@@ -81,3 +81,48 @@ func TestRunChartsGenChartListSuccess(t *testing.T) {
 		t.Fatalf("expected both walk and write to be called")
 	}
 }
+
+func TestGenChartListCommandRunCallsRunner(t *testing.T) {
+	oldRunner := chartsGenChartListRunner
+	t.Cleanup(func() { chartsGenChartListRunner = oldRunner })
+
+	called := false
+	chartsGenChartListRunner = func(args []string) error {
+		called = true
+		if len(args) != 1 || args[0] != "./charts" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	genChartListCmd.Run(genChartListCmd, []string{"./charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call runner")
+	}
+}
+
+func TestGenChartListCommandRunCallsOnError(t *testing.T) {
+	oldRunner := chartsGenChartListRunner
+	oldOnError := chartsGenChartListOnError
+	t.Cleanup(func() {
+		chartsGenChartListRunner = oldRunner
+		chartsGenChartListOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	chartsGenChartListRunner = func([]string) error { return want }
+	called := false
+	chartsGenChartListOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	genChartListCmd.Run(genChartListCmd, []string{"./charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call error handler")
+	}
+}

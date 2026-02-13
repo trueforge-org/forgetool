@@ -7,6 +7,12 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/gencmd"
 )
 
+var clusterGenConfigRunner = gencmd.GenConfig
+
+func runClusterGenConfig(args []string) {
+	clusterGenConfigRunner(args)
+}
+
 var genConfigLongHelp = strings.TrimSpace(`
 After all your settings are entered into talconfig.yaml and clusterenv.yaml, Forgetool generates a complete cluster configuration using TalHelper and various other tools.
 
@@ -22,8 +28,7 @@ var genConfig = &cobra.Command{
 	Long:    genConfigLongHelp,
 	Example: "forgetool cluster genconfig",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		gencmd.GenConfig(args)
+		runClusterGenConfig(args)
 	},
 }
 

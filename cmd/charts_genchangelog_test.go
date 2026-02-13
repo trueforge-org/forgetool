@@ -44,3 +44,48 @@ func TestRunChartsGenChangelog(t *testing.T) {
 		t.Fatalf("expected wrapped render error, got %v", err)
 	}
 }
+
+func TestGenChangelogCommandRunCallsRunner(t *testing.T) {
+	oldRunner := chartsGenChangelogRunner
+	t.Cleanup(func() { chartsGenChangelogRunner = oldRunner })
+
+	called := false
+	chartsGenChangelogRunner = func(args []string) error {
+		called = true
+		if len(args) != 3 || args[0] != "repo" || args[1] != "tmpl" || args[2] != "charts" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	genChangelogCmd.Run(genChangelogCmd, []string{"repo", "tmpl", "charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call runner")
+	}
+}
+
+func TestGenChangelogCommandRunCallsOnError(t *testing.T) {
+	oldRunner := chartsGenChangelogRunner
+	oldOnError := chartsGenChangelogOnError
+	t.Cleanup(func() {
+		chartsGenChangelogRunner = oldRunner
+		chartsGenChangelogOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	chartsGenChangelogRunner = func([]string) error { return want }
+	called := false
+	chartsGenChangelogOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	genChangelogCmd.Run(genChangelogCmd, []string{"repo", "tmpl", "charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call error handler")
+	}
+}

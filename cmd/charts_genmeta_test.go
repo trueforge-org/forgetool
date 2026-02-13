@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/trueforge-org/forgetool/pkg/helper"
@@ -49,5 +50,50 @@ func TestRunChartsGenMetaUsesParsedValues(t *testing.T) {
 	}
 	if gotMode != helper.SyncMode {
 		t.Fatalf("expected sync mode, got %v", gotMode)
+	}
+}
+
+func TestGenMetaCommandRunCallsRunner(t *testing.T) {
+	oldRunner := chartsGenMetaRunner
+	t.Cleanup(func() { chartsGenMetaRunner = oldRunner })
+
+	called := false
+	chartsGenMetaRunner = func(args []string) error {
+		called = true
+		if len(args) != 2 || args[0] != "minor" || args[1] != "./charts" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	genMetaCmd.Run(genMetaCmd, []string{"minor", "./charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call runner")
+	}
+}
+
+func TestGenMetaCommandRunCallsOnError(t *testing.T) {
+	oldRunner := chartsGenMetaRunner
+	oldOnError := chartsGenMetaOnError
+	t.Cleanup(func() {
+		chartsGenMetaRunner = oldRunner
+		chartsGenMetaOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	chartsGenMetaRunner = func([]string) error { return want }
+	called := false
+	chartsGenMetaOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	genMetaCmd.Run(genMetaCmd, []string{"minor", "./charts"})
+
+	if !called {
+		t.Fatalf("expected command Run to call error handler")
 	}
 }

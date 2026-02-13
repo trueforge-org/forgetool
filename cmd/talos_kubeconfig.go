@@ -11,6 +11,28 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
+var (
+	talosKubeconfigDecryptFiles  = sops.DecryptFiles
+	talosKubeconfigLoadTalEnv    = initfiles.LoadTalEnv
+	talosKubeconfigLoadTalConfig = talassist.LoadTalConfig
+	talosKubeconfigGenPlain      = gencmd.GenPlain
+	talosKubeconfigExecCmds      = gencmd.ExecCmds
+)
+
+func runTalosKubeconfig(args []string) {
+	node, extraArgs := parseTalosApplyArgs(args)
+
+	if err := talosKubeconfigDecryptFiles(); err != nil {
+		log.Info().Msgf("Error decrypting files: %v\n", err)
+	}
+	_ = talosKubeconfigLoadTalEnv(false)
+	talosKubeconfigLoadTalConfig()
+	log.Info().Msg("Running Cluster kubeconfig")
+
+	taloscmds := talosKubeconfigGenPlain("kubeconfig", node, extraArgs)
+	_ = talosKubeconfigExecCmds(taloscmds, true)
+}
+
 //nolint:unused
 var advKubeconfigLongHelp = strings.TrimSpace(`
 
@@ -22,29 +44,7 @@ var kubeconfig = &cobra.Command{
 	Example: "forgetool talos kubeconfig <NodeIP>",
 	Long:    advResetLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		var extraArgs []string
-		node := ""
-
-		if len(args) > 1 {
-			extraArgs = args[1:]
-		}
-		if len(args) >= 1 {
-			node = args[0]
-			if args[0] == "all" {
-				node = ""
-			}
-		}
-
-		if err := sops.DecryptFiles(); err != nil {
-			log.Info().Msgf("Error decrypting files: %v\n", err)
-		}
-		initfiles.LoadTalEnv(false)
-		talassist.LoadTalConfig()
-		log.Info().Msg("Running Cluster kubeconfig")
-
-		taloscmds := gencmd.GenPlain("kubeconfig", node, extraArgs)
-		gencmd.ExecCmds(taloscmds, true)
-
+		runTalosKubeconfig(args)
 	},
 }
 

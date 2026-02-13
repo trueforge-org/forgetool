@@ -14,6 +14,8 @@ var (
 	genToolDocsMkdirAll = os.MkdirAll
 	genToolDocsMarkdown = doc.GenMarkdownTree
 	genToolDocsWriter   = helper.ToolDocs
+	genToolDocsRunner   = runGenToolDocs
+	genToolDocsOnError  = func(err error) { log.Fatal(err) }
 )
 
 func runGenToolDocs(outdir string) error {
@@ -36,8 +38,8 @@ var gendocsCmd = &cobra.Command{
 	Args:   cobra.ExactArgs(1),
 	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runGenToolDocs(args[0]); err != nil {
-			log.Fatal(err)
+		if err := genToolDocsRunner(args[0]); err != nil {
+			genToolDocsOnError(err)
 		}
 	},
 }

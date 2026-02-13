@@ -24,3 +24,43 @@ func TestGenConfigCommandRegisteredOnCluster(t *testing.T) {
 		t.Fatalf("expected genconfig command to be registered on cluster command")
 	}
 }
+
+func TestRunClusterGenConfigCallsRunner(t *testing.T) {
+	oldRunner := clusterGenConfigRunner
+	t.Cleanup(func() { clusterGenConfigRunner = oldRunner })
+
+	called := false
+	clusterGenConfigRunner = func(args []string) error {
+		called = true
+		if len(args) != 2 || args[0] != "a" || args[1] != "b" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	runClusterGenConfig([]string{"a", "b"})
+
+	if !called {
+		t.Fatalf("expected runClusterGenConfig to call runner")
+	}
+}
+
+func TestGenConfigCommandRunCallsRunner(t *testing.T) {
+	oldRunner := clusterGenConfigRunner
+	t.Cleanup(func() { clusterGenConfigRunner = oldRunner })
+
+	called := false
+	clusterGenConfigRunner = func(args []string) error {
+		called = true
+		if len(args) != 1 || args[0] != "chart" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	genConfig.Run(genConfig, []string{"chart"})
+
+	if !called {
+		t.Fatalf("expected command Run to call runner")
+	}
+}

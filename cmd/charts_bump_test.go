@@ -1,6 +1,9 @@
 package cmd
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestRunChartsBumpUsesArgs(t *testing.T) {
 	old := chartsBumpVersion
@@ -18,5 +21,63 @@ func TestRunChartsBumpUsesArgs(t *testing.T) {
 	}
 	if gotVersion != "1.2.3" || gotKind != "patch" {
 		t.Fatalf("unexpected args passed: %s %s", gotVersion, gotKind)
+	}
+}
+
+func TestRunChartsBumpReturnsError(t *testing.T) {
+	old := chartsBumpVersion
+	t.Cleanup(func() { chartsBumpVersion = old })
+
+	want := errors.New("bump failed")
+	chartsBumpVersion = func(string, string) error { return want }
+
+	err := runChartsBump([]string{"1.2.3", "patch"})
+	if !errors.Is(err, want) {
+		t.Fatalf("expected bump error, got %v", err)
+	}
+}
+
+func TestBumperRunCallsRunner(t *testing.T) {
+	oldRunner := chartsBumpRunner
+	t.Cleanup(func() { chartsBumpRunner = oldRunner })
+
+	called := false
+	chartsBumpRunner = func(args []string) error {
+		called = true
+		if len(args) != 2 || args[0] != "1.2.3" || args[1] != "patch" {
+			t.Fatalf("unexpected args: %#v", args)
+		}
+		return nil
+	}
+
+	bumper.Run(bumper, []string{"1.2.3", "patch"})
+
+	if !called {
+		t.Fatalf("expected command Run to call runner")
+	}
+}
+
+func TestBumperRunCallsOnError(t *testing.T) {
+	oldRunner := chartsBumpRunner
+	oldOnError := chartsBumpOnError
+	t.Cleanup(func() {
+		chartsBumpRunner = oldRunner
+		chartsBumpOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	chartsBumpRunner = func([]string) error { return want }
+	called := false
+	chartsBumpOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	bumper.Run(bumper, []string{"1.2.3", "patch"})
+
+	if !called {
+		t.Fatalf("expected command Run to call error handler")
 	}
 }

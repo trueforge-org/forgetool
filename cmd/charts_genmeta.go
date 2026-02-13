@@ -17,6 +17,8 @@ var chartsGenMetaLongHelp = strings.TrimSpace(`
 `)
 
 var chartsGenMetaWalkCharts = helper.WalkCharts
+var chartsGenMetaRunner = runChartsGenMeta
+var chartsGenMetaOnError = func(err error) { log.Fatal().Err(err).Msg("failed to update Chart.yaml:") }
 
 func parseChartsGenMetaArgs(args []string) (string, []string) {
 	bump := ""
@@ -41,9 +43,9 @@ var genMetaCmd = &cobra.Command{
 	Example: "forgetool charts genmeta",
 	Long:    chartsGenMetaLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		err := runChartsGenMeta(args)
+		err := chartsGenMetaRunner(args)
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to update Chart.yaml:")
+			chartsGenMetaOnError(err)
 		}
 	},
 }

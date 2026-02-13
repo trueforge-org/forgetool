@@ -1,29 +1,73 @@
 package cmd
 
 import (
-	"os"
-	"os/exec"
+	"errors"
+	"reflect"
 	"testing"
 )
 
-func TestHelperTalosKubeconfigExitProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_TALOS_KUBECONFIG_EXIT_HELPER") != "1" {
-		return
+func TestRunTalosKubeconfigCallsDependencies(t *testing.T) {
+	oldDecrypt := talosKubeconfigDecryptFiles
+	oldLoadEnv := talosKubeconfigLoadTalEnv
+	oldLoadCfg := talosKubeconfigLoadTalConfig
+	oldGenPlain := talosKubeconfigGenPlain
+	oldExecCmds := talosKubeconfigExecCmds
+	t.Cleanup(func() {
+		talosKubeconfigDecryptFiles = oldDecrypt
+		talosKubeconfigLoadTalEnv = oldLoadEnv
+		talosKubeconfigLoadTalConfig = oldLoadCfg
+		talosKubeconfigGenPlain = oldGenPlain
+		talosKubeconfigExecCmds = oldExecCmds
+	})
+
+	talosKubeconfigDecryptFiles = func() error { return errors.New("decrypt") }
+	talosKubeconfigLoadTalEnv = func(bool) error { return nil }
+	loadedCfg := false
+	talosKubeconfigLoadTalConfig = func() { loadedCfg = true }
+	talosKubeconfigGenPlain = func(action string, node string, extraArgs []string) []string {
+		if action != "kubeconfig" || node != "" || !reflect.DeepEqual(extraArgs, []string{"--flag"}) {
+			t.Fatalf("unexpected gen plain args")
+		}
+		return []string{"kubeconfig-cmd"}
 	}
-	kubeconfig.Run(kubeconfig, []string{"all"})
-	os.Exit(0)
+	execCalled := false
+	talosKubeconfigExecCmds = func(cmds []string, healthcheck bool) error {
+		execCalled = true
+		if !reflect.DeepEqual(cmds, []string{"kubeconfig-cmd"}) || !healthcheck {
+			t.Fatalf("unexpected exec args")
+		}
+		return nil
+	}
+
+	runTalosKubeconfig([]string{"all", "--flag"})
+	if !loadedCfg || !execCalled {
+		t.Fatalf("expected load config and exec calls")
+	}
 }
 
-func TestTalosKubeconfigRunExitsNonZero(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=TestHelperTalosKubeconfigExitProcess")
-	cmd.Dir = t.TempDir()
-	cmd.Env = append(os.Environ(), "GO_WANT_TALOS_KUBECONFIG_EXIT_HELPER=1")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatalf("expected non-zero exit for talos-kubeconfig")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok || exitErr.ExitCode() == 0 {
-		t.Fatalf("expected non-zero exit code for talos-kubeconfig, got %v", err)
+func TestTalosKubeconfigCommandRunCallsHelper(t *testing.T) {
+	oldDecrypt := talosKubeconfigDecryptFiles
+	oldLoadEnv := talosKubeconfigLoadTalEnv
+	oldLoadCfg := talosKubeconfigLoadTalConfig
+	oldGenPlain := talosKubeconfigGenPlain
+	oldExecCmds := talosKubeconfigExecCmds
+	t.Cleanup(func() {
+		talosKubeconfigDecryptFiles = oldDecrypt
+		talosKubeconfigLoadTalEnv = oldLoadEnv
+		talosKubeconfigLoadTalConfig = oldLoadCfg
+		talosKubeconfigGenPlain = oldGenPlain
+		talosKubeconfigExecCmds = oldExecCmds
+	})
+
+	talosKubeconfigDecryptFiles = func() error { return nil }
+	talosKubeconfigLoadTalEnv = func(bool) error { return nil }
+	talosKubeconfigLoadTalConfig = func() {}
+	talosKubeconfigGenPlain = func(string, string, []string) []string { return []string{"cmd"} }
+	called := false
+	talosKubeconfigExecCmds = func([]string, bool) error { called = true; return nil }
+
+	kubeconfig.Run(kubeconfig, []string{"10.0.0.2"})
+	if !called {
+		t.Fatalf("expected command Run to invoke helper flow")
 	}
 }

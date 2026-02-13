@@ -12,6 +12,40 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
+var (
+	talosUpgradeDecryptFiles   = sops.DecryptFiles
+	talosUpgradeLoadTalEnv     = initfiles.LoadTalEnv
+	talosUpgradeLoadTalConfig  = talassist.LoadTalConfig
+	talosUpgradeGenUpgrade     = gencmd.GenUpgrade
+	talosUpgradeExecCmds       = gencmd.ExecCmds
+	talosUpgradeGenKubeUpgrade = gencmd.GenKubeUpgrade
+	talosUpgradeExecCmd        = gencmd.ExecCmd
+	talosUpgradeGenPlain       = gencmd.GenPlain
+)
+
+func runTalosUpgrade(args []string) {
+	node, extraArgs := parseTalosApplyArgs(args)
+
+	if err := talosUpgradeDecryptFiles(); err != nil {
+		log.Info().Msgf("Error decrypting files: %v\n", err)
+	}
+	_ = talosUpgradeLoadTalEnv(false)
+	talosUpgradeLoadTalConfig()
+
+	log.Info().Msg("Running Cluster Upgrade")
+
+	taloscmds := talosUpgradeGenUpgrade(node, extraArgs)
+	_ = talosUpgradeExecCmds(taloscmds, true)
+
+	log.Info().Msg("Running Kubernetes Upgrade")
+	kubeUpgradeCmd := talosUpgradeGenKubeUpgrade(helper.TalEnv["VIP_IP"])
+	talosUpgradeExecCmd(kubeUpgradeCmd)
+
+	log.Info().Msg("(re)Loading KubeConfig)")
+	kubeconfigcmds := talosUpgradeGenPlain("health", helper.TalEnv["VIP_IP"], []string{"-f"})
+	talosUpgradeExecCmd(kubeconfigcmds[0])
+}
+
 var upgradeLongHelp = strings.TrimSpace(`
 The "upgrade" command updates Talos to the latest version specified in talconfig.yaml for all nodes.
 It also applies any changed "extentions" and/or "overlays" specified there.
@@ -26,38 +60,7 @@ var upgrade = &cobra.Command{
 	Example: "forgetool talos upgrade <NodeIP>",
 	Long:    upgradeLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		var extraArgs []string
-		node := ""
-
-		if len(args) > 1 {
-			extraArgs = args[1:]
-		}
-		if len(args) >= 1 {
-			node = args[0]
-			if args[0] == "all" {
-				node = ""
-			}
-		}
-
-		if err := sops.DecryptFiles(); err != nil {
-			log.Info().Msgf("Error decrypting files: %v\n", err)
-		}
-		initfiles.LoadTalEnv(false)
-		talassist.LoadTalConfig()
-
-		log.Info().Msg("Running Cluster Upgrade")
-
-		taloscmds := gencmd.GenUpgrade(node, extraArgs)
-		gencmd.ExecCmds(taloscmds, true)
-
-		log.Info().Msg("Running Kubernetes Upgrade")
-		kubeUpgradeCmd := gencmd.GenKubeUpgrade(helper.TalEnv["VIP_IP"])
-		gencmd.ExecCmd(kubeUpgradeCmd)
-
-		log.Info().Msg("(re)Loading KubeConfig)")
-		kubeconfigcmds := gencmd.GenPlain("health", helper.TalEnv["VIP_IP"], []string{"-f"})
-		gencmd.ExecCmd(kubeconfigcmds[0])
-
+		runTalosUpgrade(args)
 	},
 }
 

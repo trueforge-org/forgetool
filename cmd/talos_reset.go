@@ -11,6 +11,29 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
+var (
+	talosResetDecryptFiles  = sops.DecryptFiles
+	talosResetLoadTalEnv    = initfiles.LoadTalEnv
+	talosResetLoadTalConfig = talassist.LoadTalConfig
+	talosResetGenPlain      = gencmd.GenPlain
+	talosResetExecCmds      = gencmd.ExecCmds
+)
+
+func runTalosReset(args []string) {
+	node, extraArgs := parseTalosApplyArgs(args)
+
+	if err := talosResetDecryptFiles(); err != nil {
+		log.Info().Msgf("Error decrypting files: %v\n", err)
+	}
+	_ = talosResetLoadTalEnv(false)
+	talosResetLoadTalConfig()
+
+	log.Info().Msg("Running Cluster node Reset")
+
+	taloscmds := talosResetGenPlain("reset", node, extraArgs)
+	_ = talosResetExecCmds(taloscmds, true)
+}
+
 var advResetLongHelp = strings.TrimSpace(`
 
 `)
@@ -21,30 +44,7 @@ var reset = &cobra.Command{
 	Example: "forgetool talos reset <NodeIP>",
 	Long:    advResetLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		var extraArgs []string
-		node := ""
-
-		if len(args) > 1 {
-			extraArgs = args[1:]
-		}
-		if len(args) >= 1 {
-			node = args[0]
-			if args[0] == "all" {
-				node = ""
-			}
-		}
-
-		if err := sops.DecryptFiles(); err != nil {
-			log.Info().Msgf("Error decrypting files: %v\n", err)
-		}
-		initfiles.LoadTalEnv(false)
-		talassist.LoadTalConfig()
-
-		log.Info().Msg("Running Cluster node Reset")
-
-		taloscmds := gencmd.GenPlain("reset", node, extraArgs)
-		gencmd.ExecCmds(taloscmds, true)
-
+		runTalosReset(args)
 	},
 }
 

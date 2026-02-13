@@ -1,29 +1,73 @@
 package cmd
 
 import (
-	"os"
-	"os/exec"
+	"errors"
+	"reflect"
 	"testing"
 )
 
-func TestHelperTalosResetExitProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_TALOS_RESET_EXIT_HELPER") != "1" {
-		return
+func TestRunTalosResetCallsDependencies(t *testing.T) {
+	oldDecrypt := talosResetDecryptFiles
+	oldLoadEnv := talosResetLoadTalEnv
+	oldLoadCfg := talosResetLoadTalConfig
+	oldGenPlain := talosResetGenPlain
+	oldExecCmds := talosResetExecCmds
+	t.Cleanup(func() {
+		talosResetDecryptFiles = oldDecrypt
+		talosResetLoadTalEnv = oldLoadEnv
+		talosResetLoadTalConfig = oldLoadCfg
+		talosResetGenPlain = oldGenPlain
+		talosResetExecCmds = oldExecCmds
+	})
+
+	talosResetDecryptFiles = func() error { return errors.New("decrypt") }
+	talosResetLoadTalEnv = func(bool) error { return nil }
+	loadedCfg := false
+	talosResetLoadTalConfig = func() { loadedCfg = true }
+	talosResetGenPlain = func(action string, node string, extraArgs []string) []string {
+		if action != "reset" || node != "" || !reflect.DeepEqual(extraArgs, []string{"--graceful"}) {
+			t.Fatalf("unexpected gen plain args")
+		}
+		return []string{"reset-cmd"}
 	}
-	reset.Run(reset, []string{"all"})
-	os.Exit(0)
+	execCalled := false
+	talosResetExecCmds = func(cmds []string, healthcheck bool) error {
+		execCalled = true
+		if !reflect.DeepEqual(cmds, []string{"reset-cmd"}) || !healthcheck {
+			t.Fatalf("unexpected exec args")
+		}
+		return nil
+	}
+
+	runTalosReset([]string{"all", "--graceful"})
+	if !loadedCfg || !execCalled {
+		t.Fatalf("expected load config and exec calls")
+	}
 }
 
-func TestTalosResetRunExitsNonZero(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=TestHelperTalosResetExitProcess")
-	cmd.Dir = t.TempDir()
-	cmd.Env = append(os.Environ(), "GO_WANT_TALOS_RESET_EXIT_HELPER=1")
-	err := cmd.Run()
-	if err == nil {
-		t.Fatalf("expected non-zero exit for talos-reset")
-	}
-	exitErr, ok := err.(*exec.ExitError)
-	if !ok || exitErr.ExitCode() == 0 {
-		t.Fatalf("expected non-zero exit code for talos-reset, got %v", err)
+func TestTalosResetCommandRunCallsHelper(t *testing.T) {
+	oldDecrypt := talosResetDecryptFiles
+	oldLoadEnv := talosResetLoadTalEnv
+	oldLoadCfg := talosResetLoadTalConfig
+	oldGenPlain := talosResetGenPlain
+	oldExecCmds := talosResetExecCmds
+	t.Cleanup(func() {
+		talosResetDecryptFiles = oldDecrypt
+		talosResetLoadTalEnv = oldLoadEnv
+		talosResetLoadTalConfig = oldLoadCfg
+		talosResetGenPlain = oldGenPlain
+		talosResetExecCmds = oldExecCmds
+	})
+
+	talosResetDecryptFiles = func() error { return nil }
+	talosResetLoadTalEnv = func(bool) error { return nil }
+	talosResetLoadTalConfig = func() {}
+	talosResetGenPlain = func(string, string, []string) []string { return []string{"cmd"} }
+	called := false
+	talosResetExecCmds = func([]string, bool) error { called = true; return nil }
+
+	reset.Run(reset, []string{"10.0.0.2"})
+	if !called {
+		t.Fatalf("expected command Run to invoke helper flow")
 	}
 }

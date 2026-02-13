@@ -18,6 +18,8 @@ var chartsGenChangelogLongHelp = strings.TrimSpace(`
 var (
 	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error { return opts.Generate() }
 	chartsGenChangelogRender   = func(opts *changelog.ChangelogOptions) error { return opts.Render() }
+	chartsGenChangelogRunner   = runChartsGenChangelog
+	chartsGenChangelogOnError  = func(err error) { log.Fatal().Err(err) }
 )
 
 func runChartsGenChangelog(args []string) error {
@@ -51,8 +53,8 @@ var genChangelogCmd = &cobra.Command{
 	Long:    chartsGenChangelogLongHelp,
 	Example: "forgetool charts genchangelog <repo path> <template path> <charts dir>",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := runChartsGenChangelog(args); err != nil {
-			log.Fatal().Err(err)
+		if err := chartsGenChangelogRunner(args); err != nil {
+			chartsGenChangelogOnError(err)
 		}
 	},
 }

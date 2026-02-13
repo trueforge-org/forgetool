@@ -55,3 +55,48 @@ func TestRunGenToolDocs(t *testing.T) {
 		t.Fatalf("expected markdown error, got %v", err)
 	}
 }
+
+func TestGenDocsCommandRunCallsRunner(t *testing.T) {
+	oldRunner := genToolDocsRunner
+	t.Cleanup(func() { genToolDocsRunner = oldRunner })
+
+	called := false
+	genToolDocsRunner = func(outdir string) error {
+		called = true
+		if outdir != "./docs" {
+			t.Fatalf("unexpected outdir: %s", outdir)
+		}
+		return nil
+	}
+
+	gendocsCmd.Run(gendocsCmd, []string{"./docs"})
+
+	if !called {
+		t.Fatalf("expected gendocs command run to call runner")
+	}
+}
+
+func TestGenDocsCommandRunCallsOnError(t *testing.T) {
+	oldRunner := genToolDocsRunner
+	oldOnError := genToolDocsOnError
+	t.Cleanup(func() {
+		genToolDocsRunner = oldRunner
+		genToolDocsOnError = oldOnError
+	})
+
+	want := errors.New("boom")
+	genToolDocsRunner = func(string) error { return want }
+	called := false
+	genToolDocsOnError = func(err error) {
+		called = true
+		if !errors.Is(err, want) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+
+	gendocsCmd.Run(gendocsCmd, []string{"./docs"})
+
+	if !called {
+		t.Fatalf("expected gendocs command run to call error handler")
+	}
+}

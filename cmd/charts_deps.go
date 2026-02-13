@@ -16,6 +16,8 @@ var chartsDepsLongHelp = strings.TrimSpace(`
 var (
 	chartsDepsLoadGPGKey = deps.LoadGPGKey
 	chartsDepsWalkCharts = helper.WalkCharts
+	chartsDepsRunner     = runChartsDeps
+	chartsDepsOnError    = func(err error) { log.Fatal().Err(err).Msg("failed to update Chart.yaml") }
 )
 
 func runChartsDeps(args []string) error {
@@ -37,15 +39,8 @@ var depsCmd = &cobra.Command{
 	Long:    chartsDepsLongHelp,
 	Example: "forgetool charts deps <chart> <chart> <chart>",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := chartsDepsLoadGPGKey(); err != nil {
-			log.Fatal().Err(err).Msg("failed to load gpg key")
-			return
-		}
-
-		// Specify the mode (SyncMode or AsyncMode)
-		mode := helper.SyncMode // Change to helper.SyncMode for synchronous processing
-		if err := chartsDepsWalkCharts(args, deps.DownloadDeps, "", mode); err != nil {
-			log.Fatal().Err(err).Msg("failed to update Chart.yaml")
+		if err := chartsDepsRunner(args); err != nil {
+			chartsDepsOnError(err)
 		}
 	},
 }
