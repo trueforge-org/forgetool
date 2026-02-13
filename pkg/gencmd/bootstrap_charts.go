@@ -84,7 +84,7 @@ func loadBootstrapChartConfig() bootstrapChartConfig {
 		}
 	}
 	if err != nil {
-		log.Fatal().Err(err).Msg("Bootstrap: failed to read bootstrap chart config from cluster-template cache")
+		log.Fatal().Err(err).Msgf("Bootstrap: failed to find bootstrap chart config in expected cache locations: %v", paths)
 	}
 
 	var config bootstrapChartConfig
