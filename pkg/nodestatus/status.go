@@ -40,28 +40,30 @@ func CheckNeedBootstrap(node string) (bool, error) {
 
 	argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}")
 	out, err := talosctlpkg.Run(argsslice[1:], true)
-	normalizedOut := strings.TrimSpace(string(out))
-	if err != nil {
-		log.Warn().Err(err).Str("output", string(out)).Msg("Error running command, checking for certificate issue")
-		if hasUnknownAuthorityError(string(out), err) {
-			log.Debug().Msg("Certificate signed by unknown authority; retrying with insecure flag")
-			argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
-			out2, err2 := talosctlpkg.Run(argsslice[1:], true)
-			if err2 != nil {
-				formattedErr := formatStatusError(string(out), err2)
-				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
-				return false, formattedErr
-			}
-			normalizedOut := strings.TrimSpace(string(out2))
-			if normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
-				log.Info().Msg("Node is in maintenance; bootstrap needed")
-				return true, nil
-			}
-		} else {
-			formattedErr := formatStatusError(string(out), err)
-			log.Error().Err(formattedErr).Msg("Failed to get machine status")
+	needsInsecureRetry := hasUnknownAuthorityError(string(out), err)
+	if needsInsecureRetry {
+		log.Warn().Err(err).Str("output", string(out)).Msg("Certificate signed by unknown authority; retrying with insecure flag")
+		argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
+		out2, err2 := talosctlpkg.Run(argsslice[1:], true)
+		if err2 != nil {
+			formattedErr := formatStatusError(string(out2), err2)
+			log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
 			return false, formattedErr
 		}
+		out = out2
+		err = nil
+	}
+
+	if err != nil {
+		formattedErr := formatStatusError(string(out), err)
+		log.Error().Err(formattedErr).Msg("Failed to get machine status")
+		return false, formattedErr
+	}
+
+	normalizedOut := strings.TrimSpace(string(out))
+	if needsInsecureRetry && normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
+		log.Info().Msg("Node is in maintenance; bootstrap needed")
+		return true, nil
 	}
 	log.Debug().Str("output", normalizedOut).Msg("No bootstrap needed; returning false")
 	return false, nil
@@ -72,25 +74,24 @@ func CheckStatus(node string) (string, error) {
 
 	argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}")
 	out, err := talosctlpkg.Run(argsslice[1:], true)
-	if err != nil {
-		log.Debug().Err(err).Str("output", string(out)).Msg("Error running command, checking for certificate issue")
-		if hasUnknownAuthorityError(string(out), err) {
-			log.Debug().Msg("Certificate signed by unknown authority; retrying with insecure flag")
-			argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
-			out2, err2 := talosctlpkg.Run(argsslice[1:], true)
-			if err2 != nil {
-				formattedErr := formatStatusError(string(out), err2)
-				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
-				return "ERROR", formattedErr
-			}
-			normalizedOut := strings.TrimSpace(string(out2))
-			log.Info().Msg("Successfully retrieved node status with insecure flag")
-			return normalizedOut, nil
-		} else {
-			formattedErr := formatStatusError(string(out), err)
-			log.Error().Err(formattedErr).Msg("Failed to get machine status")
+	if hasUnknownAuthorityError(string(out), err) {
+		log.Warn().Err(err).Str("output", string(out)).Msg("Certificate signed by unknown authority; retrying with insecure flag")
+		argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
+		out2, err2 := talosctlpkg.Run(argsslice[1:], true)
+		if err2 != nil {
+			formattedErr := formatStatusError(string(out2), err2)
+			log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
 			return "ERROR", formattedErr
 		}
+		out = out2
+		err = nil
+		log.Info().Msg("Successfully retrieved node status with insecure flag")
+	}
+
+	if err != nil {
+		formattedErr := formatStatusError(string(out), err)
+		log.Error().Err(formattedErr).Msg("Failed to get machine status")
+		return "ERROR", formattedErr
 	}
 	normalizedOut := strings.TrimSpace(string(out))
 	log.Debug().
