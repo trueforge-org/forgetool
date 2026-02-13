@@ -2,6 +2,10 @@ name: talos-docker-cluster
 
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -19,14 +23,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install talosctl
-        run: |
-          set -euo pipefail
-          curl -fsSL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o /tmp/talosctl
-          chmod +x /tmp/talosctl
-          sudo mv /tmp/talosctl /usr/local/bin/talosctl
-          talosctl version --client
 
       - name: Start Talos nodes in Docker
         run: |
@@ -63,7 +59,7 @@ jobs:
       - name: Generate Talos configs
         run: |
           set -euo pipefail
-          talosctl gen config \
+          go run . talosctl gen config \
             "${CLUSTER_NAME}" \
             "https://${CONTROL_IP}:6443" \
             --output-dir /tmp/talos \
@@ -74,7 +70,7 @@ jobs:
           set -euo pipefail
           for node in "${CONTROL_IP}" "${WORKER_IP}"; do
             for attempt in $(seq 1 90); do
-              if talosctl -n "${node}" version --insecure >/dev/null 2>&1; then
+              if go run . talosctl -n "${node}" version --insecure >/dev/null 2>&1; then
                 echo "Talos API is reachable on ${node}"
                 break
               fi
@@ -89,26 +85,26 @@ jobs:
       - name: Apply machine configuration
         run: |
           set -euo pipefail
-          talosctl -n "${CONTROL_IP}" apply-config --insecure -f /tmp/talos/controlplane.yaml
-          talosctl -n "${WORKER_IP}" apply-config --insecure -f /tmp/talos/worker.yaml
+          go run . talosctl -n "${CONTROL_IP}" apply-config --insecure -f /tmp/talos/controlplane.yaml
+          go run . talosctl -n "${WORKER_IP}" apply-config --insecure -f /tmp/talos/worker.yaml
 
       - name: Bootstrap cluster
         run: |
           set -euo pipefail
-          talosctl --talosconfig /tmp/talos/talosconfig config endpoint "${CONTROL_IP}"
-          talosctl --talosconfig /tmp/talos/talosconfig config node "${CONTROL_IP}"
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" bootstrap
+          go run . talosctl --talosconfig /tmp/talos/talosconfig config endpoint "${CONTROL_IP}"
+          go run . talosctl --talosconfig /tmp/talos/talosconfig config node "${CONTROL_IP}"
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" bootstrap
 
       - name: Verify Talos services
         run: |
           set -euo pipefail
 
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet
 
-          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
 
       - name: Collect Talos logs on failure
         if: failure()
