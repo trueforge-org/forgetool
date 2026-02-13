@@ -269,13 +269,8 @@ func validateRequiredTalEnvKeys() {
 }
 
 func validateNodeAndGatewayIPs(vip string, master1ip string, gateway string) {
-	if master1ip == gateway || master1ip == vip {
-		log.Info().Msg("Cannot proceed, MASTER1IP cannot match GATEWAY or VIP")
-		clusterenvExitFn(1)
-	}
-
-	if vip == master1ip {
-		log.Info().Msg("Cannot proceed, VIP cannot match any Node IPs")
+	if master1ip == gateway {
+		log.Info().Msg("Cannot proceed, MASTER1IP cannot match GATEWAY ")
 		clusterenvExitFn(1)
 	}
 }

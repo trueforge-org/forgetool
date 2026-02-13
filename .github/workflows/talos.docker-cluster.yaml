@@ -20,7 +20,7 @@ jobs:
       TALOS_IMAGE: ghcr.io/siderolabs/talos:v1.12.0
       CONTROL_IP: 10.5.0.2
       WORKER_IP: 10.5.0.3
-      VIP: 10.5.0.10
+      VIP: 10.5.0.2
       GATEWAY: 10.5.0.1
       METALLB_RANGE: 10.5.0.20-10.5.0.30
       DASHBOARD_IP: 10.5.0.21
@@ -82,12 +82,34 @@ jobs:
       - name: Start Talos nodes in Docker
         run: |
           set -euo pipefail
+          
+          docker network create --subnet 10.5.0.0/24 talosnet
 
-          docker network create --subnet 10.5.0.0/24 talosnet || true
+          TALOS_DATA_ROOT="${RUNNER_TEMP}/talos-persist"
+          CONTROL_ROOT="${TALOS_DATA_ROOT}/control"
+          WORKER_ROOT="${TALOS_DATA_ROOT}/worker"
+
+          mkdir -p \
+            "${CONTROL_ROOT}/system/state" \
+            "${CONTROL_ROOT}/system/var" \
+            "${CONTROL_ROOT}/system/cni" \
+            "${CONTROL_ROOT}/system/kubernetes" \
+            "${CONTROL_ROOT}/system/libexec" \
+            "${CONTROL_ROOT}/system/opt" \
+            "${CONTROL_ROOT}/data/openebs" \
+            "${WORKER_ROOT}/system/state" \
+            "${WORKER_ROOT}/system/var" \
+            "${WORKER_ROOT}/system/cni" \
+            "${WORKER_ROOT}/system/kubernetes" \
+            "${WORKER_ROOT}/system/libexec" \
+            "${WORKER_ROOT}/system/opt" \
+            "${WORKER_ROOT}/data/openebs"
+
 
           docker run -d \
             --name talos-control-1 \
             --hostname talos-control-1 \
+            --restart unless-stopped \
             --privileged \
             --read-only \
             --tmpfs /run \
@@ -95,12 +117,20 @@ jobs:
             --tmpfs /tmp \
             --network talosnet \
             --ip "${CONTROL_IP}" \
+            -v "${CONTROL_ROOT}/system/state:/system/state" \
+            -v "${CONTROL_ROOT}/system/var:/var" \
+            -v "${CONTROL_ROOT}/system/cni:/etc/cni" \
+            -v "${CONTROL_ROOT}/system/kubernetes:/etc/kubernetes" \
+            -v "${CONTROL_ROOT}/system/libexec:/usr/libexec/kubernetes" \
+            -v "${CONTROL_ROOT}/system/opt:/opt" \
+            -v "${CONTROL_ROOT}/data/openebs:/var/openebs/local" \
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
           docker run -d \
             --name talos-worker-1 \
             --hostname talos-worker-1 \
+            --restart unless-stopped \
             --privileged \
             --read-only \
             --tmpfs /run \
@@ -108,6 +138,13 @@ jobs:
             --tmpfs /tmp \
             --network talosnet \
             --ip "${WORKER_IP}" \
+            -v "${WORKER_ROOT}/system/state:/system/state" \
+            -v "${WORKER_ROOT}/system/var:/var" \
+            -v "${WORKER_ROOT}/system/cni:/etc/cni" \
+            -v "${WORKER_ROOT}/system/kubernetes:/etc/kubernetes" \
+            -v "${WORKER_ROOT}/system/libexec:/usr/libexec/kubernetes" \
+            -v "${WORKER_ROOT}/system/opt:/opt" \
+            -v "${WORKER_ROOT}/data/openebs:/var/openebs/local" \
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
@@ -128,17 +165,14 @@ jobs:
 #          go run . talos apply --non-interactive
 #          echo "apply and bootstrap completed"#
 #
-
 #      - name: Verify Talos services
 #        run: |
 #          set -euo pipefail#
-
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service etcd
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kube-apiserver
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kubelet
 #          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
-
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP},${WORKER_IP}" get machinestatus
 
       - name: Collect Talos logs on failure
         if: failure()
