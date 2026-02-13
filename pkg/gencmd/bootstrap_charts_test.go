@@ -24,6 +24,9 @@ func TestBootstrapChartBuilders(t *testing.T) {
 	if len(charts) != 3 {
 		t.Fatalf("expected 3 base charts, got %d", len(charts))
 	}
+	if charts[0].ChartPath != "/tmp/cluster/kubernetes/kube-system/cilium/app" || !charts[0].Wait {
+		t.Fatalf("unexpected first base chart config: %+v", charts[0])
+	}
 }
 
 func TestInstallBootstrapChartPhases(t *testing.T) {
@@ -37,16 +40,22 @@ func TestInstallBootstrapChartPhases(t *testing.T) {
 		helper.TalEnv["VIP_IP"] = oldVIP
 	})
 
-	installCalls := 0
-	installChartsFn = func(_ []fluxhandler.HelmChart, _ map[string]*fluxhandler.HelmRepo, _ bool) {
-		installCalls++
+	phaseSizes := []int{}
+	installChartsFn = func(charts []fluxhandler.HelmChart, _ map[string]*fluxhandler.HelmRepo, _ bool) {
+		phaseSizes = append(phaseSizes, len(charts))
 	}
 	checkStatusFn = func([]string, []string, time.Duration) error { return nil }
 	applyManifestFilesFn = func(context.Context, []string, string) error { return nil }
 
 	installBootstrapChartPhases(context.Background(), []string{"vsc"})
-	if installCalls != 4 {
-		t.Fatalf("expected 4 install phases, got %d", installCalls)
+	if len(phaseSizes) != 4 {
+		t.Fatalf("expected 4 install phases, got %d", len(phaseSizes))
+	}
+	expected := []int{3, 10, 1, 4}
+	for i := range expected {
+		if phaseSizes[i] != expected[i] {
+			t.Fatalf("phase %d expected %d charts, got %d", i, expected[i], phaseSizes[i])
+		}
 	}
 
 	resetGencmdHooks(t)

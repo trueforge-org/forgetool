@@ -5,16 +5,14 @@ import (
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
+	forgetoolembed "github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	"gopkg.in/yaml.v3"
 )
 
 func baseBootstrapCharts() []fluxhandler.HelmChart {
-	return []fluxhandler.HelmChart{
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/cilium/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/kubelet-csr-approver/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/kube-prometheus-stack/app"), false, false),
-	}
+	return bootstrapPhaseCharts(loadBootstrapChartConfig().Base)
 }
 
 func newBootstrapHelmChart(chartPath string, retry bool, wait bool) fluxhandler.HelmChart {
@@ -26,25 +24,11 @@ func newBootstrapHelmChart(chartPath string, retry bool, wait bool) fluxhandler.
 }
 
 func installBootstrapChartPhases(ctx context.Context, vscFilePaths []string) {
-	prioCharts := []fluxhandler.HelmChart{
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/spegel/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/cert-manager/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/kubernetes-reflector/app"), false, false),
-	}
+	config := loadBootstrapChartConfig()
+	prioCharts := bootstrapPhaseCharts(config.Prio)
 	installChartsFn(prioCharts, HelmRepos, false)
 
-	intermediateCharts := []fluxhandler.HelmChart{
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/metallb/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/core/clusterissuer/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/cloudnative-pg/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/node-feature-discovery/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/metrics-server/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/descheduler/app"), false, false),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/volsync/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/snapshot-controller/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/openebs/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/longhorn/app"), false, true),
-	}
+	intermediateCharts := bootstrapPhaseCharts(config.Intermediate)
 	installChartsFn(intermediateCharts, HelmRepos, true)
 
 	requiredMLBPods := []string{"metallb-controller", "metallb-speaker"}
@@ -54,18 +38,48 @@ func installBootstrapChartPhases(ctx context.Context, vscFilePaths []string) {
 		osExitFn(1)
 	}
 
-	lateCharts := []fluxhandler.HelmChart{newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/core/metallb-config/app"), false, false)}
+	lateCharts := bootstrapPhaseCharts(config.Late)
 
 	log.Info().Msgf("Bootstrap: Loading VolumeSnapshotClasses")
 	_ = applyManifestFilesFn(ctx, vscFilePaths, "VolumeSnapshotClass")
 	installChartsFn(lateCharts, HelmRepos, true)
 
 	log.Info().Msg("Bootstrap: Installing included applications")
-	postCharts := []fluxhandler.HelmChart{
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/networking/nginx-internal/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/networking/nginx-external/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/core/blocky/app"), false, true),
-		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/apps/kubernetes-dashboard/app"), false, true),
-	}
+	postCharts := bootstrapPhaseCharts(config.Post)
 	installChartsFn(postCharts, HelmRepos, true)
+}
+
+type bootstrapChartConfig struct {
+	Base         []bootstrapChart `yaml:"base"`
+	Prio         []bootstrapChart `yaml:"prio"`
+	Intermediate []bootstrapChart `yaml:"intermediate"`
+	Late         []bootstrapChart `yaml:"late"`
+	Post         []bootstrapChart `yaml:"post"`
+}
+
+type bootstrapChart struct {
+	Path  string `yaml:"path"`
+	Retry bool   `yaml:"retry"`
+	Wait  bool   `yaml:"wait"`
+}
+
+func loadBootstrapChartConfig() bootstrapChartConfig {
+	data, err := forgetoolembed.GenericFiles.ReadFile("generic/kubernetes/bootstrap-charts.yaml")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Bootstrap: failed to read embedded bootstrap chart config")
+	}
+
+	var config bootstrapChartConfig
+	if err = yaml.Unmarshal(data, &config); err != nil {
+		log.Fatal().Err(err).Msg("Bootstrap: failed to parse embedded bootstrap chart config")
+	}
+	return config
+}
+
+func bootstrapPhaseCharts(charts []bootstrapChart) []fluxhandler.HelmChart {
+	phaseCharts := make([]fluxhandler.HelmChart, 0, len(charts))
+	for _, chart := range charts {
+		phaseCharts = append(phaseCharts, newBootstrapHelmChart(filepath.Join(helper.ClusterPath, chart.Path), chart.Retry, chart.Wait))
+	}
+	return phaseCharts
 }
