@@ -82,15 +82,29 @@ jobs:
       - name: Start Talos nodes in Docker
         run: |
           set -euo pipefail
-
-          EFFECTIVE_VIP="${VIP:-}"
-          if [ -z "${EFFECTIVE_VIP}" ]; then
-            EFFECTIVE_VIP="${CONTROL_IP}"
-          fi
-          echo "EFFECTIVE_VIP=${EFFECTIVE_VIP}" >> "${GITHUB_ENV}"
-          echo "Using Talos endpoint IP: ${EFFECTIVE_VIP}"
-
+          
           docker network create --subnet 10.5.0.0/24 talosnet
+
+          TALOS_DATA_ROOT="${RUNNER_TEMP}/talos-persist"
+          CONTROL_ROOT="${TALOS_DATA_ROOT}/control"
+          WORKER_ROOT="${TALOS_DATA_ROOT}/worker"
+
+          mkdir -p \
+            "${CONTROL_ROOT}/system/state" \
+            "${CONTROL_ROOT}/system/var" \
+            "${CONTROL_ROOT}/system/cni" \
+            "${CONTROL_ROOT}/system/kubernetes" \
+            "${CONTROL_ROOT}/system/libexec" \
+            "${CONTROL_ROOT}/system/opt" \
+            "${CONTROL_ROOT}/data/openebs" \
+            "${WORKER_ROOT}/system/state" \
+            "${WORKER_ROOT}/system/var" \
+            "${WORKER_ROOT}/system/cni" \
+            "${WORKER_ROOT}/system/kubernetes" \
+            "${WORKER_ROOT}/system/libexec" \
+            "${WORKER_ROOT}/system/opt" \
+            "${WORKER_ROOT}/data/openebs"
+
 
           docker run -d \
             --name talos-control-1 \
@@ -103,6 +117,13 @@ jobs:
             --tmpfs /tmp \
             --network talosnet \
             --ip "${CONTROL_IP}" \
+            -v "${CONTROL_ROOT}/system/state:/system/state" \
+            -v "${CONTROL_ROOT}/system/var:/var" \
+            -v "${CONTROL_ROOT}/system/cni:/etc/cni" \
+            -v "${CONTROL_ROOT}/system/kubernetes:/etc/kubernetes" \
+            -v "${CONTROL_ROOT}/system/libexec:/usr/libexec/kubernetes" \
+            -v "${CONTROL_ROOT}/system/opt:/opt" \
+            -v "${CONTROL_ROOT}/data/openebs:/var/openebs/local" \
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
@@ -117,6 +138,13 @@ jobs:
             --tmpfs /tmp \
             --network talosnet \
             --ip "${WORKER_IP}" \
+            -v "${WORKER_ROOT}/system/state:/system/state" \
+            -v "${WORKER_ROOT}/system/var:/var" \
+            -v "${WORKER_ROOT}/system/cni:/etc/cni" \
+            -v "${WORKER_ROOT}/system/kubernetes:/etc/kubernetes" \
+            -v "${WORKER_ROOT}/system/libexec:/usr/libexec/kubernetes" \
+            -v "${WORKER_ROOT}/system/opt:/opt" \
+            -v "${WORKER_ROOT}/data/openebs:/var/openebs/local" \
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
