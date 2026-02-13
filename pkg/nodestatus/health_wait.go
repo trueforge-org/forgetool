@@ -14,8 +14,11 @@ var (
 
 func WaitForHealth(node string, status []string) (string, error) {
 	statusmsg, checks := buildStatusChecks(status)
+	startTime := time.Now()
+	attempt := 0
 
 	log.Info().Msgf("Healthcheck: Waiting for Node %s to reach status: %s", node, statusmsg)
+	log.Debug().Str("node", node).Strs("checks", checks).Dur("maxDuration", waitForHealthMaxDuration).Dur("checkInterval", waitForHealthCheckInterval).Msg("Initialized health wait loop")
 
 	checkInterval := waitForHealthCheckInterval
 	maxDuration := waitForHealthMaxDuration
@@ -42,7 +45,8 @@ func WaitForHealth(node string, status []string) (string, error) {
 	for {
 		select {
 		case <-ticker.C:
-			log.Debug().Msg("Running periodic health checks")
+			attempt++
+			log.Debug().Str("node", node).Int("attempt", attempt).Dur("elapsed", time.Since(startTime).Round(time.Second)).Strs("checks", checks).Msg("Running periodic health checks")
 			for _, check := range checks {
 				err := CheckHealth(node, check, true)
 				if err == nil {
@@ -52,7 +56,7 @@ func WaitForHealth(node string, status []string) (string, error) {
 			}
 
 		case <-timer.C:
-			log.Info().Msg("Max duration reached. Stopping health checks.")
+			log.Info().Str("node", node).Int("attempts", attempt).Dur("elapsed", time.Since(startTime).Round(time.Second)).Msg("Max duration reached. Stopping health checks.")
 			return "ERROR", errors.New("timeout waiting for Node to boot")
 		}
 	}
