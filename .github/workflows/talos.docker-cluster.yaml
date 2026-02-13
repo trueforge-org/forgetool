@@ -123,8 +123,8 @@ jobs:
       - name: Run ForgeTool Apply-Bootstrap
         run: |
           set -euo pipefail
-          echo "Running: go run . talos apply --auto-bootstrap"
-          go run . talos apply --auto-bootstrap
+          echo "Running: go run . talos apply --non-interactive"
+          go run . talos apply --non-interactive
           echo "apply and bootstrap completed"
 
 

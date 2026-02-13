@@ -134,7 +134,7 @@ func TestRunTalosApplyMaintenanceBootstrapFlow(t *testing.T) {
 	}
 }
 
-func TestRunTalosApplyMaintenanceAutoBootstrapSkipsBootstrapPrompt(t *testing.T) {
+func TestRunTalosApplyMaintenanceNonInteractiveSkipsBootstrapPrompt(t *testing.T) {
 	oldDecrypt := talosApplyDecryptFiles
 	oldLoadEnv := talosApplyLoadTalEnv
 	oldLoadConfig := talosApplyLoadTalConfig
@@ -143,7 +143,7 @@ func TestRunTalosApplyMaintenanceAutoBootstrapSkipsBootstrapPrompt(t *testing.T)
 	oldPrompt := talosApplyGetYesOrNo
 	oldRunBootstrap := talosApplyRunBootstrap
 	oldRunApply := talosApplyRunApply
-	oldAutoBootstrap := talosApplyAutoBootstrap
+	oldNonInteractive := globalNonInteractive
 	oldTalConfig := talassist.TalConfig
 	t.Cleanup(func() {
 		talosApplyDecryptFiles = oldDecrypt
@@ -154,11 +154,11 @@ func TestRunTalosApplyMaintenanceAutoBootstrapSkipsBootstrapPrompt(t *testing.T)
 		talosApplyGetYesOrNo = oldPrompt
 		talosApplyRunBootstrap = oldRunBootstrap
 		talosApplyRunApply = oldRunApply
-		talosApplyAutoBootstrap = oldAutoBootstrap
+		globalNonInteractive = oldNonInteractive
 		talassist.TalConfig = oldTalConfig
 	})
 
-	talosApplyAutoBootstrap = true
+	globalNonInteractive = true
 	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
 	talosApplyDecryptFiles = func() error { return nil }
 	talosApplyLoadTalEnv = func(bool) error { return nil }
@@ -189,7 +189,7 @@ func TestRunTalosApplyMaintenanceAutoBootstrapSkipsBootstrapPrompt(t *testing.T)
 	runTalosApply([]string{"all", "--flag"})
 
 	if !bootstrapped {
-		t.Fatalf("expected bootstrap in auto-bootstrap mode")
+		t.Fatalf("expected bootstrap in non-interactive mode")
 	}
 	if prompts != 1 {
 		t.Fatalf("expected one prompt (post-bootstrap apply), got %d", prompts)
