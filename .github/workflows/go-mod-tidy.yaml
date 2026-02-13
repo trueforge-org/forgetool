@@ -36,7 +36,7 @@ jobs:
           go mod tidy
 
       - name: Ensure formatting
-        uses: Jerome1337/gofmt-action@v1.0.5
+        uses: Jerome1337/gofmt-action@d5eabd189843f1d568286a54578159978b7c0fb1 # v1.0.5
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8
