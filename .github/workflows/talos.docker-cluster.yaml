@@ -113,9 +113,6 @@ jobs:
 
           docker network connect --ip 10.5.0.10 talosnet talos-control-1
 
-          echo "Using bridge interface: ${BRIDGE}"
-          ip addr add 10.5.0.10/24 dev "${BRIDGE}"
-
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
 
