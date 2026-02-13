@@ -20,7 +20,7 @@ jobs:
       TALOS_IMAGE: ghcr.io/siderolabs/talos:v1.12.0
       CONTROL_IP: 10.5.0.2
       WORKER_IP: 10.5.0.3
-      VIP: 10.5.0.10
+      VIP: 10.5.0.2
       GATEWAY: 10.5.0.1
       METALLB_RANGE: 10.5.0.20-10.5.0.30
       DASHBOARD_IP: 10.5.0.21
@@ -83,6 +83,13 @@ jobs:
         run: |
           set -euo pipefail
 
+          EFFECTIVE_VIP="${VIP:-}"
+          if [ -z "${EFFECTIVE_VIP}" ]; then
+            EFFECTIVE_VIP="${CONTROL_IP}"
+          fi
+          echo "EFFECTIVE_VIP=${EFFECTIVE_VIP}" >> "${GITHUB_ENV}"
+          echo "Using Talos endpoint IP: ${EFFECTIVE_VIP}"
+
           docker network create --subnet 10.5.0.0/24 talosnet
 
           docker run -d \
@@ -111,8 +118,6 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
-          docker network connect --ip 10.5.0.10 --name VIP talosnet talos-control-1
-
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
 
@@ -133,11 +138,11 @@ jobs:
       - name: Verify Talos services
         run: |
           set -euo pipefail#
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service etcd
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kube-apiserver
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kubelet
           go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP},${WORKER_IP}" get machinestatus
 
       - name: Collect Talos logs on failure
         if: failure()

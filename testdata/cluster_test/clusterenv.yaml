@@ -1,6 +1,6 @@
 ## The Following are required by ForgeTool and CANNOT be removed
 # Ensure VIP is different from all master IPs
-VIP: "10.5.0.10"
+VIP: "10.5.0.2"
 ## Defines the MasterNode IP
 # Please be aware, we only support x86_64 for the first node, ARM will NOT work by default
 MASTER1IP: "10.5.0.2"
