@@ -10,6 +10,7 @@ import (
 	"github.com/budimanjojo/talhelper/v3/pkg/generate"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 // TODO: remove talhelper dependency for cmd creation
@@ -27,7 +28,7 @@ func GenUpgrade(node string, extraFlags []string) []string {
 	os.Stdout = upgradeStdout
 
 	sliceOut := strings.Split(string(out), ";\n")
-	talosPath := talosctlCommandPrefix()
+	talosPath := talosctlpkg.CommandPrefix()
 	var slice []string
 	for _, str := range sliceOut {
 		if str != "" {
@@ -44,7 +45,7 @@ func GenUpgrade(node string, extraFlags []string) []string {
 }
 
 func GenKubeUpgrade(node string) string {
-	talosPath := talosctlCommandPrefix()
+	talosPath := talosctlpkg.CommandPrefix()
 	strout := talosPath + " upgrade-k8s --talosconfig " + helper.TalosConfigFile + " -n " + node
 	return strout
 }

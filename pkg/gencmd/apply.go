@@ -7,13 +7,14 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 func GenApply(node string, extraArgs []string) []string {
 
 	commands := []string{}
 
-	talosPath := talosctlCommandPrefix()
+	talosPath := talosctlpkg.CommandPrefix()
 	if node == "" {
 
 		for _, noderef := range talassist.TalConfig.Nodes {

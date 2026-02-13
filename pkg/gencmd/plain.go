@@ -6,13 +6,14 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 func GenPlain(command string, node string, extraArgs []string) []string {
 
 	commands := []string{}
 
-	talosPath := talosctlCommandPrefix()
+	talosPath := talosctlpkg.CommandPrefix()
 	log.Debug().Msg("Generating plain CMDs...")
 	if node == "" {
 		log.Debug().Msg("Cmd Nodes is empty, rendering cmds for all nodes...")

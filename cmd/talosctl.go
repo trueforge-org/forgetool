@@ -12,8 +12,7 @@ import (
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/cluster"
 	_ "github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/cluster/create" // import to get the command registered via the init() function.
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/talos"
-	"github.com/trueforge-org/forgetool/pkg/gencmd"
-	"github.com/trueforge-org/forgetool/pkg/nodestatus"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 var talosctlLongHelp = strings.TrimSpace(`
@@ -50,8 +49,7 @@ func runTalosctlArgs(args []string, silent bool) (string, error) {
 }
 
 func init() {
-	gencmd.SetTalosctlExecutor(runTalosctlArgs)
-	nodestatus.SetTalosctlExecutor(runTalosctlArgs)
+	talosctlpkg.SetExecutor(runTalosctlArgs)
 
 	RootCmd.AddCommand(talosctl)
 	const (
