@@ -158,21 +158,21 @@ jobs:
           docker logs talos-worker-1
 
 ## TODO getting this to work
-      - name: Run ForgeTool Apply-Bootstrap
-        run: |
-          set -euo pipefail
-          echo "Running: go run . talos apply --non-interactive"
-          go run . talos apply --non-interactive
-          echo "apply and bootstrap completed"#
-
-      - name: Verify Talos services
-        run: |
-          set -euo pipefail#
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service etcd
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kube-apiserver
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kubelet
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP},${WORKER_IP}" get machinestatus
+#      - name: Run ForgeTool Apply-Bootstrap
+#        run: |
+#          set -euo pipefail
+#          echo "Running: go run . talos apply --non-interactive"
+#          go run . talos apply --non-interactive
+#          echo "apply and bootstrap completed"#
+#
+#      - name: Verify Talos services
+#        run: |
+#          set -euo pipefail#
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service etcd
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kube-apiserver
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP}" service kubelet
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
+#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${EFFECTIVE_VIP},${WORKER_IP}" get machinestatus
 
       - name: Collect Talos logs on failure
         if: failure()
