@@ -61,9 +61,9 @@ jobs:
       - name: Run ForgeTool Genconfig
         run: |
           set -euo pipefail
-          echo "Running: go run . genconfig"
-          go run .  genconfig
-          echo "genconfig completed"
+          echo "Running: go run . cluster genconfig"
+          go run . cluster genconfig
+          echo "clustergenconfig completed"
 
       - name: Run ForgeTool Encryption test
         run: |
@@ -135,7 +135,13 @@ jobs:
             done
           done
 
-## TODO: Insert ClusterTool bootstrap here
+      - name: Run ForgeTool Genconfig
+        run: |
+          set -euo pipefail
+          echo "Running: go run . talos apply --auto-bootstrap"
+          go run . talos apply --auto-bootstrap
+          echo "apply and bootstrap completed"
+
 
       - name: Verify Talos services
         run: |
