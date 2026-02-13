@@ -1,68 +1,68 @@
 base:
-  - path: /kubernetes/kube-system/cilium/app
+  - path: kubernetes/kube-system/cilium/app
     retry: false
     wait: true
-  - path: /kubernetes/kube-system/kubelet-csr-approver/app
+  - path: kubernetes/kube-system/kubelet-csr-approver/app
     retry: false
     wait: true
-  - path: /kubernetes/system/kube-prometheus-stack/app
+  - path: kubernetes/system/kube-prometheus-stack/app
     retry: false
     wait: false
 prio:
-  - path: /kubernetes/system/spegel/app
+  - path: kubernetes/system/spegel/app
     retry: false
     wait: true
-  - path: /kubernetes/system/cert-manager/app
+  - path: kubernetes/system/cert-manager/app
     retry: false
     wait: false
-  - path: /kubernetes/system/kubernetes-reflector/app
+  - path: kubernetes/system/kubernetes-reflector/app
     retry: false
     wait: false
 intermediate:
-  - path: /kubernetes/system/metallb/app
+  - path: kubernetes/system/metallb/app
     retry: false
     wait: false
-  - path: /kubernetes/core/clusterissuer/app
+  - path: kubernetes/core/clusterissuer/app
     retry: false
     wait: false
-  - path: /kubernetes/system/cloudnative-pg/app
+  - path: kubernetes/system/cloudnative-pg/app
     retry: false
     wait: false
-  - path: /kubernetes/kube-system/node-feature-discovery/app
+  - path: kubernetes/kube-system/node-feature-discovery/app
     retry: false
     wait: false
-  - path: /kubernetes/kube-system/metrics-server/app
+  - path: kubernetes/kube-system/metrics-server/app
     retry: false
     wait: false
-  - path: /kubernetes/kube-system/descheduler/app
+  - path: kubernetes/kube-system/descheduler/app
     retry: false
     wait: false
-  - path: /kubernetes/system/volsync/app
+  - path: kubernetes/system/volsync/app
     retry: false
     wait: true
-  - path: /kubernetes/system/snapshot-controller/app
+  - path: kubernetes/system/snapshot-controller/app
     retry: false
     wait: true
-  - path: /kubernetes/system/openebs/app
+  - path: kubernetes/system/openebs/app
     retry: false
     wait: true
-  - path: /kubernetes/system/longhorn/app
+  - path: kubernetes/system/longhorn/app
     retry: false
     wait: true
 late:
-  - path: /kubernetes/core/metallb-config/app
+  - path: kubernetes/core/metallb-config/app
     retry: false
     wait: false
 post:
-  - path: /kubernetes/networking/nginx-internal/app
+  - path: kubernetes/networking/nginx-internal/app
     retry: false
     wait: true
-  - path: /kubernetes/networking/nginx-external/app
+  - path: kubernetes/networking/nginx-external/app
     retry: false
     wait: true
-  - path: /kubernetes/core/blocky/app
+  - path: kubernetes/core/blocky/app
     retry: false
     wait: true
-  - path: /kubernetes/apps/kubernetes-dashboard/app
+  - path: kubernetes/apps/kubernetes-dashboard/app
     retry: false
     wait: true
