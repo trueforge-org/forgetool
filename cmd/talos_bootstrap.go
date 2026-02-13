@@ -10,6 +10,15 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
+var (
+	talosBootstrapGetYesOrNo    = helper.GetYesOrNo
+	talosBootstrapLoadTalEnv    = initfiles.LoadTalEnv
+	talosBootstrapLoadTalConfig = talassist.LoadTalConfig
+	talosBootstrapRunBootstrap  = gencmd.RunBootstrap
+	talosBootstrapGenPlain      = gencmd.GenPlain
+	talosBootstrapExecCmd       = gencmd.ExecCmd
+)
+
 var advBootstrapLongHelp = strings.TrimSpace(`
 
 `)
@@ -23,13 +32,13 @@ var bootstrap = &cobra.Command{
 }
 
 func bootstrapfunc(cmd *cobra.Command, args []string) {
-	if helper.GetYesOrNo("Do you want to also run the complete ForgeTool Bootstrap, besides just talos? (yes/no) [y/n]: ") {
-		initfiles.LoadTalEnv(false)
-		talassist.LoadTalConfig()
-		gencmd.RunBootstrap(args)
+	if talosBootstrapGetYesOrNo("Do you want to also run the complete ForgeTool Bootstrap, besides just talos? (yes/no) [y/n]: ") {
+		talosBootstrapLoadTalEnv(false)
+		talosBootstrapLoadTalConfig()
+		talosBootstrapRunBootstrap(args)
 	} else {
-		bootstrapcmds := gencmd.GenPlain("bootstrap", talassist.TalConfig.Nodes[0].IPAddress, []string{})
-		gencmd.ExecCmd(bootstrapcmds[0])
+		bootstrapcmds := talosBootstrapGenPlain("bootstrap", talassist.TalConfig.Nodes[0].IPAddress, []string{})
+		talosBootstrapExecCmd(bootstrapcmds[0])
 	}
 }
 

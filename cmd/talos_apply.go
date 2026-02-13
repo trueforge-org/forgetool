@@ -13,6 +13,13 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
+var (
+	talosApplyGenApply = gencmd.GenApply
+	talosApplyExecCmds = gencmd.ExecCmds
+	talosApplyGenPlain = gencmd.GenPlain
+	talosApplyExecCmd  = gencmd.ExecCmd
+)
+
 var applyLongHelp = strings.TrimSpace(`
 The "apply" command applies your Talos System configuration to each node in the cluster, existing or new It also runs automated checking of your config file and health checks between each node it has processed, to ensure you don't accidentally take down your whole cluster.
 
@@ -105,12 +112,12 @@ var apply = &cobra.Command{
 }
 
 func RunApply(kubeconfig bool, node string, extraArgs []string) {
-	taloscmds := gencmd.GenApply(node, extraArgs)
-	gencmd.ExecCmds(taloscmds, true)
+	taloscmds := talosApplyGenApply(node, extraArgs)
+	talosApplyExecCmds(taloscmds, true)
 
 	if kubeconfig {
-		kubeconfigcmds := gencmd.GenPlain("kubeconfig", helper.TalEnv["VIP_IP"], []string{"-f"})
-		gencmd.ExecCmd(kubeconfigcmds[0])
+		kubeconfigcmds := talosApplyGenPlain("kubeconfig", helper.TalEnv["VIP_IP"], []string{"-f"})
+		talosApplyExecCmd(kubeconfigcmds[0])
 	}
 
 	//if helper.GetYesOrNo("Do you want to (re)load ssh, Sops and ClusterEnv onto the cluster? (yes/no) [y/n]: ") {

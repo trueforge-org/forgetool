@@ -47,4 +47,11 @@ func TestRunGenToolDocs(t *testing.T) {
 	if err := runGenToolDocs("./docs"); !errors.Is(err, mkdirErr) {
 		t.Fatalf("expected mkdir error, got %v", err)
 	}
+
+	genToolDocsMkdirAll = func(string, fs.FileMode) error { return nil }
+	markdownErr := errors.New("markdown failed")
+	genToolDocsMarkdown = func(*cobra.Command, string) error { return markdownErr }
+	if err := runGenToolDocs("./docs"); !errors.Is(err, markdownErr) {
+		t.Fatalf("expected markdown error, got %v", err)
+	}
 }

@@ -8,6 +8,16 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/sops"
 )
 
+var (
+	clusterInitDecryptFiles = sops.DecryptFiles
+	clusterInitInitFiles    = initfiles.InitFiles
+)
+
+func runClusterInit() {
+	_ = clusterInitDecryptFiles()
+	_ = clusterInitInitFiles()
+}
+
 var initLongHelp = strings.TrimSpace(`
 ForgeTool requires a specific directory layout to ensure smooth operators and standardised environments.
 
@@ -23,10 +33,7 @@ var initFiles = &cobra.Command{
 	Long:    initLongHelp,
 	Example: "forgetool cluster init",
 	Run: func(cmd *cobra.Command, args []string) {
-
-		sops.DecryptFiles()
-
-		initfiles.InitFiles()
+		runClusterInit()
 	},
 }
 

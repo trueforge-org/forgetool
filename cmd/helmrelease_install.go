@@ -9,6 +9,30 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/initfiles"
 )
 
+var (
+	helmreleaseInstallLoadTalEnv = initfiles.LoadTalEnv
+	helmreleaseInstallLoadRepos  = fluxhandler.LoadAllHelmRepos
+	helmreleaseInstallCharts     = fluxhandler.InstallCharts
+)
+
+func resolveHelmReleaseDir(inputPath string) string {
+	if filename := filepath.Base(inputPath); filename != "" && filename != "." && filename != "/" {
+		return filepath.Dir(inputPath)
+	}
+	return inputPath
+}
+
+func runHelmreleaseInstall(argPath string) {
+	helmreleaseInstallLoadTalEnv(false)
+
+	dir := resolveHelmReleaseDir(argPath)
+	helmRepoPath := filepath.Join("./repositories", "helm")
+	helmRepos, _ := helmreleaseInstallLoadRepos(helmRepoPath)
+	intermediateCharts := []fluxhandler.HelmChart{{ChartPath: dir, Retry: false, Wait: true}}
+
+	helmreleaseInstallCharts(intermediateCharts, helmRepos, false)
+}
+
 var hrInstalLongHelp = strings.TrimSpace(`
 
 `)
@@ -19,23 +43,7 @@ var hrinstall = &cobra.Command{
 	Example: "forgetool helmrelease install",
 	Long:    hrInstalLongHelp,
 	Run: func(cmd *cobra.Command, args []string) {
-		initfiles.LoadTalEnv(false)
-
-		var dir string
-
-		// Check if args[0] includes a filename
-		if filename := filepath.Base(args[0]); filename != "" && filename != "." && filename != "/" {
-			dir = filepath.Dir(args[0])
-		} else {
-			dir = args[0] // Assuming args[0] is just a directory path without a filename
-		}
-		helmRepoPath := filepath.Join("./repositories", "helm")
-		helmRepos, _ := fluxhandler.LoadAllHelmRepos(helmRepoPath)
-		intermediateCharts := []fluxhandler.HelmChart{
-			{dir, false, true},
-		}
-
-		fluxhandler.InstallCharts(intermediateCharts, helmRepos, false)
+		runHelmreleaseInstall(args[0])
 	},
 }
 

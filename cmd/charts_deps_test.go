@@ -62,3 +62,23 @@ func TestRunChartsDepsReturnsLoadError(t *testing.T) {
 		t.Fatalf("expected load error, got %v", err)
 	}
 }
+
+func TestRunChartsDepsReturnsWalkError(t *testing.T) {
+	oldLoad := chartsDepsLoadGPGKey
+	oldWalk := chartsDepsWalkCharts
+	t.Cleanup(func() {
+		chartsDepsLoadGPGKey = oldLoad
+		chartsDepsWalkCharts = oldWalk
+	})
+
+	chartsDepsLoadGPGKey = func() error { return nil }
+	want := errors.New("walk failed")
+	chartsDepsWalkCharts = func(_ []string, _ func(string, string) error, _ string, _ helper.WalkMode) error {
+		return want
+	}
+
+	err := runChartsDeps([]string{"./charts/a"})
+	if !errors.Is(err, want) {
+		t.Fatalf("expected walk error, got %v", err)
+	}
+}

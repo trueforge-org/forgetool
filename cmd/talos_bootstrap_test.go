@@ -39,11 +39,17 @@ func talosExecNameForTest() string {
 }
 
 func TestBootstrapFunc_TalosOnlyPath(t *testing.T) {
+	oldPrompt := talosBootstrapGetYesOrNo
+	oldGenPlain := talosBootstrapGenPlain
+	oldExecCmd := talosBootstrapExecCmd
 	oldStdin := os.Stdin
 	oldCacheDir := helper.CacheDir
 	oldTalConfigFile := helper.TalosConfigFile
 	oldTalConfig := talassist.TalConfig
 	defer func() {
+		talosBootstrapGetYesOrNo = oldPrompt
+		talosBootstrapGenPlain = oldGenPlain
+		talosBootstrapExecCmd = oldExecCmd
 		os.Stdin = oldStdin
 		helper.CacheDir = oldCacheDir
 		helper.TalosConfigFile = oldTalConfigFile
@@ -63,6 +69,20 @@ func TestBootstrapFunc_TalosOnlyPath(t *testing.T) {
 	helper.CacheDir = t.TempDir()
 	helper.TalosConfigFile = filepath.Join(t.TempDir(), "talosconfig")
 	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{Hostname: "cp1", IPAddress: "10.0.0.10"}}}
+	talosBootstrapGetYesOrNo = func(string) bool { return false }
+	talosBootstrapGenPlain = func(action string, node string, extraArgs []string) []string {
+		if action != "bootstrap" || node != "10.0.0.10" {
+			t.Fatalf("unexpected gen plain input: %s %s", action, node)
+		}
+		return []string{"bootstrap cmd"}
+	}
+	execCalled := false
+	talosBootstrapExecCmd = func(cmd string) {
+		execCalled = true
+		if cmd != "bootstrap cmd" {
+			t.Fatalf("unexpected bootstrap command: %s", cmd)
+		}
+	}
 
 	execPath := filepath.Join(helper.CacheDir, talosExecNameForTest())
 	if err := os.MkdirAll(filepath.Dir(execPath), 0755); err != nil {
@@ -73,4 +93,38 @@ func TestBootstrapFunc_TalosOnlyPath(t *testing.T) {
 	}
 
 	bootstrapfunc(nil, []string{})
+
+	if !execCalled {
+		t.Fatalf("expected bootstrap command execution")
+	}
+}
+
+func TestBootstrapFunc_ForgeBootstrapPath(t *testing.T) {
+	oldPrompt := talosBootstrapGetYesOrNo
+	oldLoadEnv := talosBootstrapLoadTalEnv
+	oldLoadConfig := talosBootstrapLoadTalConfig
+	oldRunBootstrap := talosBootstrapRunBootstrap
+	t.Cleanup(func() {
+		talosBootstrapGetYesOrNo = oldPrompt
+		talosBootstrapLoadTalEnv = oldLoadEnv
+		talosBootstrapLoadTalConfig = oldLoadConfig
+		talosBootstrapRunBootstrap = oldRunBootstrap
+	})
+
+	loadedEnv := false
+	loadedCfg := false
+	calledArgs := []string{}
+	talosBootstrapGetYesOrNo = func(string) bool { return true }
+	talosBootstrapLoadTalEnv = func(bool) error { loadedEnv = true; return nil }
+	talosBootstrapLoadTalConfig = func() { loadedCfg = true }
+	talosBootstrapRunBootstrap = func(args []string) { calledArgs = append([]string{}, args...) }
+
+	bootstrapfunc(nil, []string{"--foo", "bar"})
+
+	if !loadedEnv || !loadedCfg {
+		t.Fatalf("expected tal env and config loaders to be called")
+	}
+	if len(calledArgs) != 2 || calledArgs[0] != "--foo" || calledArgs[1] != "bar" {
+		t.Fatalf("unexpected bootstrap args: %#v", calledArgs)
+	}
 }

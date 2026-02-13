@@ -5,9 +5,27 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/trueforge-org/forgetool/pkg/helper"
 )
+
+func TestAdvTestManifestPathsUsesKubernetesPath(t *testing.T) {
+	oldPath := helper.KubernetesPath
+	t.Cleanup(func() { helper.KubernetesPath = oldPath })
+
+	helper.KubernetesPath = filepath.Join("root", "k8s")
+
+	paths := advTestManifestPaths()
+	if len(paths) != 3 {
+		t.Fatalf("expected 3 manifest paths, got %d", len(paths))
+	}
+	if !strings.Contains(paths[0], filepath.Join("root", "k8s", "flux-system", "flux", "sopssecret.secret.yaml")) {
+		t.Fatalf("unexpected first manifest path: %s", paths[0])
+	}
+}
 
 func TestRunAdvTestCommandAppliesAllManifests(t *testing.T) {
 	oldApply := advTestKubectlApply
@@ -73,5 +91,60 @@ func TestAdvTestRunExitsNonZero(t *testing.T) {
 	exitErr, ok := err.(*exec.ExitError)
 	if !ok || exitErr.ExitCode() == 0 {
 		t.Fatalf("expected non-zero exit code for adv-test, got %v", err)
+	}
+}
+
+func TestAdvTestRunSuccessPath(t *testing.T) {
+	oldLoadEnv := advTestLoadTalEnv
+	oldLoadConfig := advTestLoadTalConfig
+	oldApply := advTestKubectlApply
+	oldExit := advTestExit
+	t.Cleanup(func() {
+		advTestLoadTalEnv = oldLoadEnv
+		advTestLoadTalConfig = oldLoadConfig
+		advTestKubectlApply = oldApply
+		advTestExit = oldExit
+	})
+
+	loadedEnv := false
+	loadedCfg := false
+	exitCalled := false
+	advTestLoadTalEnv = func() { loadedEnv = true }
+	advTestLoadTalConfig = func() { loadedCfg = true }
+	advTestKubectlApply = func(_ context.Context, _ string) error { return nil }
+	advTestExit = func(int) { exitCalled = true }
+
+	testcmd.Run(testcmd, nil)
+
+	if !loadedEnv || !loadedCfg {
+		t.Fatalf("expected tal env and tal config to be loaded")
+	}
+	if exitCalled {
+		t.Fatalf("did not expect exit on success path")
+	}
+}
+
+func TestAdvTestRunFailurePathCallsExit(t *testing.T) {
+	oldLoadEnv := advTestLoadTalEnv
+	oldLoadConfig := advTestLoadTalConfig
+	oldApply := advTestKubectlApply
+	oldExit := advTestExit
+	t.Cleanup(func() {
+		advTestLoadTalEnv = oldLoadEnv
+		advTestLoadTalConfig = oldLoadConfig
+		advTestKubectlApply = oldApply
+		advTestExit = oldExit
+	})
+
+	advTestLoadTalEnv = func() {}
+	advTestLoadTalConfig = func() {}
+	advTestKubectlApply = func(_ context.Context, _ string) error { return errors.New("boom") }
+	exitCode := 0
+	advTestExit = func(code int) { exitCode = code }
+
+	testcmd.Run(testcmd, nil)
+
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", exitCode)
 	}
 }
