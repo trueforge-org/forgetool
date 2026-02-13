@@ -2,13 +2,11 @@ package gencmd
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
 	"github.com/trueforge-org/forgetool/pkg/helper"
-	"github.com/trueforge-org/forgetool/pkg/kubectlcmds"
 )
 
 func baseBootstrapCharts() []fluxhandler.HelmChart {
@@ -33,7 +31,7 @@ func installBootstrapChartPhases(ctx context.Context, vscFilePaths []string) {
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/cert-manager/app"), false, false),
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/kubernetes-reflector/app"), false, false),
 	}
-	fluxhandler.InstallCharts(prioCharts, HelmRepos, false)
+	installChartsFn(prioCharts, HelmRepos, false)
 
 	intermediateCharts := []fluxhandler.HelmChart{
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/metallb/app"), false, false),
@@ -47,20 +45,20 @@ func installBootstrapChartPhases(ctx context.Context, vscFilePaths []string) {
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/openebs/app"), false, true),
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/system/longhorn/app"), false, true),
 	}
-	fluxhandler.InstallCharts(intermediateCharts, HelmRepos, true)
+	installChartsFn(intermediateCharts, HelmRepos, true)
 
 	requiredMLBPods := []string{"metallb-controller", "metallb-speaker"}
 	log.Info().Msgf("Bootstrap: Waiting for MetalLB Pods to be running for: %v", helper.TalEnv["VIP_IP"])
-	if err := kubectlcmds.CheckStatus(requiredMLBPods, []string{}, 600); err != nil {
+	if err := checkStatusFn(requiredMLBPods, []string{}, 600); err != nil {
 		log.Error().Err(err).Msgf("Error: %v\n", err)
-		os.Exit(1)
+		osExitFn(1)
 	}
 
 	lateCharts := []fluxhandler.HelmChart{newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/core/metallb-config/app"), false, false)}
 
 	log.Info().Msgf("Bootstrap: Loading VolumeSnapshotClasses")
-	_ = applyManifestFiles(ctx, vscFilePaths, "VolumeSnapshotClass")
-	fluxhandler.InstallCharts(lateCharts, HelmRepos, true)
+	_ = applyManifestFilesFn(ctx, vscFilePaths, "VolumeSnapshotClass")
+	installChartsFn(lateCharts, HelmRepos, true)
 
 	log.Info().Msg("Bootstrap: Installing included applications")
 	postCharts := []fluxhandler.HelmChart{
@@ -69,5 +67,5 @@ func installBootstrapChartPhases(ctx context.Context, vscFilePaths []string) {
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/core/blocky/app"), false, true),
 		newBootstrapHelmChart(filepath.Join(helper.ClusterPath, "/kubernetes/apps/kubernetes-dashboard/app"), false, true),
 	}
-	fluxhandler.InstallCharts(postCharts, HelmRepos, true)
+	installChartsFn(postCharts, HelmRepos, true)
 }

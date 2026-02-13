@@ -17,6 +17,34 @@ import (
 
 var HelmRepos map[string]*fluxhandler.HelmRepo
 
+var (
+	parseBootstrapExtraArgsFn     = parseBootstrapExtraArgs
+	decryptBootstrapFilesFn       = decryptBootstrapFiles
+	runBootstrapNodeLifecycleFn   = runBootstrapNodeLifecycle
+	setupBootstrapClusterFn       = setupBootstrapCluster
+	applyManifestFilesFn          = applyManifestFiles
+	finalizeBaseClusterFn         = finalizeBaseCluster
+	installBootstrapChartPhasesFn = installBootstrapChartPhases
+	fluxBootstrapFn               = fluxhandler.FluxBootstrap
+
+	waitForHealthFn             = nodestatus.WaitForHealth
+	genApplyFn                  = GenApply
+	execCmdsFn                  = ExecCmds
+	genPlainFn                  = GenPlain
+	execCmdFn                   = ExecCmd
+	checkStatusFn               = kubectlcmds.CheckStatus
+	getClientsetFn              = kubectlcmds.GetClientset
+	loadBootstrapHelmReposFn    = loadBootstrapHelmRepos
+	approvePendingCertsFn       = kubectlcmds.ApprovePendingCertificates
+	installChartsFn             = fluxhandler.InstallCharts
+	baseBootstrapChartsFn       = baseBootstrapCharts
+	loadAllHelmReposFn          = fluxhandler.LoadAllHelmRepos
+	collectBootstrapFilePathsFn = collectBootstrapFilePaths
+	kubectlApplyFn              = kubectlcmds.KubectlApply
+	sopsDecryptFilesFn          = sops.DecryptFiles
+	osExitFn                    = os.Exit
+)
+
 var manifestPaths = []string{
 	filepath.Join(helper.KubernetesPath, "flux-system", "flux", "sopssecret.secret.yaml"),
 	filepath.Join(helper.KubernetesPath, "flux-system", "flux", "deploykey.secret.yaml"),
@@ -24,29 +52,29 @@ var manifestPaths = []string{
 }
 
 func RunBootstrap(args []string) {
-	extraArgs := parseBootstrapExtraArgs(args)
-	decryptBootstrapFiles()
+	extraArgs := parseBootstrapExtraArgsFn(args)
+	decryptBootstrapFilesFn()
 
 	bootstrapNode := talassist.TalConfig.Nodes[0].IPAddress
-	runBootstrapNodeLifecycle(bootstrapNode, extraArgs)
+	runBootstrapNodeLifecycleFn(bootstrapNode, extraArgs)
 
-	ctx, stopCh, namespaceFilePaths, vscFilePaths, err := setupBootstrapCluster()
+	ctx, stopCh, namespaceFilePaths, vscFilePaths, err := setupBootstrapClusterFn()
 	if err != nil {
 		return
 	}
 
-	if err = applyManifestFiles(ctx, namespaceFilePaths, "namespace"); err != nil {
+	if err = applyManifestFilesFn(ctx, namespaceFilePaths, "namespace"); err != nil {
 		return
 	}
-	if err = applyManifestFiles(ctx, manifestPaths, "Manifest"); err != nil {
+	if err = applyManifestFilesFn(ctx, manifestPaths, "Manifest"); err != nil {
 		return
 	}
 
-	finalizeBaseCluster(stopCh)
-	installBootstrapChartPhases(ctx, vscFilePaths)
+	finalizeBaseClusterFn(stopCh)
+	installBootstrapChartPhasesFn(ctx, vscFilePaths)
 
 	log.Info().Msg("------")
-	fluxhandler.FluxBootstrap(ctx)
+	fluxBootstrapFn(ctx)
 	log.Info().Msg("Bootstrap: Completed Successfully!")
 }
 
@@ -58,36 +86,36 @@ func parseBootstrapExtraArgs(args []string) []string {
 }
 
 func decryptBootstrapFiles() {
-	if err := sops.DecryptFiles(); err != nil {
+	if err := sopsDecryptFilesFn(); err != nil {
 		log.Info().Msgf("Error decrypting files: %v\n", err)
 	}
 }
 
 func runBootstrapNodeLifecycle(bootstrapNode string, extraArgs []string) {
-	nodestatus.WaitForHealth(bootstrapNode, []string{"maintenance"})
+	waitForHealthFn(bootstrapNode, []string{"maintenance"})
 
-	taloscmds := GenApply(bootstrapNode, extraArgs)
-	ExecCmds(taloscmds, false)
+	taloscmds := genApplyFn(bootstrapNode, extraArgs)
+	execCmdsFn(taloscmds, false)
 
-	nodestatus.WaitForHealth(bootstrapNode, []string{"booting"})
+	waitForHealthFn(bootstrapNode, []string{"booting"})
 	log.Info().Msgf("Bootstrap: At this point your system is installed to disk, please make sure not to reboot into the installer ISO/USB  %s", bootstrapNode)
 
 	log.Info().Msgf("Bootstrap: running bootstrap on node:  %s", bootstrapNode)
-	bootstrapcmds := GenPlain("bootstrap", bootstrapNode, extraArgs)
-	ExecCmd(bootstrapcmds[0])
+	bootstrapcmds := genPlainFn("bootstrap", bootstrapNode, extraArgs)
+	execCmdFn(bootstrapcmds[0])
 
 	log.Info().Msgf("Bootstrap: waiting for VIP %v to come online...", helper.TalEnv["VIP_IP"])
-	nodestatus.WaitForHealth(helper.TalEnv["VIP_IP"], []string{"running"})
+	waitForHealthFn(helper.TalEnv["VIP_IP"], []string{"running"})
 
 	log.Info().Msgf("Bootstrap: Configuring kubeconfig/kubectl for VIP: %v", helper.TalEnv["VIP_IP"])
-	kubeconfigcmds := GenPlain("kubeconfig", helper.TalEnv["VIP_IP"], []string{"-f"})
-	ExecCmd(kubeconfigcmds[0])
+	kubeconfigcmds := genPlainFn("kubeconfig", helper.TalEnv["VIP_IP"], []string{"-f"})
+	execCmdFn(kubeconfigcmds[0])
 
 	requiredPods := []string{"kube-controller-manager", "kube-scheduler", "kube-apiserver"}
 	log.Info().Msgf("Bootstrap: Waiting for system Pods to be running for: %v", helper.TalEnv["VIP_IP"])
-	if err := kubectlcmds.CheckStatus(requiredPods, []string{}, 600); err != nil {
+	if err := checkStatusFn(requiredPods, []string{}, 600); err != nil {
 		log.Error().Err(err).Msgf("Error: %v\n", err)
-		os.Exit(1)
+		osExitFn(1)
 	}
 }
 
@@ -95,21 +123,21 @@ func setupBootstrapCluster() (context.Context, chan struct{}, []string, []string
 	log.Info().Msg("Bootstrap: Starting Cluster configuration...")
 	stopCh := make(chan struct{})
 
-	clientset, err := kubectlcmds.GetClientset()
+	clientset, err := getClientsetFn()
 	if err != nil {
 		log.Info().Msgf("Error getting Kubernetes clientset: %v", err)
 		return nil, nil, nil, nil, err
 	}
 	ctx := context.Background()
 
-	if err := loadBootstrapHelmRepos(); err != nil {
+	if err := loadBootstrapHelmReposFn(); err != nil {
 		return nil, nil, nil, nil, err
 	}
 
-	go kubectlcmds.ApprovePendingCertificates(clientset, stopCh)
-	fluxhandler.InstallCharts(baseBootstrapCharts(), HelmRepos, true)
+	go approvePendingCertsFn(clientset, stopCh)
+	installChartsFn(baseBootstrapChartsFn(), HelmRepos, true)
 
-	namespaceFilePaths, vscFilePaths, err := collectBootstrapFilePaths()
+	namespaceFilePaths, vscFilePaths, err := collectBootstrapFilePathsFn()
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -119,7 +147,7 @@ func setupBootstrapCluster() (context.Context, chan struct{}, []string, []string
 
 func loadBootstrapHelmRepos() error {
 	helmRepoPath := filepath.Join("./repositories", "helm")
-	loadedRepos, err := fluxhandler.LoadAllHelmRepos(helmRepoPath)
+	loadedRepos, err := loadAllHelmReposFn(helmRepoPath)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load Helm repositories")
 		return err
@@ -159,9 +187,9 @@ func collectBootstrapFilePaths() ([]string, []string, error) {
 func applyManifestFiles(ctx context.Context, files []string, label string) error {
 	for _, filePath := range files {
 		log.Info().Msgf("Bootstrap: Loading %s: %v", label, filePath)
-		if err := kubectlcmds.KubectlApply(ctx, filePath); err != nil {
+		if err := kubectlApplyFn(ctx, filePath); err != nil {
 			log.Info().Msgf("Error applying manifest for %s: %v\n", filepath.Base(filePath), err)
-			os.Exit(1)
+			osExitFn(1)
 		}
 	}
 
@@ -171,7 +199,7 @@ func applyManifestFiles(ctx context.Context, files []string, label string) error
 func finalizeBaseCluster(stopCh chan struct{}) {
 	log.Info().Msg("Bootstrap: Base Cluster Configuration Completed, continuing setup...")
 	log.Info().Msg("Bootstrap: Confirming cluster health...")
-	healthcmd := GenPlain("health", helper.TalEnv["VIP_IP"], []string{})
-	ExecCmd(healthcmd[0])
+	healthcmd := genPlainFn("health", helper.TalEnv["VIP_IP"], []string{})
+	execCmdFn(healthcmd[0])
 	close(stopCh)
 }

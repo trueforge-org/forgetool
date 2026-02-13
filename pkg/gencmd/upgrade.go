@@ -1,6 +1,7 @@
 package gencmd
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -13,6 +14,15 @@ import (
 	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
+func defaultUpgradeFatal(err error) {
+	log.Error().Err(err).Msgf("failed to generate talosctl upgrade command: %s", err)
+}
+
+var (
+	generateUpgradeCommandFn = generate.GenerateUpgradeCommand
+	upgradeFatalFn           = defaultUpgradeFatal
+)
+
 // TODO: remove talhelper dependency for cmd creation
 func GenUpgrade(node string, extraFlags []string) []string {
 	// TODO: get rid of this, due to double uncontrollable log output
@@ -21,7 +31,7 @@ func GenUpgrade(node string, extraFlags []string) []string {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 	extraFlags = append(extraFlags, "--preserve")
-	err := generate.GenerateUpgradeCommand(talassist.TalConfig, helper.TalosGenerated, node, extraFlags, false)
+	err := generateUpgradeCommandFn(talassist.TalConfig, helper.TalosGenerated, node, extraFlags, false)
 
 	w.Close()
 	out, _ := io.ReadAll(r)
@@ -39,7 +49,8 @@ func GenUpgrade(node string, extraFlags []string) []string {
 	}
 
 	if err != nil {
-		log.Fatal().Err(err).Msgf("failed to generate talosctl upgrade command: %s", err)
+		upgradeFatalFn(fmt.Errorf("failed to generate talosctl upgrade command: %w", err))
+		osExitFn(1)
 	}
 	return slice
 }

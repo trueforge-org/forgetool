@@ -3,6 +3,7 @@ package gencmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 
@@ -11,35 +12,76 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/initfiles"
-	"github.com/trueforge-org/forgetool/pkg/sops"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
-func GenConfig(args []string) error {
-	if initfiles.CheckRunAgainFileExists() {
-		log.Fatal().Msg("You need to re-run Init. Exiting...")
-		os.Exit(1)
+func defaultGenConfigFatalExit() {
+	log.Info().Msg("You need to re-run Init. Exiting...")
+}
+
+func defaultEncodeSecretBundle(secretbundle any) (data []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("yaml encode panic: %v", r)
+			data = nil
+		}
+	}()
+
+	buf := new(bytes.Buffer)
+	encoder := helper.YamlNewEncoder(buf)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(secretbundle); err != nil {
+		return nil, err
 	}
-	if err := sops.DecryptFiles(); err != nil {
+	return buf.Bytes(), nil
+}
+
+func defaultWriteTalSecretBytes(outfile *os.File, data []byte) (int, error) {
+	return outfile.Write(data)
+}
+
+var (
+	checkRunAgainFileExistsFn = initfiles.CheckRunAgainFileExists
+	loadTalConfigFn           = talassist.LoadTalConfig
+	genSchemaFn               = talassist.GenSchema
+	genTalEnvConfigMapFn      = initfiles.GenTalEnvConfigMap
+	checkEnvVariablesFn       = initfiles.CheckEnvVariables
+	genTalSecretFn            = genTalSecret
+	talhelperGenConfigFn      = talassist.TalhelperGenConfig
+	updateGitRepoFn           = initfiles.UpdateGitRepo
+	processDirectoryFn        = fluxhandler.ProcessDirectory
+	createEncrPreCommitHookFn = helper.CreateEncrPreCommitHook
+	genConfigFatalExitFn      = defaultGenConfigFatalExit
+	createTalSecretFileFn     = os.Create
+	encodeSecretBundleFn      = defaultEncodeSecretBundle
+	writeTalSecretBytesFn     = defaultWriteTalSecretBytes
+)
+
+func GenConfig(args []string) error {
+	if checkRunAgainFileExistsFn() {
+		genConfigFatalExitFn()
+		osExitFn(1)
+	}
+	if err := sopsDecryptFilesFn(); err != nil {
 		log.Info().Msgf("Error decrypting files: %v\n", err)
 	}
-	talassist.LoadTalConfig()
-	talassist.GenSchema()
-	initfiles.GenTalEnvConfigMap()
-	initfiles.CheckEnvVariables()
-	genTalSecret()
-	talassist.TalhelperGenConfig()
-	initfiles.UpdateGitRepo()
+	loadTalConfigFn()
+	genSchemaFn()
+	genTalEnvConfigMapFn()
+	checkEnvVariablesFn()
+	genTalSecretFn()
+	talhelperGenConfigFn()
+	updateGitRepoFn()
 
-	if err := fluxhandler.ProcessDirectory(path.Join(helper.ClusterPath, "kubernetes")); err != nil {
+	if err := processDirectoryFn(path.Join(helper.ClusterPath, "kubernetes")); err != nil {
 		log.Info().Msgf("Error: %v", err)
 	}
-	if err := fluxhandler.ProcessDirectory(path.Join(helper.ClusterPath, "kubernetes")); err != nil {
+	if err := processDirectoryFn(path.Join(helper.ClusterPath, "kubernetes")); err != nil {
 		log.Info().Msgf("Error: %v", err)
 	} else {
 		log.Info().Msgf("Kustomizations processed successfully.")
 	}
-	helper.CreateEncrPreCommitHook()
+	createEncrPreCommitHookFn()
 	log.Info().Msg("GenConfig: Completed Successfully!")
 	return nil
 }
@@ -51,34 +93,25 @@ func genTalSecret() error {
 	} else if errors.Is(err, os.ErrNotExist) {
 		log.Info().Msg("Generating TalSecret...")
 		os.MkdirAll(helper.TalosGenerated, os.ModePerm)
-		outfile, err := os.Create(helper.TalSecretFile)
+		outfile, err := createTalSecretFileFn(helper.TalSecretFile)
 		if err != nil {
 			panic(err)
 		}
 		defer outfile.Close()
 
 		secretbundle := talassist.NewSecretBundle()
-
-		buf := new(bytes.Buffer)
-		encoder := helper.YamlNewEncoder(buf)
-		encoder.SetIndent(2)
-
-		err = encoder.Encode(secretbundle)
+		data, err := encodeSecretBundleFn(secretbundle)
 
 		if err != nil {
 			return err
 		}
 
-		_, err = outfile.Write(buf.Bytes())
+		_, err = writeTalSecretBytesFn(outfile, data)
 		if err != nil {
-			// Handle the error
 			panic(err)
 		}
 
 		return nil
-
-	} else {
-
 	}
 	return nil
 }

@@ -3,14 +3,10 @@
 Sorted from lowest to highest coverage.
 
 - [ ]   0.00% (0/39) - pkg/fluxhandler/helmrelease_upgrade.go
-- [ ]   0.00% (0/18) - pkg/gencmd/bootstrap_charts.go
 - [ ]   0.00% (0/21) - pkg/kubectlcmds/approvecerts_loop.go
 - [ ]   0.00% (0/31) - pkg/kubectlcmds/yaml_apply.go
 - [ ]   4.49% (4/89) - pkg/helper/git.go
 - [ ]   9.58% (16/167) - pkg/fluxhandler/helm.go
-- [ ]  11.36% (10/88) - pkg/gencmd/bootstrap.go
-- [ ]  11.49% (10/87) - pkg/gencmd/execcmd.go
-- [ ]  14.29% (3/21) - pkg/gencmd/upgrade.go
 - [ ]  15.48% (26/168) - pkg/initfiles/initfiles.go
 - [ ]  16.07% (9/56) - pkg/kubectlcmds/checkstatus.go
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
@@ -22,7 +18,6 @@ Sorted from lowest to highest coverage.
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
 - [ ]  41.18% (14/34) - pkg/talassist/load.go
 - [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
-- [ ]  45.24% (19/42) - pkg/gencmd/genconfig.go
 - [ ]  47.22% (34/72) - pkg/initfiles/initfiles_age_sops.go
 - [ ]  49.62% (66/133) - pkg/charts/changelog/changelog.go
 - [ ]  50.00% (10/20) - pkg/kubectlcmds/approvecerts.go
@@ -48,7 +43,6 @@ Sorted from lowest to highest coverage.
 - [ ]  84.62% (11/13) - pkg/helper/prompts.go
 - [ ]  84.76% (89/105) - pkg/charts/chartFile/updater.go
 - [ ]  85.71% (18/21) - pkg/sops/loadsops.go
-- [ ]  86.36% (19/22) - pkg/gencmd/plain.go
 - [ ]  87.50% (14/16) - pkg/charts/valuesYaml/parse.go
 - [ ]  87.50% (14/16) - pkg/charts/version/bump.go
 - [ ]  88.52% (54/61) - pkg/helper/envsubst.go
@@ -56,7 +50,6 @@ Sorted from lowest to highest coverage.
 - [ ]  88.73% (63/71) - pkg/charts/changelog/changed_data.go
 - [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
 - [ ]  89.29% (50/56) - pkg/nodestatus/status.go
-- [ ]  89.47% (17/19) - pkg/gencmd/apply.go
 - [ ]  90.00% (45/50) - pkg/helper/replace.go
 - [ ]  91.67% (11/12) - pkg/helper/marshaller.go
 - [ ]  92.11% (35/38) - pkg/charts/website/chart_list.go
@@ -106,6 +99,13 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
 - [ ] 100.00% (23/23) - pkg/fluxhandler/helmrepo.go
+- [ ] 100.00% (19/19) - pkg/gencmd/apply.go
+- [ ] 100.00% (88/88) - pkg/gencmd/bootstrap.go
+- [ ] 100.00% (18/18) - pkg/gencmd/bootstrap_charts.go
+- [ ] 100.00% (87/87) - pkg/gencmd/execcmd.go
+- [ ] 100.00% (51/51) - pkg/gencmd/genconfig.go
+- [ ] 100.00% (22/22) - pkg/gencmd/plain.go
+- [ ] 100.00% (23/23) - pkg/gencmd/upgrade.go
 - [ ] 100.00% (12/12) - pkg/helper/dns.go
 - [ ] 100.00% (7/7) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go

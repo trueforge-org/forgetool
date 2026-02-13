@@ -1,7 +1,6 @@
 package gencmd
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
@@ -31,7 +30,7 @@ func GenApply(node string, extraArgs []string) []string {
 		}
 		if nodename == "" {
 			log.Error().Msgf("Node IP %s, does not match any node in talconfig. Exiting...", node)
-			os.Exit(1)
+			osExitFn(1)
 		}
 
 		filename := talassist.TalConfig.ClusterName + "-" + nodename + ".yaml"
