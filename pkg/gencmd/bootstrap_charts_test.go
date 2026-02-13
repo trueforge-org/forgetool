@@ -66,3 +66,19 @@ func TestInstallBootstrapChartPhases(t *testing.T) {
 		installBootstrapChartPhases(context.Background(), nil)
 	})
 }
+
+func TestValidateBootstrapChartConfig(t *testing.T) {
+	if err := validateBootstrapChartConfig(bootstrapChartConfig{}); err == nil {
+		t.Fatal("expected error for empty chart config")
+	}
+	if err := validateBootstrapChartConfig(bootstrapChartConfig{
+		Charts: []bootstrapChart{{Path: "kubernetes/x", Stage: 9}},
+	}); err == nil {
+		t.Fatal("expected error for invalid chart stage")
+	}
+	if err := validateBootstrapChartConfig(bootstrapChartConfig{
+		Charts: []bootstrapChart{{Path: "kubernetes/x", Stage: 1}},
+	}); err != nil {
+		t.Fatalf("expected valid chart config, got %v", err)
+	}
+}
