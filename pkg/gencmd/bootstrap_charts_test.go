@@ -3,6 +3,7 @@ package gencmd
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,6 +13,8 @@ import (
 )
 
 func TestBootstrapChartBuilders(t *testing.T) {
+	writeBootstrapChartsConfig(t)
+
 	oldCluster := helper.ClusterPath
 	helper.ClusterPath = "/tmp/cluster"
 	t.Cleanup(func() { helper.ClusterPath = oldCluster })
@@ -31,6 +34,8 @@ func TestBootstrapChartBuilders(t *testing.T) {
 }
 
 func TestInstallBootstrapChartPhases(t *testing.T) {
+	writeBootstrapChartsConfig(t)
+
 	resetGencmdHooks(t)
 	oldCluster := helper.ClusterPath
 	oldVIP := helper.TalEnv["VIP_IP"]
@@ -65,6 +70,26 @@ func TestInstallBootstrapChartPhases(t *testing.T) {
 	expectExitPanic(t, func() {
 		installBootstrapChartPhases(context.Background(), nil)
 	})
+}
+
+func writeBootstrapChartsConfig(t *testing.T) {
+	t.Helper()
+
+	oldCacheDir := helper.CacheDir
+	helper.CacheDir = t.TempDir()
+	t.Cleanup(func() { helper.CacheDir = oldCacheDir })
+
+	if err := os.MkdirAll(filepath.Join(helper.CacheDir, "kubernetes"), 0o755); err != nil {
+		t.Fatalf("mkdir kubernetes dir failed: %v", err)
+	}
+
+	config, err := os.ReadFile(filepath.Join("testdata", "bootstrap", "charts.json"))
+	if err != nil {
+		t.Fatalf("read charts fixture failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(helper.CacheDir, "kubernetes", "charts.json"), config, 0o644); err != nil {
+		t.Fatalf("write charts config failed: %v", err)
+	}
 }
 
 func TestValidateBootstrapChartConfig(t *testing.T) {

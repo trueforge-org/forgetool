@@ -3,12 +3,13 @@ package gencmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/rs/zerolog/log"
-	forgetoolembed "github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
@@ -64,9 +65,26 @@ type bootstrapChart struct {
 }
 
 func loadBootstrapChartConfig() bootstrapChartConfig {
-	data, err := forgetoolembed.GenericFiles.ReadFile("generic/kubernetes/bootstrap-charts.json")
+	paths := []string{
+		filepath.Join(helper.CacheDir, "kubernetes", "charts.json"),
+		filepath.Join(helper.CacheDir, "kubernetes", "bootstrap-charts.json"),
+		filepath.Join(helper.CacheDir, "charts.json"),
+	}
+	var (
+		data []byte
+		err  error
+	)
+	for _, path := range paths {
+		data, err = os.ReadFile(path)
+		if err == nil {
+			break
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			log.Fatal().Err(err).Msgf("Bootstrap: failed to read bootstrap chart config from %s", path)
+		}
+	}
 	if err != nil {
-		log.Fatal().Err(err).Msg("Bootstrap: failed to read embedded bootstrap chart config")
+		log.Fatal().Err(err).Msgf("Bootstrap: failed to find bootstrap chart config in expected cache locations: %v", paths)
 	}
 
 	var config bootstrapChartConfig

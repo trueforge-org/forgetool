@@ -1,0 +1,130 @@
+{
+  "charts": [
+    {
+      "path": "kubernetes/kube-system/cilium/app",
+      "retry": false,
+      "wait": true,
+      "stage": 0
+    },
+    {
+      "path": "kubernetes/base-a",
+      "retry": false,
+      "wait": true,
+      "stage": 0
+    },
+    {
+      "path": "kubernetes/base-b",
+      "retry": true,
+      "wait": false,
+      "stage": 0
+    },
+    {
+      "path": "kubernetes/prio-a",
+      "retry": true,
+      "wait": true,
+      "stage": 1
+    },
+    {
+      "path": "kubernetes/prio-b",
+      "retry": false,
+      "wait": false,
+      "stage": 1
+    },
+    {
+      "path": "kubernetes/prio-c",
+      "retry": false,
+      "wait": true,
+      "stage": 1
+    },
+    {
+      "path": "kubernetes/int-1",
+      "retry": true,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-2",
+      "retry": true,
+      "wait": false,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-3",
+      "retry": false,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-4",
+      "retry": false,
+      "wait": false,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-5",
+      "retry": true,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-6",
+      "retry": true,
+      "wait": false,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-7",
+      "retry": false,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-8",
+      "retry": false,
+      "wait": false,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-9",
+      "retry": true,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/int-10",
+      "retry": false,
+      "wait": true,
+      "stage": 2
+    },
+    {
+      "path": "kubernetes/late-a",
+      "retry": true,
+      "wait": true,
+      "stage": 3
+    },
+    {
+      "path": "kubernetes/post-a",
+      "retry": true,
+      "wait": true,
+      "stage": 4
+    },
+    {
+      "path": "kubernetes/post-b",
+      "retry": false,
+      "wait": true,
+      "stage": 4
+    },
+    {
+      "path": "kubernetes/post-c",
+      "retry": true,
+      "wait": false,
+      "stage": 4
+    },
+    {
+      "path": "kubernetes/post-d",
+      "retry": false,
+      "wait": false,
+      "stage": 4
+    }
+  ]
+}
