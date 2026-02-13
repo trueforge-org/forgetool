@@ -8,6 +8,20 @@ import (
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/talos"
 )
 
+func TestRunTalosctlArgsSilentMode(t *testing.T) {
+	_, err := runTalosctlArgs([]string{"--help"}, true)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
+func TestRunTalosctlArgsNonSilentMode(t *testing.T) {
+	_, err := runTalosctlArgs([]string{"--help"}, false)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+}
+
 func TestTalosctlCommandConfig(t *testing.T) {
 	if talosctl.Use != "talosctl" {
 		t.Fatalf("expected use %q, got %q", "talosctl", talosctl.Use)

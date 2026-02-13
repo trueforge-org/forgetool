@@ -100,7 +100,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (10/10) - cmd/talos_kubeconfig.go
 - [ ] 100.00% (10/10) - cmd/talos_reset.go
 - [ ] 100.00% (16/16) - cmd/talos_upgrade.go
-- [ ] 100.00% (13/13) - cmd/talosctl.go
+- [ ] 100.00% (26/26) - cmd/talosctl.go
 - [ ] 100.00% (50/50) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
@@ -111,3 +111,4 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
 - [ ] 100.00% (38/38) - pkg/nodestatus/health.go
 - [ ] 100.00% (21/21) - pkg/sops/checkencrypt_detection.go
+- [ ] 100.00% (10/10) - pkg/talosctl/talosctl.go

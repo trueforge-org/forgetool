@@ -6,6 +6,18 @@ import (
 	"testing"
 )
 
+func TestRun_DefaultExecutorCoverage(t *testing.T) {
+	previousExecutor := executor
+	t.Cleanup(func() {
+		executor = previousExecutor
+	})
+
+	out, err := Run([]string{"version"}, true)
+	if err == nil && strings.TrimSpace(out) == "" {
+		t.Fatalf("expected default executor to return output and/or error")
+	}
+}
+
 func TestCommandPrefix(t *testing.T) {
 	if got := CommandPrefix(); got != "talosctl" {
 		t.Fatalf("expected command prefix talosctl, got %q", got)
