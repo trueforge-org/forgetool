@@ -111,6 +111,9 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
+          BRIDGE=$(docker network inspect talosnet -f '{{(index .Options "com.docker.network.bridge.name")}}')
+          ip addr add 10.5.0.10/24 dev $BRIDGE
+
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
 
@@ -121,24 +124,21 @@ jobs:
           docker logs talos-worker-1
 
 ## TODO getting this to work
-#      - name: Run ForgeTool Apply-Bootstrap
-#        run: |
-#          set -euo pipefail
-#          echo "Running: go run . talos apply --non-interactive"
-#          go run . talos apply --non-interactive
-#          echo "apply and bootstrap completed"#
-#
+      - name: Run ForgeTool Apply-Bootstrap
+        run: |
+          set -euo pipefail
+          echo "Running: go run . talos apply --non-interactive"
+          go run . talos apply --non-interactive
+          echo "apply and bootstrap completed"#
 
-#      - name: Verify Talos services
-#        run: |
-#          set -euo pipefail#
-
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
-
-#          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
+      - name: Verify Talos services
+        run: |
+          set -euo pipefail#
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet#
+          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
 
       - name: Collect Talos logs on failure
         if: failure()
