@@ -2,6 +2,7 @@ package gencmd
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -67,6 +68,10 @@ func resetGencmdHooks(t *testing.T) {
 
 	generateUpgradeCommandFn = func(*talhelperCfg.TalhelperConfig, string, string, []string, bool) error { return nil }
 	upgradeFatalFn = defaultUpgradeFatal
+	upgradePipeFn = os.Pipe
+	upgradeReadAllFn = io.ReadAll
+	upgradeCloseReaderFn = defaultUpgradeCloseReader
+	upgradeCloseWriterFn = defaultUpgradeCloseWriter
 }
 
 func kubectlClientsetNoop() (*kubernetes.Clientset, error) {
@@ -82,7 +87,7 @@ func expectExitPanic(t *testing.T, fn func()) {
 		if _, ok := r.(exitPanic); !ok {
 			t.Fatalf("expected exit panic, got %v", r)
 		}
-		}()
+	}()
 	fn()
 }
 

@@ -23,7 +23,6 @@ Sorted from lowest to highest coverage.
 - [ ]  50.00% (6/12) - pkg/kubectlcmds/client.go
 - [ ]  51.52% (17/33) - pkg/kubectlcmds/apply.go
 - [ ]  58.82% (10/17) - pkg/helper/time.go
-- [ ]  66.67% (20/30) - pkg/nodestatus/health_wait.go
 - [ ]  69.23% (18/26) - pkg/kubectlcmds/kustomize.go
 - [ ]  75.00% (9/12) - pkg/info/info.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
@@ -32,12 +31,9 @@ Sorted from lowest to highest coverage.
 - [ ]  84.21% (80/95) - pkg/helper/tooldocs.go
 - [ ]  84.62% (11/13) - pkg/helper/prompts.go
 - [ ]  85.71% (18/21) - pkg/sops/loadsops.go
-- [ ]  87.50% (14/16) - pkg/charts/valuesYaml/parse.go
-- [ ]  87.50% (14/16) - pkg/charts/version/bump.go
 - [ ]  88.52% (54/61) - pkg/helper/envsubst.go
 - [ ]  88.57% (31/35) - pkg/helper/helper.go
 - [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
-- [ ]  89.29% (50/56) - pkg/nodestatus/status.go
 - [ ]  90.00% (45/50) - pkg/helper/replace.go
 - [ ]  91.67% (11/12) - pkg/helper/marshaller.go
 - [ ]  92.31% (24/26) - pkg/helper/runcmd.go
@@ -107,10 +103,12 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (87/87) - pkg/gencmd/execcmd.go
 - [ ] 100.00% (51/51) - pkg/gencmd/genconfig.go
 - [ ] 100.00% (22/22) - pkg/gencmd/plain.go
-- [ ] 100.00% (23/23) - pkg/gencmd/upgrade.go
+- [ ] 100.00% (35/35) - pkg/gencmd/upgrade.go
 - [ ] 100.00% (12/12) - pkg/helper/dns.go
 - [ ] 100.00% (7/7) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
 - [ ] 100.00% (38/38) - pkg/nodestatus/health.go
+- [ ] 100.00% (30/30) - pkg/nodestatus/health_wait.go
+- [ ] 100.00% (56/56) - pkg/nodestatus/status.go
 - [ ] 100.00% (21/21) - pkg/sops/checkencrypt_detection.go
-- [ ] 100.00% (10/10) - pkg/talosctl/talosctl.go
+- [ ] 100.00% (12/12) - pkg/talosctl/talosctl.go

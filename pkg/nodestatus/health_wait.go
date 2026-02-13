@@ -7,14 +7,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	waitForHealthCheckInterval = 10 * time.Second
+	waitForHealthMaxDuration   = 15 * time.Minute
+)
+
 func WaitForHealth(node string, status []string) (string, error) {
 	statusmsg, checks := buildStatusChecks(status)
 
 	log.Info().Msgf("Healthcheck: Waiting for Node %s to reach status: %s", node, statusmsg)
 
-	// Duration constants
-	checkInterval := 10 * time.Second
-	maxDuration := 15 * time.Minute
+	checkInterval := waitForHealthCheckInterval
+	maxDuration := waitForHealthMaxDuration
 
 	// Create a ticker to run CheckHealth every 10 seconds
 	ticker := time.NewTicker(checkInterval)
