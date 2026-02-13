@@ -28,6 +28,14 @@ var releaseArchiveURL = "https://codeload.github.com/trueforge-org/cluster-templ
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 var resolveVersionHook = resolveVersion
 var downloadReleaseHook = downloadRelease
+var mkdirAllHook = os.MkdirAll
+var openFileHook = func(name string, flag int, perm os.FileMode) (io.WriteCloser, error) {
+	return os.OpenFile(name, flag, perm)
+}
+var copyHook = io.Copy
+var closeHook = func(c io.Closer) error { return c.Close() }
+var absPathHook = filepath.Abs
+var isWithinCacheHook = isWithinCache
 
 func ToCache() error {
 	version, err := resolveVersionHook()
@@ -103,7 +111,7 @@ func extractArchive(reader io.Reader) error {
 	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
-	cacheDir, err := filepath.Abs(helper.CacheDir)
+	cacheDir, err := absPathHook(helper.CacheDir)
 	if err != nil {
 		return err
 	}
@@ -118,10 +126,6 @@ func extractArchive(reader io.Reader) error {
 		if err != nil {
 			return err
 		}
-		if header == nil {
-			continue
-		}
-
 		name := filepath.ToSlash(header.Name)
 		nameParts := strings.SplitN(name, "/", 2)
 		if len(nameParts) < 2 || nameParts[1] == "" {
@@ -135,32 +139,36 @@ func extractArchive(reader io.Reader) error {
 
 		targetPath := filepath.Join(cacheDir, filepath.FromSlash(nameParts[1]))
 		cleanTargetPath := filepath.Clean(targetPath)
-		if cleanTargetPath != cacheDir && !strings.HasPrefix(cleanTargetPath, cachePrefix) {
+		if !isWithinCacheHook(cacheDir, cachePrefix, cleanTargetPath) {
 			return fmt.Errorf("invalid archive path: %s", header.Name)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(cleanTargetPath, os.ModePerm); err != nil {
+			if err := mkdirAllHook(cleanTargetPath, os.ModePerm); err != nil {
 				return err
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(cleanTargetPath), os.ModePerm); err != nil {
+			if err := mkdirAllHook(filepath.Dir(cleanTargetPath), os.ModePerm); err != nil {
 				return err
 			}
 
-			file, err := os.OpenFile(cleanTargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+			file, err := openFileHook(cleanTargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 			if err != nil {
 				return err
 			}
 
-			if _, err := io.Copy(file, tarReader); err != nil {
-				_ = file.Close()
+			if _, err := copyHook(file, tarReader); err != nil {
+				_ = closeHook(file)
 				return err
 			}
-			if err := file.Close(); err != nil {
+			if err := closeHook(file); err != nil {
 				return err
 			}
 		}
 	}
+}
+
+func isWithinCache(cacheDir, cachePrefix, cleanTargetPath string) bool {
+	return cleanTargetPath == cacheDir || strings.HasPrefix(cleanTargetPath, cachePrefix)
 }

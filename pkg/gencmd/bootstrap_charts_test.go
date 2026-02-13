@@ -12,6 +12,19 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+type bootstrapChartsFatalPanic struct{}
+
+func expectBootstrapChartsFatalPanic(t *testing.T, fn func()) {
+	t.Helper()
+	defer func() {
+		r := recover()
+		if _, ok := r.(bootstrapChartsFatalPanic); !ok {
+			t.Fatalf("expected bootstrap charts fatal panic, got %v", r)
+		}
+	}()
+	fn()
+}
+
 func TestBootstrapChartBuilders(t *testing.T) {
 	writeBootstrapChartsConfig(t)
 
@@ -97,6 +110,11 @@ func TestValidateBootstrapChartConfig(t *testing.T) {
 		t.Fatal("expected error for empty chart config")
 	}
 	if err := validateBootstrapChartConfig(bootstrapChartConfig{
+		Charts: []bootstrapChart{{Path: "", Stage: 1}},
+	}); err == nil {
+		t.Fatal("expected error for missing chart path")
+	}
+	if err := validateBootstrapChartConfig(bootstrapChartConfig{
 		Charts: []bootstrapChart{{Path: "kubernetes/x", Stage: 9}},
 	}); err == nil {
 		t.Fatal("expected error for invalid chart stage")
@@ -106,4 +124,62 @@ func TestValidateBootstrapChartConfig(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("expected valid chart config, got %v", err)
 	}
+}
+
+func TestLoadBootstrapChartConfig_FatalBranches(t *testing.T) {
+	resetGencmdHooks(t)
+	oldCacheDir := helper.CacheDir
+	helper.CacheDir = t.TempDir()
+	t.Cleanup(func() {
+		helper.CacheDir = oldCacheDir
+		resetGencmdHooks(t)
+	})
+
+	bootstrapChartsFatalFn = func(error, string) { panic(bootstrapChartsFatalPanic{}) }
+
+	if err := os.MkdirAll(filepath.Join(helper.CacheDir, "kubernetes"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(helper.CacheDir, "kubernetes", "charts.json"), []byte("{"), 0o644); err != nil {
+		t.Fatalf("write invalid json failed: %v", err)
+	}
+	expectBootstrapChartsFatalPanic(t, func() {
+		_ = loadBootstrapChartConfig()
+	})
+
+	if err := os.WriteFile(filepath.Join(helper.CacheDir, "kubernetes", "charts.json"), []byte(`{"charts":[{"path":"","stage":1}]}`), 0o644); err != nil {
+		t.Fatalf("write invalid schema failed: %v", err)
+	}
+	expectBootstrapChartsFatalPanic(t, func() {
+		_ = loadBootstrapChartConfig()
+	})
+
+	if err := os.Remove(filepath.Join(helper.CacheDir, "kubernetes", "charts.json")); err != nil {
+		t.Fatalf("remove charts.json failed: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(helper.CacheDir, "kubernetes", "charts.json"), 0o755); err != nil {
+		t.Fatalf("create charts.json directory failed: %v", err)
+	}
+	expectBootstrapChartsFatalPanic(t, func() {
+		_ = loadBootstrapChartConfig()
+	})
+
+	if err := os.RemoveAll(filepath.Join(helper.CacheDir, "kubernetes")); err != nil {
+		t.Fatalf("remove kubernetes dir failed: %v", err)
+	}
+	expectBootstrapChartsFatalPanic(t, func() {
+		_ = loadBootstrapChartConfig()
+	})
+}
+
+func TestBootstrapChartsFatal_DefaultFunction(t *testing.T) {
+	resetGencmdHooks(t)
+	bootstrapChartsExitFn = func(int) { panic(bootstrapChartsFatalPanic{}) }
+	t.Cleanup(func() {
+		resetGencmdHooks(t)
+	})
+
+	expectBootstrapChartsFatalPanic(t, func() {
+		bootstrapChartsFatalFn(errors.New("x"), "x")
+	})
 }

@@ -14,6 +14,12 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+var bootstrapChartsFatalFn = func(err error, msg string) {
+	log.Error().Err(err).Msg(msg)
+	bootstrapChartsExitFn(1)
+}
+var bootstrapChartsExitFn = os.Exit
+
 func baseBootstrapCharts() []fluxhandler.HelmChart {
 	return bootstrapPhaseCharts(loadBootstrapChartConfig().ChartsByStage[0])
 }
@@ -80,19 +86,19 @@ func loadBootstrapChartConfig() bootstrapChartConfig {
 			break
 		}
 		if !errors.Is(err, os.ErrNotExist) {
-			log.Fatal().Err(err).Msgf("Bootstrap: failed to read bootstrap chart config from %s", path)
+			bootstrapChartsFatalFn(err, fmt.Sprintf("Bootstrap: failed to read bootstrap chart config from %s", path))
 		}
 	}
 	if err != nil {
-		log.Fatal().Err(err).Msgf("Bootstrap: failed to find bootstrap chart config in expected cache locations: %v", paths)
+		bootstrapChartsFatalFn(err, fmt.Sprintf("Bootstrap: failed to find bootstrap chart config in expected cache locations: %v", paths))
 	}
 
 	var config bootstrapChartConfig
 	if err = json.Unmarshal(data, &config); err != nil {
-		log.Fatal().Err(err).Msg("Bootstrap: failed to parse embedded bootstrap chart config")
+		bootstrapChartsFatalFn(err, "Bootstrap: failed to parse embedded bootstrap chart config")
 	}
 	if err = validateBootstrapChartConfig(config); err != nil {
-		log.Fatal().Err(err).Msg("Bootstrap: invalid bootstrap chart config schema")
+		bootstrapChartsFatalFn(err, "Bootstrap: invalid bootstrap chart config schema")
 	}
 	config.ChartsByStage = make(map[int][]bootstrapChart)
 	for _, chart := range config.Charts {

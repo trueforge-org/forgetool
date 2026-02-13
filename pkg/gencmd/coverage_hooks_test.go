@@ -8,6 +8,7 @@ import (
 	"time"
 
 	talhelperCfg "github.com/budimanjojo/talhelper/v3/pkg/config"
+	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
 	"k8s.io/client-go/kubernetes"
 )
@@ -37,6 +38,8 @@ func resetGencmdHooks(t *testing.T) {
 	baseBootstrapChartsFn = baseBootstrapCharts
 	loadAllHelmReposFn = func(string) (map[string]*fluxhandler.HelmRepo, error) { return map[string]*fluxhandler.HelmRepo{}, nil }
 	collectBootstrapFilePathsFn = collectBootstrapFilePaths
+	bootstrapChartsFatalFn = func(err error, msg string) { log.Error().Err(err).Msg(msg); bootstrapChartsExitFn(1) }
+	bootstrapChartsExitFn = os.Exit
 	kubectlApplyFn = func(context.Context, string) error { return nil }
 	sopsDecryptFilesFn = func() error { return nil }
 	osExitFn = func(int) {}

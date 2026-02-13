@@ -241,6 +241,22 @@ func TestAllToCache_RemoveAllErrorCallsFatal(t *testing.T) {
 	}
 }
 
+func TestAllToCache_ClusterTemplateErrorWarnPath(t *testing.T) {
+	resetEmbedHooks()
+	t.Cleanup(resetEmbedHooks)
+
+	oldCache := helper.CacheDir
+	helper.CacheDir = t.TempDir()
+	t.Cleanup(func() { helper.CacheDir = oldCache })
+
+	clusterTemplateToCache = func() error { return errors.New("cluster-template failed") }
+
+	AllToCache()
+	if _, err := os.Stat(helper.CacheDir); err != nil {
+		t.Fatalf("expected cache dir to exist after AllToCache: %v", err)
+	}
+}
+
 func TestDefaultFatalErr_NoPanic(t *testing.T) {
 	resetEmbedHooks()
 	t.Cleanup(resetEmbedHooks)

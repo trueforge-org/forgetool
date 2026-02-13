@@ -2,6 +2,7 @@
 
 Sorted from lowest to highest coverage.
 
+- [ ]  96.23% (51/53) - pkg/gencmd/bootstrap_charts.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
@@ -34,7 +35,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (10/10) - cmd/talos_reset.go
 - [ ] 100.00% (16/16) - cmd/talos_upgrade.go
 - [ ] 100.00% (26/26) - cmd/talosctl.go
-- [ ] 100.00% (31/31) - embed/embed.go
+- [ ] 100.00% (32/32) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
@@ -56,6 +57,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (18/18) - pkg/charts/valuesYaml/updater.go
 - [ ] 100.00% (16/16) - pkg/charts/version/bump.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
+- [ ] 100.00% (76/76) - pkg/clustertemplate/clustertemplate.go
 - [ ] 100.00% (78/78) - pkg/fluxhandler/bootstrap.go
 - [ ] 100.00% (175/175) - pkg/fluxhandler/helm.go
 - [ ] 100.00% (98/98) - pkg/fluxhandler/helm_pull.go
@@ -66,7 +68,6 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (77/77) - pkg/fluxhandler/sshsecretgen.go
 - [ ] 100.00% (19/19) - pkg/gencmd/apply.go
 - [ ] 100.00% (88/88) - pkg/gencmd/bootstrap.go
-- [ ] 100.00% (18/18) - pkg/gencmd/bootstrap_charts.go
 - [ ] 100.00% (87/87) - pkg/gencmd/execcmd.go
 - [ ] 100.00% (51/51) - pkg/gencmd/genconfig.go
 - [ ] 100.00% (22/22) - pkg/gencmd/plain.go
