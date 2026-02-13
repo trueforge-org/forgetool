@@ -66,6 +66,7 @@ func runTalosApply(args []string) {
 	}
 
 	if status == "maintenance" {
+		log.Info().Msg("Detected maintenance mode...")
 		bootstrapNeeded, bootstrapErr := talosApplyCheckNeedBootstrap(bootstrapNode)
 		if bootstrapErr != nil {
 			return
@@ -94,7 +95,7 @@ func runTalosApply(args []string) {
 			return
 		}
 
-		log.Info().Msg("Detected maintenance mode, but first node does not require to be bootrapped.")
+		log.Info().Msg("First node does not require to be bootrapped.")
 		log.Info().Msg("Assuming apply is requested... continuing with Apply...")
 		talosApplyRunApply(true, node, extraArgs)
 		return
