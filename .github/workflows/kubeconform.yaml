@@ -26,10 +26,19 @@ jobs:
       - name: Download cluster-template release
         shell: bash
         run: |
-          TAG_NAME="$(curl -fsSL https://api.github.com/repos/trueforge-org/cluster-template/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+          TAG_NAME="$(curl -fsSL https://api.github.com/repos/trueforge-org/cluster-template/releases/latest | jq -r .tag_name)"
+          if [[ -z "$TAG_NAME" ]]; then
+            echo "Failed to fetch or parse latest release tag from GitHub API" >&2
+            exit 1
+          fi
           curl -fsSL "https://codeload.github.com/trueforge-org/cluster-template/tar.gz/refs/tags/${TAG_NAME}" | tar -xz -C /tmp
+          EXTRACTED_DIR="/tmp/cluster-template-${TAG_NAME}"
+          if [[ ! -d "$EXTRACTED_DIR" ]]; then
+            echo "Expected extracted cluster-template directory in /tmp" >&2
+            exit 1
+          fi
           rm -rf /tmp/cluster-template
-          mv "/tmp/cluster-template-${TAG_NAME#v}" /tmp/cluster-template || mv "/tmp/cluster-template-${TAG_NAME}" /tmp/cluster-template
+          mv "$EXTRACTED_DIR" /tmp/cluster-template
       - name: Create dummy deploykey secret (CI only)
         shell: bash
         run: |

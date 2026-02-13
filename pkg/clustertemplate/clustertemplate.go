@@ -17,9 +17,11 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+// VersionEnv overrides the cluster-template release tag used for cache population.
 const VersionEnv = "FORGETOOL_CLUSTER_TEMPLATE_VERSION"
 
-var versionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// releaseTagPattern matches release tags like v1.2.3, 1.2.3, or v1.2.3-rc.1.
+var releaseTagPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+([-.+][A-Za-z0-9._-]+)?$`)
 
 var latestReleaseURL = "https://api.github.com/repos/trueforge-org/cluster-template/releases/latest"
 var releaseArchiveURL = "https://codeload.github.com/trueforge-org/cluster-template/tar.gz/refs/tags/%s"
@@ -38,9 +40,10 @@ func ToCache() error {
 
 func resolveVersion() (string, error) {
 	if version := strings.TrimSpace(os.Getenv(VersionEnv)); version != "" {
-		if !versionPattern.MatchString(version) {
+		if !releaseTagPattern.MatchString(version) {
 			return "", fmt.Errorf("invalid %s value %q", VersionEnv, version)
 		}
+		// Keep a defensive traversal check even with pattern validation.
 		if strings.Contains(version, "..") {
 			return "", fmt.Errorf("invalid %s value %q", VersionEnv, version)
 		}

@@ -40,7 +40,7 @@ func AllToCache() {
 	GOOSARCH := runtime.GOOS + "_" + runtime.GOARCH
 	filesToCache(StaticFiles, GOOSARCH)
 	if err := clusterTemplateToCache(); err != nil {
-		log.Warn().Err(err).Msg("Failed to cache cluster-template release")
+		log.Warn().Err(err).Msg("Failed to cache cluster-template release; verify FORGETOOL_CLUSTER_TEMPLATE_VERSION is a valid release tag or check network connectivity to GitHub")
 	}
 }
 
