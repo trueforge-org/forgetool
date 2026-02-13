@@ -34,8 +34,10 @@ func GenUpgrade(node string, extraFlags []string) []string {
 		osExitFn(1)
 	}
 	defer func() {
-		r.Close()
 		os.Stdout = upgradeStdout
+		if closeErr := r.Close(); closeErr != nil {
+			log.Warn().Err(closeErr).Msg("failed to close pipe reader")
+		}
 	}()
 	
 	os.Stdout = w
