@@ -273,11 +273,6 @@ func validateNodeAndGatewayIPs(vip string, master1ip string, gateway string) {
 		log.Info().Msg("Cannot proceed, MASTER1IP cannot match GATEWAY ")
 		clusterenvExitFn(1)
 	}
-
-	if vip == master1ip {
-		log.Info().Msg("Cannot proceed, VIP cannot match any Node IPs")
-		clusterenvExitFn(1)
-	}
 }
 
 func validateMetalLBExclusions(vip string, master1ip string, gateway string) {
