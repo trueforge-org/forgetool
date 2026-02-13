@@ -111,6 +111,7 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
+          docker network ls
           BRIDGE=$(docker network inspect talosnet -f '{{(index .Options "com.docker.network.bridge.name")}}')
           if [ -z "${BRIDGE}" ]; then
             NETWORK_ID=$(docker network inspect talosnet -f '{{.Id}}')
