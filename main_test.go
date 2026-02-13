@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
@@ -19,6 +20,16 @@ func TestMainHelperProcess(t *testing.T) {
 	}
 	os.Args = []string{"forgetool"}
 	main()
+	os.Exit(0)
+}
+
+func TestRunCommandHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_RUNCOMMAND_HELPER") != "1" {
+		return
+	}
+
+	os.Args = []string{"forgetool", "definitely-not-a-real-command"}
+	runCommand()
 	os.Exit(0)
 }
 
@@ -58,5 +69,41 @@ func TestMain_ExecutesToCacheStage(t *testing.T) {
 	}
 	if !foundFile {
 		t.Fatalf("expected cache to contain extracted files")
+	}
+}
+
+func TestParseLogLevel_AllCases(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected zerolog.Level
+	}{
+		{name: "trace", input: "trace", expected: zerolog.TraceLevel},
+		{name: "debug", input: "debug", expected: zerolog.DebugLevel},
+		{name: "warn", input: "warn", expected: zerolog.WarnLevel},
+		{name: "error", input: "error", expected: zerolog.ErrorLevel},
+		{name: "fatal", input: "fatal", expected: zerolog.FatalLevel},
+		{name: "panic", input: "panic", expected: zerolog.PanicLevel},
+		{name: "info", input: "info", expected: zerolog.InfoLevel},
+		{name: "default", input: "unknown", expected: zerolog.InfoLevel},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := parseLogLevel(tc.input)
+			if got != tc.expected {
+				t.Fatalf("parseLogLevel(%q) = %v, expected %v", tc.input, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestRunCommand_ExitsOnExecuteError(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=TestRunCommandHelperProcess")
+	cmd.Env = append(os.Environ(), "GO_WANT_RUNCOMMAND_HELPER=1")
+
+	err := cmd.Run()
+	if err == nil {
+		t.Fatalf("expected runCommand helper to exit with error")
 	}
 }
