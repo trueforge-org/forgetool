@@ -12,6 +12,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	helmreleaseExitFn            = os.Exit
+	helmreleaseLoadHelmReleaseFn = LoadHelmRelease
+	helmreleaseHelmInstallFn     = HelmInstall
+)
+
 type HelmChart struct {
 	ChartPath string
 	Retry     bool
@@ -99,27 +105,27 @@ func processInstallChart(chart HelmChart, HelmRepos map[string]*HelmRepo, async 
 	releaseName, helmRelease, repoURL := resolveInstallChartContext(chart, helmreleaseFile, HelmRepos)
 
 	log.Info().Msgf("Bootstrap: Installing %s\n", helmRelease.Metadata.Name)
-	if err := HelmInstall(repoURL, helmRelease.Spec.Chart.Spec.Chart, releaseName, helmRelease.Metadata.Namespace, valuesFile, helmRelease.Spec.Chart.Spec.Version, chart.Retry, chart.Wait, true); err != nil {
+	if err := helmreleaseHelmInstallFn(repoURL, helmRelease.Spec.Chart.Spec.Chart, releaseName, helmRelease.Metadata.Namespace, valuesFile, helmRelease.Spec.Chart.Spec.Version, chart.Retry, chart.Wait, true); err != nil {
 		if strings.Contains(err.Error(), "webhook") {
 			return
 		}
 
 		log.Error().Err(err).Msgf("Error: %v\n", err)
 		if !async {
-			os.Exit(1)
+			helmreleaseExitFn(1)
 		}
 	}
 }
 
 func resolveInstallChartContext(chart HelmChart, helmreleaseFile string, helmRepos map[string]*HelmRepo) (string, *HelmRelease, string) {
-	helmRelease, err := LoadHelmRelease(helmreleaseFile)
+	helmRelease, err := helmreleaseLoadHelmReleaseFn(helmreleaseFile)
 	if err != nil {
 		log.Info().Msgf("ERROR LOADING helmRelease for:  %v", chart)
-		os.Exit(1)
+		helmreleaseExitFn(1)
 	}
 	if helmRelease == nil {
 		log.Info().Msgf("ERROR Empty helmRelease for:  %v", chart)
-		os.Exit(1)
+		helmreleaseExitFn(1)
 	}
 
 	releaseName := helmRelease.Metadata.Name
@@ -130,11 +136,11 @@ func resolveInstallChartContext(chart HelmChart, helmreleaseFile string, helmRep
 	repoName := helmRelease.Spec.Chart.Spec.SourceRef.Name
 	if helmRepos[repoName] == nil {
 		log.Info().Msgf("ERROR Empty helmRepo for: %s", repoName)
-		os.Exit(1)
+		helmreleaseExitFn(1)
 	}
 	if helmRepos[repoName].Spec.URL == "" {
 		log.Info().Msgf("ERROR Empty repoURL for: %s", repoName)
-		os.Exit(1)
+		helmreleaseExitFn(1)
 	}
 
 	return releaseName, helmRelease, helmRepos[repoName].Spec.URL

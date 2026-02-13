@@ -15,6 +15,36 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 )
 
+var (
+	helmPullNewEnvSettingsFn   = cli.New
+	helmPullActionConfigInitFn = func(actionConfig *action.Configuration, settings *cli.EnvSettings, logger func(string, ...interface{})) error {
+		return actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), logger)
+	}
+	helmPullNewDefaultRegistryClientFn = newDefaultRegistryClient
+	helmPullNewPullWithOptsFn          = action.NewPullWithOpts
+	helmPullMkdirAllFn                 = os.MkdirAll
+	helmPullConfigureVerificationFn    = configureHelmPullVerification
+	helmPullResolveLinkFn              = resolveHelmPullLink
+	helmPullUpdateHelmRepoFn           = updateHelmRepo
+	helmPullClientRunFn                = func(client *action.Pull, link string) (string, error) { return client.Run(link) }
+	helmPullRemoveFn                   = os.Remove
+	helmPullPathJoinFn                 = path.Join
+	helmPullRepoNewChartRepositoryFn   = func(repoConfig *repo.Entry, settings *cli.EnvSettings) (*repo.ChartRepository, error) {
+		return repo.NewChartRepository(repoConfig, getter.All(settings))
+	}
+	helmPullDownloadIndexFileFn = func(r *repo.ChartRepository) error {
+		_, err := r.DownloadIndexFile()
+		return err
+	}
+	helmPullRepoNewFileFn   = repo.NewFile
+	helmPullRepoLoadFileFn  = repo.LoadFile
+	helmPullRepoWriteFileFn = func(repoFileContent *repo.File, repoFile string) error {
+		return repoFileContent.WriteFile(repoFile, 0644)
+	}
+	helmPullRegistryNewClientFn = registry.NewClient
+	helmPullStatFn              = os.Stat
+)
+
 func newDefaultRegistryClient(plainHTTP bool, settings *cli.EnvSettings) (*registry.Client, error) {
 	opts := []registry.ClientOption{
 		registry.ClientOptDebug(settings.Debug),
@@ -27,7 +57,7 @@ func newDefaultRegistryClient(plainHTTP bool, settings *cli.EnvSettings) (*regis
 	}
 
 	// Create a new registry client
-	registryClient, err := registry.NewClient(opts...)
+	registryClient, err := helmPullRegistryNewClientFn(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +66,7 @@ func newDefaultRegistryClient(plainHTTP bool, settings *cli.EnvSettings) (*regis
 
 // HelmPull downloads a Helm chart from a repository
 func HelmPull(repo string, name string, version string, dest string, silent bool) error {
-	settings := cli.New()
+	settings := helmPullNewEnvSettingsFn()
 	actionConfig := new(action.Configuration)
 
 	// Define logger based on the silent parameter
@@ -48,17 +78,17 @@ func HelmPull(repo string, name string, version string, dest string, silent bool
 	}
 
 	// Initialize actionConfig with the appropriate logger
-	if err := actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), logger); err != nil {
+	if err := helmPullActionConfigInitFn(actionConfig, settings, logger); err != nil {
 		return fmt.Errorf("failed to initialize Helm action config: %w", err)
 	}
 
-	registryClient, err := newDefaultRegistryClient(false, settings)
+	registryClient, err := helmPullNewDefaultRegistryClientFn(false, settings)
 	if err != nil {
 		return err
 	}
 	actionConfig.RegistryClient = registryClient
 
-	client := action.NewPullWithOpts(action.WithConfig(actionConfig))
+	client := helmPullNewPullWithOptsFn(action.WithConfig(actionConfig))
 	client.Settings = settings
 	client.RepoURL = repo
 	client.Version = version
@@ -69,22 +99,22 @@ func HelmPull(repo string, name string, version string, dest string, silent bool
 	}
 
 	// Create cache directory
-	if err := os.MkdirAll(client.DestDir, os.ModePerm); err != nil {
+	if err := helmPullMkdirAllFn(client.DestDir, os.ModePerm); err != nil {
 		return fmt.Errorf("❌ Failed to create cache directory: %s", err)
 	}
-	configureHelmPullVerification(client, repo)
+	helmPullConfigureVerificationFn(client, repo)
 
-	link, repoURL := resolveHelmPullLink(repo, name)
+	link, repoURL := helmPullResolveLinkFn(repo, name)
 	client.RepoURL = repoURL
 	if strings.HasPrefix(repo, "http") {
 		repoName := cleanRepoURL(repo)
-		updateHelmRepo(repoName, repo, silent)
+		helmPullUpdateHelmRepoFn(repoName, repo, silent)
 	}
 
-	output, err := client.Run(link)
+	output, err := helmPullClientRunFn(client, link)
 
 	if err != nil {
-		os.Remove(path.Join(dest, fmt.Sprintf("%s-%s.tgz", name, version)))
+		helmPullRemoveFn(helmPullPathJoinFn(dest, fmt.Sprintf("%s-%s.tgz", name, version)))
 		return err
 	}
 	if !silent {
@@ -123,7 +153,10 @@ func resolveHelmPullLink(repo, chartName string) (string, string) {
 	return repo + "/" + chartName, ""
 }
 
-func noOpLog(format string, v ...interface{}) {}
+func noOpLog(format string, v ...interface{}) {
+	_ = format
+	_ = v
+}
 
 func updateHelmRepo(name string, url string, silent bool) error {
 	// Create a Helm repository configuration
@@ -133,30 +166,30 @@ func updateHelmRepo(name string, url string, silent bool) error {
 	}
 
 	// Initialize Helm settings
-	settings := cli.New()
+	settings := helmPullNewEnvSettingsFn()
 
 	// Create a repository object
-	r, err := repo.NewChartRepository(repoConfig, getter.All(settings))
+	r, err := helmPullRepoNewChartRepositoryFn(repoConfig, settings)
 	if err != nil {
 		return fmt.Errorf("failed to create chart repository: %w", err)
 	}
 
 	// Ensure the repository cache directory exists
 	cacheDir := settings.RepositoryCache
-	if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
+	if err := helmPullMkdirAllFn(cacheDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
 	// Download the latest index file
-	if _, err := r.DownloadIndexFile(); err != nil {
+	if err := helmPullDownloadIndexFileFn(r); err != nil {
 		return fmt.Errorf("failed to download index file: %w", err)
 	}
 
 	// Load existing repositories file or create a new one
 	repoFile := settings.RepositoryConfig
-	repoFileContent := repo.NewFile()
-	if _, err := os.Stat(repoFile); err == nil {
-		repoFileContent, err = repo.LoadFile(repoFile)
+	repoFileContent := helmPullRepoNewFileFn()
+	if _, err := helmPullStatFn(repoFile); err == nil {
+		repoFileContent, err = helmPullRepoLoadFileFn(repoFile)
 		if err != nil {
 			return fmt.Errorf("failed to load repositories file: %w", err)
 		}
@@ -167,7 +200,7 @@ func updateHelmRepo(name string, url string, silent bool) error {
 		repoFileContent.Update(repoConfig)
 	}
 
-	if err := repoFileContent.WriteFile(repoFile, 0644); err != nil {
+	if err := helmPullRepoWriteFileFn(repoFileContent, repoFile); err != nil {
 		return fmt.Errorf("failed to write repositories file: %w", err)
 	}
 

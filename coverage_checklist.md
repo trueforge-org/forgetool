@@ -2,13 +2,6 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]   0.00% (0/39) - pkg/fluxhandler/helmrelease_upgrade.go
-- [ ]   9.58% (16/167) - pkg/fluxhandler/helm.go
-- [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
-- [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
-- [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
-- [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
-- [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
@@ -63,7 +56,14 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (18/18) - pkg/charts/valuesYaml/updater.go
 - [ ] 100.00% (16/16) - pkg/charts/version/bump.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
+- [ ] 100.00% (78/78) - pkg/fluxhandler/bootstrap.go
+- [ ] 100.00% (175/175) - pkg/fluxhandler/helm.go
+- [ ] 100.00% (98/98) - pkg/fluxhandler/helm_pull.go
+- [ ] 100.00% (48/48) - pkg/fluxhandler/helmrelease.go
+- [ ] 100.00% (39/39) - pkg/fluxhandler/helmrelease_upgrade.go
 - [ ] 100.00% (23/23) - pkg/fluxhandler/helmrepo.go
+- [ ] 100.00% (71/71) - pkg/fluxhandler/kustomizations.go
+- [ ] 100.00% (77/77) - pkg/fluxhandler/sshsecretgen.go
 - [ ] 100.00% (19/19) - pkg/gencmd/apply.go
 - [ ] 100.00% (88/88) - pkg/gencmd/bootstrap.go
 - [ ] 100.00% (18/18) - pkg/gencmd/bootstrap_charts.go

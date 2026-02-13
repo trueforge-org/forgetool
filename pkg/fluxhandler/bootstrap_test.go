@@ -63,8 +63,8 @@ func TestCheckGitRepo(t *testing.T) {
 		t.Fatalf("chdir failed: %v", err)
 	}
 
-	if err := checkGitRepo(); err != nil {
-		t.Fatalf("expected current behavior (nil error) outside git repo, got: %v", err)
+	if err := checkGitRepo(); err == nil {
+		t.Fatalf("expected error outside git repo")
 	}
 
 	if err := os.MkdirAll(filepath.Join(td, ".git"), 0755); err != nil {

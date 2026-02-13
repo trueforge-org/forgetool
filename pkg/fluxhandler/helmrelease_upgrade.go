@@ -8,6 +8,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var (
+	helmupgradeExitFn            = os.Exit
+	helmupgradeLoadHelmReleaseFn = LoadHelmRelease
+	helmupgradeHelmUpgradeFn     = HelmUpgrade
+)
+
 // UpgradeCharts upgrades Helm releases with provided Helm charts and repositories
 func UpgradeCharts(charts []HelmChart, HelmRepos map[string]*HelmRepo, async bool) {
 	var wg sync.WaitGroup
@@ -32,18 +38,18 @@ func processUpgradeChart(chart HelmChart, HelmRepos map[string]*HelmRepo, async 
 	valuesFile := filepath.Join(chart.ChartPath, "values.yaml")
 	helmreleaseFile := filepath.Join(chart.ChartPath, "helm-release.yaml")
 
-	helmRelease, err := LoadHelmRelease(helmreleaseFile)
+	helmRelease, err := helmupgradeLoadHelmReleaseFn(helmreleaseFile)
 	if err != nil {
 		log.Error().Err(err).Msgf("Error loading Helm release for chart at %s", chart.ChartPath)
 		if !async {
-			os.Exit(1)
+			helmupgradeExitFn(1)
 		}
 		return
 	}
 	if helmRelease == nil {
 		log.Error().Msgf("Empty Helm release for chart at %s\n", chart.ChartPath)
 		if !async {
-			os.Exit(1)
+			helmupgradeExitFn(1)
 		}
 		return
 	}
@@ -58,17 +64,17 @@ func processUpgradeChart(chart HelmChart, HelmRepos map[string]*HelmRepo, async 
 	if !ok || repo.Spec.URL == "" {
 		log.Error().Msgf("Empty or invalid Helm repository for %s\n", repoName)
 		if !async {
-			os.Exit(1)
+			helmupgradeExitFn(1)
 		}
 		return
 	}
 
 	log.Info().Msgf("Upgrading %s\n", helmRelease.Metadata.Name)
-	err = HelmUpgrade(repo.Spec.URL, helmRelease.Spec.Chart.Spec.Chart, releaseName, helmRelease.Metadata.Namespace, valuesFile, helmRelease.Spec.Chart.Spec.Version, chart.Wait, true)
+	err = helmupgradeHelmUpgradeFn(repo.Spec.URL, helmRelease.Spec.Chart.Spec.Chart, releaseName, helmRelease.Metadata.Namespace, valuesFile, helmRelease.Spec.Chart.Spec.Version, chart.Wait, true)
 	if err != nil {
 		log.Error().Err(err).Msgf("Error upgrading %s\n", helmRelease.Metadata.Name)
 		if !async {
-			os.Exit(1)
+			helmupgradeExitFn(1)
 		}
 	}
 }
