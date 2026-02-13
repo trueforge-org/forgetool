@@ -23,7 +23,7 @@ func ExecuteCheck(useStagedFiles bool) ([]EncrFileData, error) {
 	log.Debug().Msg("Starting ExecuteCheck")
 
 	// Step 1: Load the SOPS configuration.
-	config, err := LoadSopsConfig()
+	config, err := sopsLoadSopsConfigFn()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load SOPS config")
 		return nil, err
@@ -31,21 +31,21 @@ func ExecuteCheck(useStagedFiles bool) ([]EncrFileData, error) {
 	log.Trace().Msg("SOPS configuration loaded successfully")
 
 	// Step 2: Get the files from .sops.yaml configuration.
-	allFiles, err := filesToCheck(config)
+	allFiles, err := sopsFilesToCheckFn(config)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get files to check")
 		return nil, err
 	}
 	log.Debug().Msgf("Files to check: %v", allFiles)
 
-	filesToCheck, err := selectFilesForCheck(allFiles, useStagedFiles)
+	filesToCheck, err := sopsSelectFilesForCheckFn(allFiles, useStagedFiles)
 	if err != nil {
 		return nil, err
 	}
 
 	// Step 5: Check the encryption status of each file.
 	for i, file := range filesToCheck {
-		data, err := os.ReadFile(file.Path)
+		data, err := sopsReadFileFn(file.Path)
 		if err != nil {
 			log.Error().Err(err).Msgf("Error reading file %s", file.Path)
 			return nil, fmt.Errorf("error reading file %s: %v", file.Path, err)
@@ -53,7 +53,7 @@ func ExecuteCheck(useStagedFiles bool) ([]EncrFileData, error) {
 		log.Trace().Msgf("Read file %s successfully", file.Path)
 
 		// Check if the file is encrypted based on the criteria defined in .sops.yaml.
-		filesToCheck[i].Encrypted = isEncrypted(data, file.Path)
+		filesToCheck[i].Encrypted = sopsIsEncryptedFn(data, file.Path)
 		log.Debug().Msgf("File %s encrypted status: %v", file.Path, filesToCheck[i].Encrypted)
 	}
 
@@ -64,7 +64,7 @@ func CheckFilesAndReportEncryption(tryEncrypt bool, checkStaged bool) error {
 	log.Debug().Msg("Starting CheckFilesAndReportEncryption")
 
 	// Step 1: Run the encryption check based on the toggle.
-	files, err := ExecuteCheck(checkStaged)
+	files, err := sopsExecuteCheckFn(checkStaged)
 	if err != nil {
 		log.Error().Err(err).Msg("Error executing check")
 		return fmt.Errorf("error executing check: %v", err)
@@ -74,13 +74,13 @@ func CheckFilesAndReportEncryption(tryEncrypt bool, checkStaged bool) error {
 
 	// Step 3: If there are any unencrypted files, handle based on the tryEncrypt flag.
 	if len(unencryptedFiles) > 0 {
-		handleUnencryptedFiles(unencryptedFiles, tryEncrypt)
+		sopsHandleUnencryptedFilesFn(unencryptedFiles, tryEncrypt)
 	}
 
 	// Step 6: If no unencrypted files are found, print a success message and exit with code 0.
 	log.Info().Msg("All files are encrypted.")
 	fmt.Println("All files are encrypted.")
-	os.Exit(0)
+	sopsExitFn(0)
 
 	return nil
 }
@@ -91,7 +91,7 @@ func selectFilesForCheck(allFiles []EncrFileData, useStagedFiles bool) ([]EncrFi
 		return allFiles, nil
 	}
 
-	stagedFiles, err := helper.GetStagedFiles()
+	stagedFiles, err := sopsGetStagedFilesFn()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to get staged files")
 		return nil, err
@@ -104,7 +104,7 @@ func selectFilesForCheck(allFiles []EncrFileData, useStagedFiles bool) ([]EncrFi
 	log.Info().Msgf("Staged files: %v", stagedFiles)
 
 	filtered := filterStagedSopsFiles(allFiles, stagedFiles)
-	if err = stageFilteredFiles(filtered); err != nil {
+	if err = sopsStageFilteredFilesFn(filtered); err != nil {
 		return nil, err
 	}
 
@@ -115,7 +115,7 @@ func filterStagedSopsFiles(allFiles []EncrFileData, stagedFiles []string) []Encr
 	var filesToCheck []EncrFileData
 	for _, file := range allFiles {
 		checkPath := file.Path
-		if _, err := os.Stat("./DEVTRIGGER"); err == nil {
+		if _, err := sopsStatFn("./DEVTRIGGER"); err == nil {
 			checkPath = filepath.Join("forgetool", checkPath)
 		}
 		for _, stagedFile := range stagedFiles {
@@ -134,7 +134,7 @@ func stageFilteredFiles(files []EncrFileData) error {
 		filePaths = append(filePaths, file.Path)
 	}
 
-	if err := helper.StageFiles(filePaths); err != nil {
+	if err := sopsStageFilesFn(filePaths); err != nil {
 		log.Error().Err(err).Msg("Error staging files")
 		return fmt.Errorf("error staging files: %v", err)
 	}
@@ -159,39 +159,39 @@ func handleUnencryptedFiles(unencryptedFiles []EncrFileData, tryEncrypt bool) {
 	for _, file := range unencryptedFiles {
 		fmt.Println(file.Path)
 		if tryEncrypt {
-			tryEncryptAndStageFile(file)
+			sopsTryEncryptAndStageFileFn(file)
 		}
 	}
 
 	if !tryEncrypt {
 		log.Debug().Msg("tryEncrypt is false")
-		log.Fatal().Msg("Exiting due to unencrypted files")
-		os.Exit(1)
+		sopsFatalFn("Exiting due to unencrypted files")
+		sopsExitFn(1)
 	}
 
-	stillUnencrypted := findStillUnencrypted(unencryptedFiles)
+	stillUnencrypted := sopsFindStillUnencryptedFn(unencryptedFiles)
 	if len(stillUnencrypted) > 0 {
 		log.Warn().Msg("The following files could not be encrypted:")
 		fmt.Println("The following files could not be encrypted:")
 		for _, file := range stillUnencrypted {
 			fmt.Println(file)
 		}
-		log.Fatal().Msg("Exiting due to unencrypted files after encryption attempt")
-		os.Exit(1)
+		sopsFatalFn("Exiting due to unencrypted files after encryption attempt")
+		sopsExitFn(1)
 	}
 
 	shamCheck()
 }
 
 func tryEncryptAndStageFile(file EncrFileData) {
-	err := processFileEncryption(file)
+	err := sopsProcessFileEncryptionFn(file)
 	if err != nil {
 		log.Error().Err(err).Msgf("Failed to encrypt file %s", file.Path)
 		return
 	}
 
 	log.Info().Msgf("File %s encrypted successfully.", file.Path)
-	if err = helper.StageFile(file.Path); err != nil {
+	if err = sopsStageFileFn(file.Path); err != nil {
 		log.Error().Err(err).Msgf("Failed to stage file %s after encryption", file.Path)
 		return
 	}
@@ -202,13 +202,13 @@ func tryEncryptAndStageFile(file EncrFileData) {
 func findStillUnencrypted(files []EncrFileData) []string {
 	var stillUnencrypted []string
 	for _, file := range files {
-		data, err := os.ReadFile(file.Path)
+		data, err := sopsReadFileFn(file.Path)
 		if err != nil {
 			log.Error().Err(err).Msgf("Error reading file %s", file.Path)
 			stillUnencrypted = append(stillUnencrypted, file.Path)
 			continue
 		}
-		if !isEncrypted(data, file.Path) {
+		if !sopsIsEncryptedFn(data, file.Path) {
 			stillUnencrypted = append(stillUnencrypted, file.Path)
 		}
 	}
@@ -218,9 +218,11 @@ func findStillUnencrypted(files []EncrFileData) []string {
 // shamCheck checks if clusterenv contains the phrase "shamir_threshold" indicating it is indeed encrypted
 func shamCheck() {
 	log.Debug().Msg("Checking if clusterenv contains shamir_threshold to ensure encryption...")
-	file, err := os.Open(helper.ClusterEnvFile)
+	file, err := sopsOpenFn(helper.ClusterEnvFile)
 	if err != nil {
 		log.Error().Err(err).Msgf("error opening file: %v", err)
+		sopsExitFn(1)
+		return
 	}
 	defer file.Close()
 
@@ -232,12 +234,12 @@ func shamCheck() {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
+	if err := sopsScannerErrFn(scanner); err != nil {
 		log.Error().Err(err).Msgf("error reading file: %v", err)
 	}
 
 	log.Error().Msg("clusterenv is NOT encrypted and encryption-check failed!\n DO NOT UPLOAD!")
-	os.Exit(1)
+	sopsExitFn(1)
 }
 
 // filesToCheck returns a list of files to check for encryption based on the logic in .sops.yaml.
@@ -252,7 +254,7 @@ func filesToCheck(config SopsConfig) ([]EncrFileData, error) {
 			return nil, fmt.Errorf("invalid path regex in .sops.yaml: %v", err)
 		}
 
-		err = walkRuleFiles(pathRegex, &files)
+		err = sopsWalkRuleFilesFn(pathRegex, &files)
 		if err != nil {
 			log.Error().Err(err).Msg("Error walking file paths")
 			return nil, err
@@ -263,7 +265,7 @@ func filesToCheck(config SopsConfig) ([]EncrFileData, error) {
 }
 
 func walkRuleFiles(pathRegex *regexp.Regexp, files *[]EncrFileData) error {
-	return filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	return sopsFilepathWalkFn(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

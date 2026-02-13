@@ -5,9 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/getsops/sops/v3/decrypt"
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/pkg/initfiles"
 )
 
 // Custom error type for MAC failures
@@ -23,13 +21,13 @@ func DecryptFiles() error {
 	log.Trace().Msg("Starting DecryptFiles function")
 
 	// Get a list of encrypted files
-	files, err := ExecuteCheck(false)
+	files, err := sopsExecuteCheckFn(false)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to execute check for encrypted files")
 		return err
 	}
 
-	encryptedFound, err := decryptMarkedFiles(files)
+	encryptedFound, err := sopsDecryptMarkedFilesFn(files)
 	if err != nil {
 		return err
 	}
@@ -39,7 +37,7 @@ func DecryptFiles() error {
 		log.Info().Msg("Nothing to decrypt")
 	}
 
-	initfiles.LoadTalEnv(true)
+	sopsLoadTalEnvFn(true)
 	log.Info().Msg("All files decrypted successfully")
 	return nil
 }
@@ -52,7 +50,7 @@ func decryptMarkedFiles(files []EncrFileData) (bool, error) {
 		}
 
 		encryptedFound = true
-		if err := decryptFile(file.Path); err != nil {
+		if err := sopsDecryptFileFn(file.Path); err != nil {
 			return encryptedFound, err
 		}
 	}
@@ -63,19 +61,19 @@ func decryptMarkedFiles(files []EncrFileData) (bool, error) {
 func decryptFile(path string) error {
 	log.Debug().Msgf("Decrypting file: %s", path)
 
-	data, err := os.ReadFile(path)
+	data, err := sopsDecryptReadFileFn(path)
 	if err != nil {
 		log.Error().Err(err).Msgf("Error reading file %s", path)
 		return fmt.Errorf("error reading file %s: %v", path, err)
 	}
 
-	decrypted, err := decryptDataWithRetry(data, GetFormat(path))
+	decrypted, err := sopsDecryptDataWithRetryFn(data, GetFormat(path))
 	if err != nil {
 		log.Error().Err(err).Msgf("Error decrypting file %s", path)
 		return fmt.Errorf("error decrypting file %s: %v", path, err)
 	}
 
-	if err = os.WriteFile(path, decrypted, 0644); err != nil {
+	if err = sopsDecryptWriteFileFn(path, decrypted, 0644); err != nil {
 		log.Error().Err(err).Msgf("Error writing decrypted data to file %s", path)
 		return fmt.Errorf("error writing decrypted data to file %s: %v", path, err)
 	}
@@ -89,7 +87,7 @@ func decryptData(data []byte, format string) ([]byte, error) {
 
 	os.Setenv("SOPS_AGE_KEY_FILE", "age.agekey")
 	// Decrypt data
-	decrypted, err := decrypt.Data(data, format)
+	decrypted, err := sopsDecryptDataFn(data, format)
 	if err != nil {
 		// Check for MAC failure error from imported packages
 		if strings.Contains(err.Error(), "Failed to decrypt original mac") ||
@@ -108,12 +106,12 @@ func decryptData(data []byte, format string) ([]byte, error) {
 
 // Retry decryption if MAC failure is detected
 func decryptDataWithRetry(data []byte, format string) ([]byte, error) {
-	decrypted, err := decryptData(data, format)
+	decrypted, err := sopsDecryptCoreFn(data, format)
 	if err != nil {
 		if macErr, ok := err.(*MacFailureError); ok {
 			log.Info().Msgf("MAC failure detected: %v. Retrying without MAC verification.", macErr.OriginalError)
 			// Proceed without verifying MAC
-			decrypted, err = decryptDataIgnoringMac(data, format)
+			decrypted, err = sopsDecryptDataIgnoringMacFn(data, format)
 			if err != nil {
 				log.Error().Err(err).Msg("Retry decryption failed")
 				return nil, fmt.Errorf("retry decryption failed: %v", err)
@@ -131,7 +129,7 @@ func decryptDataWithRetry(data []byte, format string) ([]byte, error) {
 func decryptDataIgnoringMac(data []byte, format string) ([]byte, error) {
 	log.Trace().Msg("Decrypting data while ignoring MAC failure")
 
-	decrypted, err := decrypt.Data(data, format)
+	decrypted, err := sopsDecryptDataFn(data, format)
 	if err != nil && isMacFailure(err) {
 		// Log the MAC failure and proceed with the decrypted data
 		log.Warn().Msg("Ignoring MAC failure while decrypting data.")

@@ -10,10 +10,6 @@ Sorted from lowest to highest coverage.
 - [ ]  15.48% (26/168) - pkg/initfiles/initfiles.go
 - [ ]  16.07% (9/56) - pkg/kubectlcmds/checkstatus.go
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
-- [ ]  24.31% (35/144) - pkg/sops/checkencrypt.go
-- [ ]  29.41% (20/68) - pkg/sops/decrypt.go
-- [ ]  33.33% (22/66) - pkg/sops/wrapper.go
-- [ ]  34.85% (23/66) - pkg/sops/encrypt.go
 - [ ]  37.25% (57/153) - pkg/initfiles/clusterenv.go
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
 - [ ]  41.18% (14/34) - pkg/talassist/load.go
@@ -30,7 +26,6 @@ Sorted from lowest to highest coverage.
 - [ ]  78.12% (50/64) - pkg/helper/git_precommit_hook.go
 - [ ]  84.21% (80/95) - pkg/helper/tooldocs.go
 - [ ]  84.62% (11/13) - pkg/helper/prompts.go
-- [ ]  85.71% (18/21) - pkg/sops/loadsops.go
 - [ ]  88.52% (54/61) - pkg/helper/envsubst.go
 - [ ]  88.57% (31/35) - pkg/helper/helper.go
 - [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
@@ -110,5 +105,11 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (38/38) - pkg/nodestatus/health.go
 - [ ] 100.00% (30/30) - pkg/nodestatus/health_wait.go
 - [ ] 100.00% (56/56) - pkg/nodestatus/status.go
+- [ ] 100.00% (146/146) - pkg/sops/checkencrypt.go
 - [ ] 100.00% (21/21) - pkg/sops/checkencrypt_detection.go
+- [ ] 100.00% (68/68) - pkg/sops/decrypt.go
+- [ ] 100.00% (66/66) - pkg/sops/encrypt.go
+- [ ] 100.00% (9/9) - pkg/sops/hooks.go
+- [ ] 100.00% (21/21) - pkg/sops/loadsops.go
+- [ ] 100.00% (63/63) - pkg/sops/wrapper.go
 - [ ] 100.00% (12/12) - pkg/talosctl/talosctl.go

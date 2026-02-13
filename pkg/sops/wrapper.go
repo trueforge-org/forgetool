@@ -8,11 +8,7 @@ import (
 	"github.com/getsops/sops/v3/aes"
 	"github.com/getsops/sops/v3/age"
 	"github.com/getsops/sops/v3/cmd/sops/common"
-	"github.com/getsops/sops/v3/cmd/sops/formats"
-	"github.com/getsops/sops/v3/config"
-	"github.com/getsops/sops/v3/decrypt"
 	"github.com/getsops/sops/v3/keys"
-	"github.com/getsops/sops/v3/keyservice"
 	"github.com/getsops/sops/v3/version"
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
@@ -28,20 +24,20 @@ func EncryptWithAgeKey(body []byte, regex string, format string) ([]byte, error)
 	log.Trace().Msg("Starting EncryptWithAgeKey function")
 
 	// Create a cypher instance
-	cypher := NewCypher()
+	cypher := sopsNewCypherFn()
 	log.Debug().Msg("Cypher instance created")
 
-	sopsConfig, err := LoadSopsConfig()
+	sopsConfig, err := sopsLoadSopsConfigFn()
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load Sops config")
 		return nil, err
 	}
 	log.Debug().Msg("Successfully loaded Sops config")
 
-	ageKeys := collectAgeKeys(sopsConfig)
+	ageKeys := sopsCollectAgeKeysFn(sopsConfig)
 	log.Debug().Strs("ageKeys", ageKeys).Msg("Collected age keys from creation rules")
 
-	groups := buildAgeKeyGroups(ageKeys)
+	groups := sopsBuildAgeKeyGroupsFn(ageKeys)
 
 	log.Debug().Msg("Key groups created for encryption")
 
@@ -118,7 +114,7 @@ func NewCypher() Cypher {
 
 func (c *cypher) Decrypt(content []byte, format string) ([]byte, error) {
 	log.Trace().Msg("Decrypting content")
-	decryptedData, err := decrypt.Data(content, format)
+	decryptedData, err := sopsDecryptDataFn(content, format)
 	if err != nil {
 		log.Error().Err(err).Msg("Error during decryption")
 		return nil, err
@@ -140,17 +136,11 @@ type EncryptionConfig struct {
 func (m *cypher) Encrypt(content []byte, encrConfig EncryptionConfig) (result []byte, err error) {
 	log.Trace().Msg("Starting encryption process")
 
-	var store common.Store
-	switch encrConfig.Format {
-	case formatYaml:
-		store = common.StoreForFormat(formats.Yaml, config.NewStoresConfig())
-	default:
-		store = common.StoreForFormat(formats.Json, config.NewStoresConfig())
-	}
+	store := sopsStoreForFormatFn(encrConfig.Format)
 
 	log.Debug().Msg("Store initialized for encryption")
 
-	branches, err := store.LoadPlainFile(content)
+	branches, err := sopsLoadPlainFileFn(store, content)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load plain file for encryption")
 		return nil, err
@@ -170,9 +160,7 @@ func (m *cypher) Encrypt(content []byte, encrConfig EncryptionConfig) (result []
 		},
 	}
 
-	dataKey, errs := tree.GenerateDataKeyWithKeyServices(
-		[]keyservice.KeyServiceClient{keyservice.NewLocalClient()},
-	)
+	dataKey, errs := sopsGenerateDataKeyFn(&tree)
 
 	if len(errs) > 0 {
 		log.Error().Err(err).Msg("Could not generate data key")
@@ -187,12 +175,12 @@ func (m *cypher) Encrypt(content []byte, encrConfig EncryptionConfig) (result []
 		Cipher:  aes.NewCipher(),
 	}
 
-	err = common.EncryptTree(encryptTreeOpts)
+	err = sopsEncryptTreeFn(encryptTreeOpts)
 	if err != nil {
 		log.Error().Err(err).Msg("Error during tree encryption")
 		return nil, err
 	}
 
 	log.Debug().Msg("Tree encrypted successfully")
-	return store.EmitEncryptedFile(tree)
+	return sopsEmitEncryptedFileFn(store, tree)
 }
