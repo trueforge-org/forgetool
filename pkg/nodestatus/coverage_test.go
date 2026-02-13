@@ -210,6 +210,29 @@ func TestCheckNeedBootstrapNoBootstrap(t *testing.T) {
 	}
 }
 
+func TestCheckNeedBootstrapMaintenanceNeedsBootstrap(t *testing.T) {
+	oldCache := helper.CacheDir
+	oldClusterPath := helper.ClusterPath
+	helper.CacheDir = t.TempDir()
+	helper.ClusterPath = t.TempDir()
+	t.Cleanup(func() {
+		helper.CacheDir = oldCache
+		helper.ClusterPath = oldClusterPath
+	})
+
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "maintenance", nil
+	})
+
+	need, err := CheckNeedBootstrap("10.0.0.1")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if !need {
+		t.Fatal("expected bootstrap needed for maintenance status")
+	}
+}
+
 func TestCheckNeedBootstrapCertErrorNoMaintenance(t *testing.T) {
 	oldCache := helper.CacheDir
 	oldClusterPath := helper.ClusterPath
@@ -250,21 +273,25 @@ func TestCheckNeedBootstrapCertOutputWithoutError(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
+	insecureCalls := 0
 	writeFakeTalos(t, func(args []string) (string, error) {
 		for _, arg := range args {
 			if arg == "--insecure" {
-				return "maintenance", nil
+				insecureCalls++
 			}
 		}
-		return "certificate signed by unknown authority", nil
+		return "maintenance", nil
 	})
 
 	need, err := CheckNeedBootstrap("10.0.0.1")
 	if err != nil {
-		t.Fatalf("expected fallback success, got error: %v", err)
+		t.Fatalf("expected success, got error: %v", err)
 	}
 	if !need {
-		t.Fatal("expected bootstrap needed for maintenance status from insecure fallback")
+		t.Fatal("expected bootstrap needed for maintenance status")
+	}
+	if insecureCalls != 0 {
+		t.Fatalf("expected no insecure retry, got %d insecure calls", insecureCalls)
 	}
 }
 

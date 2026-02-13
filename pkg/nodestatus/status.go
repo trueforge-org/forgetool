@@ -40,8 +40,13 @@ func CheckNeedBootstrap(node string) (bool, error) {
 
 	argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}")
 	out, err := talosctlpkg.Run(argsslice[1:], true)
-	needsInsecureRetry := hasUnknownAuthorityError(string(out), err)
-	if needsInsecureRetry {
+	normalizedOut := strings.TrimSpace(string(out))
+	if normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
+		log.Info().Msg("Node is in maintenance; bootstrap needed")
+		return true, nil
+	}
+
+	if hasUnknownAuthorityError(string(out), err) {
 		log.Warn().Err(err).Str("output", string(out)).Msg("Certificate signed by unknown authority; retrying with insecure flag")
 		argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
 		out2, err2 := talosctlpkg.Run(argsslice[1:], true)
@@ -52,18 +57,17 @@ func CheckNeedBootstrap(node string) (bool, error) {
 		}
 		out = out2
 		err = nil
+		normalizedOut = strings.TrimSpace(string(out2))
+		if normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
+			log.Info().Msg("Node is in maintenance; bootstrap needed")
+			return true, nil
+		}
 	}
 
 	if err != nil {
 		formattedErr := formatStatusError(string(out), err)
 		log.Error().Err(formattedErr).Msg("Failed to get machine status")
 		return false, formattedErr
-	}
-
-	normalizedOut := strings.TrimSpace(string(out))
-	if needsInsecureRetry && normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
-		log.Info().Msg("Node is in maintenance; bootstrap needed")
-		return true, nil
 	}
 	log.Debug().Str("output", normalizedOut).Msg("No bootstrap needed; returning false")
 	return false, nil
