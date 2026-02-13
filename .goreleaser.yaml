@@ -35,7 +35,7 @@ release:
     name: forgetool
   extra_files:
     - glob: "forgetool.LICENSE"
-  draft: false
+  draft: true
   make_latest: false
   mode: append
 
