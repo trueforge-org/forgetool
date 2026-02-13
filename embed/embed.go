@@ -10,11 +10,9 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/leaanthony/debme"
+	"github.com/trueforge-org/forgetool/pkg/clustertemplate"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
-
-//go:embed generic/*
-var GenericFiles embed.FS
 
 type readDirFS interface {
 	fs.FS
@@ -28,6 +26,7 @@ var walkDir = fs.WalkDir
 var fromEmbeddedFS = func(embeddedFS embed.FS, sub string) (readDirFS, error) {
 	return debme.FS(embeddedFS, sub)
 }
+var clusterTemplateToCache = clustertemplate.ToCache
 var fatalErr = func(err error) {
 	log.Fatal().Err(err)
 }
@@ -40,7 +39,9 @@ func AllToCache() {
 	}
 	GOOSARCH := runtime.GOOS + "_" + runtime.GOARCH
 	filesToCache(StaticFiles, GOOSARCH)
-	clusterTemplateToCache()
+	if err := clusterTemplateToCache(); err != nil {
+		log.Warn().Err(err).Msg("Failed to cache cluster-template release")
+	}
 }
 
 func filesToCache(embededfs embed.FS, sub string) {

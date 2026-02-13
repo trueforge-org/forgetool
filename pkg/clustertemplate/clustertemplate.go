@@ -1,4 +1,4 @@
-package embed
+package clustertemplate
 
 import (
 	"archive/tar"
@@ -14,53 +14,47 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
-const clusterTemplateVersionEnv = "FORGETOOL_CLUSTER_TEMPLATE_VERSION"
+const VersionEnv = "FORGETOOL_CLUSTER_TEMPLATE_VERSION"
 
-var clusterTemplateVersionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+var versionPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-var clusterTemplateLatestReleaseURL = "https://api.github.com/repos/trueforge-org/cluster-template/releases/latest"
-var clusterTemplateReleaseArchiveURL = "https://codeload.github.com/trueforge-org/cluster-template/tar.gz/refs/tags/%s"
-var clusterTemplateHTTPClient = &http.Client{Timeout: 10 * time.Second}
-var resolveClusterTemplateVersionHook = resolveClusterTemplateVersion
-var downloadClusterTemplateReleaseHook = downloadClusterTemplateRelease
+var latestReleaseURL = "https://api.github.com/repos/trueforge-org/cluster-template/releases/latest"
+var releaseArchiveURL = "https://codeload.github.com/trueforge-org/cluster-template/tar.gz/refs/tags/%s"
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+var resolveVersionHook = resolveVersion
+var downloadReleaseHook = downloadRelease
 
-func clusterTemplateToCache() {
-	version, err := resolveClusterTemplateVersionHook()
+func ToCache() error {
+	version, err := resolveVersionHook()
 	if err != nil {
-		log.Warn().Err(err).Msg("Failed to resolve cluster-template release version, falling back to embedded files")
-		filesToCache(GenericFiles, "generic")
-		return
+		return err
 	}
 
-	if err := downloadClusterTemplateReleaseHook(version); err != nil {
-		log.Warn().Err(err).Str("version", version).Msg("Failed to download cluster-template release, falling back to embedded files")
-		filesToCache(GenericFiles, "generic")
-	}
+	return downloadReleaseHook(version)
 }
 
-func resolveClusterTemplateVersion() (string, error) {
-	if version := strings.TrimSpace(os.Getenv(clusterTemplateVersionEnv)); version != "" {
-		if !clusterTemplateVersionPattern.MatchString(version) {
-			return "", fmt.Errorf("invalid %s value %q", clusterTemplateVersionEnv, version)
+func resolveVersion() (string, error) {
+	if version := strings.TrimSpace(os.Getenv(VersionEnv)); version != "" {
+		if !versionPattern.MatchString(version) {
+			return "", fmt.Errorf("invalid %s value %q", VersionEnv, version)
 		}
 		if strings.Contains(version, "..") {
-			return "", fmt.Errorf("invalid %s value %q", clusterTemplateVersionEnv, version)
+			return "", fmt.Errorf("invalid %s value %q", VersionEnv, version)
 		}
 
 		return version, nil
 	}
 
-	req, err := http.NewRequest(http.MethodGet, clusterTemplateLatestReleaseURL, nil)
+	req, err := http.NewRequest(http.MethodGet, latestReleaseURL, nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := clusterTemplateHTTPClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -83,9 +77,9 @@ func resolveClusterTemplateVersion() (string, error) {
 	return latestRelease.TagName, nil
 }
 
-func downloadClusterTemplateRelease(version string) error {
-	downloadURL := fmt.Sprintf(clusterTemplateReleaseArchiveURL, url.PathEscape(version))
-	resp, err := clusterTemplateHTTPClient.Get(downloadURL)
+func downloadRelease(version string) error {
+	downloadURL := fmt.Sprintf(releaseArchiveURL, url.PathEscape(version))
+	resp, err := httpClient.Get(downloadURL)
 	if err != nil {
 		return err
 	}
@@ -95,10 +89,10 @@ func downloadClusterTemplateRelease(version string) error {
 		return fmt.Errorf("unexpected status for release archive %q: %s", version, resp.Status)
 	}
 
-	return extractClusterTemplateArchive(resp.Body)
+	return extractArchive(resp.Body)
 }
 
-func extractClusterTemplateArchive(reader io.Reader) error {
+func extractArchive(reader io.Reader) error {
 	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
 		return err

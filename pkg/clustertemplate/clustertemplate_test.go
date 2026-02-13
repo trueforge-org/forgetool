@@ -1,4 +1,4 @@
-package embed
+package clustertemplate
 
 import (
 	"archive/tar"
@@ -14,20 +14,20 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
-func TestResolveClusterTemplateVersion_UsesExplicitEnv(t *testing.T) {
-	t.Setenv(clusterTemplateVersionEnv, "v9.9.9")
+func TestResolveVersion_UsesExplicitEnv(t *testing.T) {
+	t.Setenv(VersionEnv, "v9.9.9")
 
-	version, err := resolveClusterTemplateVersion()
+	version, err := resolveVersion()
 	if err != nil {
-		t.Fatalf("resolveClusterTemplateVersion returned error: %v", err)
+		t.Fatalf("resolveVersion returned error: %v", err)
 	}
 	if version != "v9.9.9" {
-		t.Fatalf("resolveClusterTemplateVersion returned %q, want %q", version, "v9.9.9")
+		t.Fatalf("resolveVersion returned %q, want %q", version, "v9.9.9")
 	}
 }
 
-func TestResolveClusterTemplateVersion_FetchesLatestRelease(t *testing.T) {
-	t.Setenv(clusterTemplateVersionEnv, "")
+func TestResolveVersion_FetchesLatestRelease(t *testing.T) {
+	t.Setenv(VersionEnv, "")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -35,26 +35,26 @@ func TestResolveClusterTemplateVersion_FetchesLatestRelease(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldLatestURL := clusterTemplateLatestReleaseURL
-	oldClient := clusterTemplateHTTPClient
-	clusterTemplateLatestReleaseURL = server.URL
-	clusterTemplateHTTPClient = server.Client()
+	oldLatestURL := latestReleaseURL
+	oldClient := httpClient
+	latestReleaseURL = server.URL
+	httpClient = server.Client()
 	t.Cleanup(func() {
-		clusterTemplateLatestReleaseURL = oldLatestURL
-		clusterTemplateHTTPClient = oldClient
+		latestReleaseURL = oldLatestURL
+		httpClient = oldClient
 	})
 
-	version, err := resolveClusterTemplateVersion()
+	version, err := resolveVersion()
 	if err != nil {
-		t.Fatalf("resolveClusterTemplateVersion returned error: %v", err)
+		t.Fatalf("resolveVersion returned error: %v", err)
 	}
 	if version != "v1.2.3" {
-		t.Fatalf("resolveClusterTemplateVersion returned %q, want %q", version, "v1.2.3")
+		t.Fatalf("resolveVersion returned %q, want %q", version, "v1.2.3")
 	}
 }
 
-func TestClusterTemplateToCache_DownloadsAndExtractsRelease(t *testing.T) {
-	t.Setenv(clusterTemplateVersionEnv, "v1.0.0")
+func TestToCache_DownloadsAndExtractsRelease(t *testing.T) {
+	t.Setenv(VersionEnv, "v1.0.0")
 
 	archiveBytes := buildTarGz(t, map[string]string{
 		"cluster-template-v1.0.0/base/example.yaml": "base",
@@ -66,19 +66,21 @@ func TestClusterTemplateToCache_DownloadsAndExtractsRelease(t *testing.T) {
 	}))
 	defer server.Close()
 
-	oldArchiveURL := clusterTemplateReleaseArchiveURL
-	oldClient := clusterTemplateHTTPClient
+	oldArchiveURL := releaseArchiveURL
+	oldClient := httpClient
 	oldCacheDir := helper.CacheDir
-	clusterTemplateReleaseArchiveURL = server.URL + "/%s"
-	clusterTemplateHTTPClient = server.Client()
+	releaseArchiveURL = server.URL + "/%s"
+	httpClient = server.Client()
 	helper.CacheDir = t.TempDir()
 	t.Cleanup(func() {
-		clusterTemplateReleaseArchiveURL = oldArchiveURL
-		clusterTemplateHTTPClient = oldClient
+		releaseArchiveURL = oldArchiveURL
+		httpClient = oldClient
 		helper.CacheDir = oldCacheDir
 	})
 
-	clusterTemplateToCache()
+	if err := ToCache(); err != nil {
+		t.Fatalf("ToCache returned error: %v", err)
+	}
 
 	content, err := os.ReadFile(filepath.Join(helper.CacheDir, "base", "example.yaml"))
 	if err != nil {
