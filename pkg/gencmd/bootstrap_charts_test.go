@@ -25,7 +25,7 @@ func TestBootstrapChartBuilders(t *testing.T) {
 	if len(charts) != 3 {
 		t.Fatalf("expected 3 base charts, got %d", len(charts))
 	}
-	if charts[0].ChartPath != filepath.Join(helper.ClusterPath, "/kubernetes/kube-system/cilium/app") || !charts[0].Wait {
+	if charts[0].ChartPath != filepath.Join(helper.ClusterPath, "kubernetes/kube-system/cilium/app") || !charts[0].Wait {
 		t.Fatalf("unexpected first base chart config: %+v", charts[0])
 	}
 }
