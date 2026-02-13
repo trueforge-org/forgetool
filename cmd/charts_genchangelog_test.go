@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -88,4 +89,36 @@ func TestGenChangelogCommandRunCallsOnError(t *testing.T) {
 	if !called {
 		t.Fatalf("expected command Run to call error handler")
 	}
+}
+
+func TestDefaultChangelogWrappersReturnErrorsOnInvalidInput(t *testing.T) {
+	oldGenerate := chartsGenChangelogGenerate
+	oldRender := chartsGenChangelogRender
+	t.Cleanup(func() {
+		chartsGenChangelogGenerate = oldGenerate
+		chartsGenChangelogRender = oldRender
+	})
+
+	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error { return opts.Generate() }
+	chartsGenChangelogRender = func(opts *changelog.ChangelogOptions) error { return opts.Render() }
+
+	bad := &changelog.ChangelogOptions{
+		RepoPath:                  "",
+		TemplatePath:              filepath.Join("..", "does-not-exist"),
+		ChartsDir:                 "",
+		ChangelogFileName:         "CHANGELOG.md",
+		JSONOutputPath:            filepath.Join(t.TempDir(), "changelog.json"),
+		StatusUpdateInterval:      1,
+		SkipCommitsWithBadMessage: false,
+	}
+
+	if err := chartsGenChangelogGenerate(bad); err == nil {
+		t.Fatalf("expected generate wrapper to return error for invalid options")
+	}
+	_ = chartsGenChangelogRender(bad)
+
+	oldOnError := chartsGenChangelogOnError
+	t.Cleanup(func() { chartsGenChangelogOnError = oldOnError })
+	chartsGenChangelogOnError = func(err error) { oldOnError(err) }
+	chartsGenChangelogOnError(errors.New("boom"))
 }

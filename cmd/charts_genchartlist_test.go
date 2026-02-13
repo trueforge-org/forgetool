@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -124,5 +127,57 @@ func TestGenChartListCommandRunCallsOnError(t *testing.T) {
 
 	if !called {
 		t.Fatalf("expected command Run to call error handler")
+	}
+}
+
+func TestRunChartsGenChartListWithDefaultFixture(t *testing.T) {
+	oldWalk := chartsGenChartListWalkCharts2
+	oldFactory := chartsGenChartListOptionsFactory
+	oldGet := chartsGenChartListGetChartData
+	oldWrite := chartsGenChartListWrite
+	t.Cleanup(func() {
+		chartsGenChartListWalkCharts2 = oldWalk
+		chartsGenChartListOptionsFactory = oldFactory
+		chartsGenChartListGetChartData = oldGet
+		chartsGenChartListWrite = oldWrite
+	})
+
+	chartsGenChartListWalkCharts2 = helper.WalkCharts2
+	chartsGenChartListOptionsFactory = func() *website.ChartListOptions {
+		return &website.ChartListOptions{OutputPath: "./charts.json", TrainFilter: []string{}}
+	}
+	chartsGenChartListGetChartData = func(opts *website.ChartListOptions) fs.WalkDirFunc { return opts.GetChartData }
+	chartsGenChartListWrite = func(opts *website.ChartListOptions) error { return opts.WriteChartList() }
+
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd failed: %v", err)
+	}
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir temp failed: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	fixtureChartsRoot, err := filepath.Abs(filepath.Join(oldWD, "..", "testdata", "cmd", "charts"))
+	if err != nil {
+		t.Fatalf("fixture abs path failed: %v", err)
+	}
+
+	if err := runChartsGenChartList([]string{fixtureChartsRoot}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(tmp, "charts.json"))
+	if err != nil {
+		t.Fatalf("read charts.json failed: %v", err)
+	}
+
+	var out website.ChartList
+	if err := json.Unmarshal(content, &out); err != nil {
+		t.Fatalf("parse charts.json failed: %v", err)
+	}
+	if out.TotalCount < 1 {
+		t.Fatalf("expected at least one chart in output")
 	}
 }

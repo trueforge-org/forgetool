@@ -3,6 +3,8 @@ package cmd
 import (
 	"errors"
 	"testing"
+
+	"github.com/trueforge-org/forgetool/pkg/charts/image"
 )
 
 func TestRunChartsTagClean(t *testing.T) {
@@ -82,5 +84,16 @@ func TestTagCleanerRunCallsOnError(t *testing.T) {
 
 	if !called {
 		t.Fatalf("expected command Run to call error handler")
+	}
+}
+
+func TestRunChartsTagCleanWithDefaultImplementation(t *testing.T) {
+	old := chartsTagClean
+	t.Cleanup(func() { chartsTagClean = old })
+
+	chartsTagClean = image.Clean
+
+	if err := runChartsTagClean([]string{"1.2.3"}); err != nil {
+		t.Fatalf("expected default clean implementation to succeed, got %v", err)
 	}
 }

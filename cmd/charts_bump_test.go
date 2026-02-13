@@ -3,6 +3,8 @@ package cmd
 import (
 	"errors"
 	"testing"
+
+	"github.com/trueforge-org/forgetool/pkg/charts/version"
 )
 
 func TestRunChartsBumpUsesArgs(t *testing.T) {
@@ -79,5 +81,16 @@ func TestBumperRunCallsOnError(t *testing.T) {
 
 	if !called {
 		t.Fatalf("expected command Run to call error handler")
+	}
+}
+
+func TestRunChartsBumpWithDefaultImplementation(t *testing.T) {
+	old := chartsBumpVersion
+	t.Cleanup(func() { chartsBumpVersion = old })
+
+	chartsBumpVersion = version.Bump
+
+	if err := runChartsBump([]string{"1.2.3", "patch"}); err != nil {
+		t.Fatalf("expected default bump implementation to succeed, got %v", err)
 	}
 }
