@@ -37,5 +37,5 @@ jobs:
         with:
           version: latest
           args: >
-            --timeout=3m
+            --timeout=5m
             --enable-only=ineffassign,unused  # As a first start, can always add more linters later
