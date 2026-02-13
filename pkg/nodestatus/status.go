@@ -11,7 +11,7 @@ import (
 )
 
 func baseStatusCMD(node string) []string {
-	argsslice := [...]string{talosctlpkg.CommandPrefix(), "--talosconfig=" + path.Join(helper.ClusterPath, "/talos/generated/talosconfig"), "-n", node, "-e", node, "get", "machinestatus"}
+	argsslice := [...]string{talosctlpkg.CommandPrefix(), "--talosconfig=" + path.Join(helper.ClusterPath, "talos", "generated", "talosconfig"), "-n", node, "-e", node, "get", "machinestatus"}
 
 	log.Debug().Strs("command", argsslice[:]).Msg("Constructed base command for machine status")
 	return argsslice[:]
