@@ -16,20 +16,38 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+var (
+	ageSopsStatFn             = os.Stat
+	ageSopsOpenFileFn         = os.OpenFile
+	ageSopsGenerateIdentityFn = age.GenerateX25519Identity
+	ageSopsNowFn              = time.Now
+	ageSopsOpenFn             = os.Open
+	ageSopsYAMLMarshalFn      = yaml.Marshal
+	ageSopsMkdirAllFn         = os.MkdirAll
+	ageSopsWriteFileFn        = os.WriteFile
+	ageSopsCloseFileFn        = func(file *os.File) error { return file.Close() }
+	ageSopsExitFn             = os.Exit
+	ageSopsGetSecKeyFn        = GetSecKey
+	ageSopsFatalErrMsgFn      = func(err error, msg string) {
+		log.Error().Err(err).Msg(msg)
+		ageSopsExitFn(1)
+	}
+)
+
 func ageGen() error {
 	outFlag := "age.agekey"
 
-	if _, err := os.Stat(outFlag); err == nil {
+	if _, err := ageSopsStatFn(outFlag); err == nil {
 
 	} else if errors.Is(err, os.ErrNotExist) {
 		out := os.Stdout
-		f, err := os.OpenFile(outFlag, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+		f, err := ageSopsOpenFileFn(outFlag, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 		if err != nil {
-			log.Fatal().Err(err).Msg("failed to open output file %q: %v")
+			ageSopsFatalErrMsgFn(err, "failed to open output file %q: %v")
 		}
 		defer func() {
-			if err := f.Close(); err != nil {
-				log.Fatal().Err(err).Msg("failed to close output file %q: %v")
+			if err := ageSopsCloseFileFn(f); err != nil {
+				ageSopsFatalErrMsgFn(err, "failed to close output file %q: %v")
 			}
 		}()
 		out = f
@@ -37,12 +55,12 @@ func ageGen() error {
 			log.Info().Msgf("writing secret key to a world-readable file\n")
 		}
 
-		k, err := age.GenerateX25519Identity()
+		k, err := ageSopsGenerateIdentityFn()
 		if err != nil {
-			log.Fatal().Err(err).Msg("internal error: %v")
+			ageSopsFatalErrMsgFn(err, "internal error: %v")
 		}
 
-		fmt.Fprintf(out, "# created: %s\n", time.Now().Format(time.RFC3339))
+		fmt.Fprintf(out, "# created: %s\n", ageSopsNowFn().Format(time.RFC3339))
 		fmt.Fprintf(out, "# public key: %s\n", k.Recipient())
 		fmt.Fprintf(out, "%s\n", k)
 
@@ -56,7 +74,7 @@ func ageGen() error {
 func GetPubKey() (string, error) {
 	// Open the file
 	filename := "age.agekey"
-	file, err := os.Open(filename)
+	file, err := ageSopsOpenFn(filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %v", err)
 	}
@@ -93,7 +111,7 @@ func GetPubKey() (string, error) {
 func GetSecKey() (string, error) {
 	// Open the file
 	filename := "age.agekey"
-	file, err := os.Open(filename)
+	file, err := ageSopsOpenFn(filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %v", err)
 	}
@@ -125,7 +143,7 @@ func GetSecKey() (string, error) {
 
 func GenSopsSecret() error {
 	secretPath := filepath.Join(helper.ClusterPath, "kubernetes", "flux-system", "flux", "sopssecret.secret.yaml")
-	ageSecKey, err := GetSecKey()
+	ageSecKey, err := ageSopsGetSecKeyFn()
 
 	// Added by Boemeltrein, for linting purposes
 	if err != nil {
@@ -146,17 +164,17 @@ func GenSopsSecret() error {
 		"type": string(corev1.SecretTypeOpaque),
 	}
 
-	secretYAML, err := yaml.Marshal(secret)
+	secretYAML, err := ageSopsYAMLMarshalFn(secret)
 	if err != nil {
 		return fmt.Errorf("failed to marshal secret to YAML: %w", err)
 	}
 
 	// Write Kubernetes secret YAML to file
-	err = os.MkdirAll(filepath.Dir(secretPath), 0755)
+	err = ageSopsMkdirAllFn(filepath.Dir(secretPath), 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
-	err = os.WriteFile(secretPath, secretYAML, 0644)
+	err = ageSopsWriteFileFn(secretPath, secretYAML, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write secret YAML to file: %w", err)
 	}

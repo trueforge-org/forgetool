@@ -13,14 +13,27 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+var (
+	clusterenvStatFn                      = os.Stat
+	clusterenvLoadEnvFromFileFn           = helper.LoadEnvFromFile
+	clusterenvExitFn                      = os.Exit
+	clusterenvOpenFn                      = os.Open
+	clusterenvSetenvFn                    = os.Setenv
+	clusterenvIPInRangeFn                 = helper.IPInRange
+	clusterenvLoadTalEnvFn                = LoadTalEnv
+	clusterenvValidateIPorCIDRNotInCIDRFn = helper.ValidateIPorCIDRNotInCIDR
+	clusterenvValidateRangeNotInCIDRFn    = helper.ValidateRangeNotInCIDR
+	clusterenvFatalMsgFn                  = func(msg string) { log.Error().Msg(msg); clusterenvExitFn(1) }
+)
+
 func LoadTalEnv(noFail bool) error {
 	// Check if clusterenv.yaml file exists
-	if _, err := os.Stat(helper.ClusterPath + "/clusterenv.yaml"); err == nil {
+	if _, err := clusterenvStatFn(helper.ClusterPath + "/clusterenv.yaml"); err == nil {
 		// Load environment variables from clusterenv.yaml
-		err := helper.LoadEnvFromFile(helper.ClusterPath+"/clusterenv.yaml", helper.TalEnv)
+		err := clusterenvLoadEnvFromFileFn(helper.ClusterPath+"/clusterenv.yaml", helper.TalEnv)
 		if err != nil {
 			log.Info().Msgf("Error loading environment from clusterenv.yaml: %v\n", err)
-			os.Exit(1)
+			clusterenvExitFn(1)
 		}
 	} else if os.IsNotExist(err) {
 		// If the file doesn't exist, check noFail to determine next steps
@@ -28,12 +41,12 @@ func LoadTalEnv(noFail bool) error {
 			log.Debug().Msg("clusterenv.yaml file not found, but skipping due to noFail being true.")
 			return nil // Skip execution without error
 		} else {
-			log.Fatal().Msg("clusterenv.yaml file not found, exiting...")
-			os.Exit(1) // Exit with error code 1
+			clusterenvFatalMsgFn("clusterenv.yaml file not found, exiting...")
+			clusterenvExitFn(1) // Exit with error code 1
 		}
 	} else {
 		log.Info().Msgf("Error checking clusterenv.yaml file: %v\n", err)
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 
 	// If file exists, continue with processing
@@ -53,10 +66,10 @@ func checkQuotedNumbersInFile() (bool, error) {
 	re := regexp.MustCompile(`:\s*(.+)`) // Matches anything after ': '
 
 	// Open the file
-	file, err := os.Open(filePath)
+	file, err := clusterenvOpenFn(filePath)
 	if err != nil {
 		log.Error().Msgf("Failed to open file: %s \nError: %s", filePath, err)
-		os.Exit(1)
+		clusterenvExitFn(1)
 		return false, err
 	}
 	defer file.Close()
@@ -66,14 +79,14 @@ func checkQuotedNumbersInFile() (bool, error) {
 		line := scanner.Text()
 		if lineHasUnquotedNumber(line, re) {
 			log.Error().Msgf("Unquoted number found %s line: %s", filePath, line)
-			os.Exit(1)
+			clusterenvExitFn(1)
 			return false, nil
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		log.Error().Msgf("Error scanning the file: %s", err)
-		os.Exit(1)
+		clusterenvExitFn(1)
 		return false, err
 	}
 
@@ -102,7 +115,7 @@ func clusterName() {
 func clusterEnvtoEnv() {
 	// Split IP/NETMASK and normalize IPs
 	for key, value := range helper.TalEnv {
-		os.Setenv(key, value)
+		clusterenvSetenvFn(key, value)
 	}
 }
 func PostProcessTalEnv() {
@@ -218,7 +231,7 @@ func normalizeIPNetmask(ipNetmask string) (string, error) {
 }
 
 func CheckEnvVariables() {
-	LoadTalEnv(false)
+	clusterenvLoadTalEnvFn(false)
 	validateRequiredTalEnvKeys()
 
 	vip := helper.TalEnv["VIP_IP"]
@@ -250,7 +263,7 @@ func validateRequiredTalEnvKeys() {
 	for _, key := range requiredKeys {
 		if helper.TalEnv[key] == "" {
 			log.Info().Msgf("%s cannot be empty\n", key)
-			os.Exit(1)
+			clusterenvExitFn(1)
 		}
 	}
 }
@@ -258,12 +271,12 @@ func validateRequiredTalEnvKeys() {
 func validateNodeAndGatewayIPs(vip string, master1ip string, gateway string) {
 	if master1ip == gateway || master1ip == vip {
 		log.Info().Msg("Cannot proceed, MASTER1IP cannot match GATEWAY or VIP")
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 
 	if vip == master1ip {
 		log.Info().Msg("Cannot proceed, VIP cannot match any Node IPs")
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 }
 
@@ -274,15 +287,15 @@ func validateMetalLBExclusions(vip string, master1ip string, gateway string) {
 }
 
 func validateIPNotInMetalLBRange(ip string, key string) {
-	inRange, err := helper.IPInRange(ip, helper.TalEnv["METALLB_RANGE"])
+	inRange, err := clusterenvIPInRangeFn(ip, helper.TalEnv["METALLB_RANGE"])
 	if err != nil {
 		log.Info().Msgf("Error checking %s against METALLB_RANGE: %v\n", key, err)
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 
 	if inRange {
 		log.Info().Msgf("Cannot proceed, %s cannot be in the METALLB_RANGE", key)
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 }
 
@@ -292,25 +305,25 @@ func validateDashboardInMetalLBRange() {
 		return
 	}
 
-	inRange, err := helper.IPInRange(dashboardIP, helper.TalEnv["METALLB_RANGE"])
+	inRange, err := clusterenvIPInRangeFn(dashboardIP, helper.TalEnv["METALLB_RANGE"])
 	if err != nil {
 		log.Info().Msgf("Error checking DASHBOARD_IP against METALLB_RANGE: %v\n", err)
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 	if !inRange {
 		log.Info().Msg("Cannot proceed, DASHBOARD_IP must be in the METALLB_RANGE")
-		os.Exit(1)
+		clusterenvExitFn(1)
 	}
 }
 
 func validatePodAndServiceCIDROverlaps(vip string, master1ipCidr string, gateway string) {
-	helper.ValidateIPorCIDRNotInCIDR(vip+"/32", helper.TalEnv["PODNET"], "VIP", "PODNET")
-	helper.ValidateIPorCIDRNotInCIDR(master1ipCidr, helper.TalEnv["PODNET"], "MASTER1IP", "PODNET")
-	helper.ValidateIPorCIDRNotInCIDR(gateway+"/32", helper.TalEnv["PODNET"], "GATEWAY", "PODNET")
-	helper.ValidateRangeNotInCIDR(helper.TalEnv["METALLB_RANGE"], helper.TalEnv["PODNET"], "METALLB_RANGE", "PODNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(vip+"/32", helper.TalEnv["PODNET"], "VIP", "PODNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(master1ipCidr, helper.TalEnv["PODNET"], "MASTER1IP", "PODNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(gateway+"/32", helper.TalEnv["PODNET"], "GATEWAY", "PODNET")
+	clusterenvValidateRangeNotInCIDRFn(helper.TalEnv["METALLB_RANGE"], helper.TalEnv["PODNET"], "METALLB_RANGE", "PODNET")
 
-	helper.ValidateIPorCIDRNotInCIDR(vip+"/32", helper.TalEnv["SVCNET"], "VIP", "SVCNET")
-	helper.ValidateIPorCIDRNotInCIDR(master1ipCidr, helper.TalEnv["SVCNET"], "MASTER1IP", "SVCNET")
-	helper.ValidateIPorCIDRNotInCIDR(gateway+"/32", helper.TalEnv["SVCNET"], "GATEWAY", "SVCNET")
-	helper.ValidateRangeNotInCIDR(helper.TalEnv["METALLB_RANGE"], helper.TalEnv["SVCNET"], "METALLB_RANGE", "SVCNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(vip+"/32", helper.TalEnv["SVCNET"], "VIP", "SVCNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(master1ipCidr, helper.TalEnv["SVCNET"], "MASTER1IP", "SVCNET")
+	clusterenvValidateIPorCIDRNotInCIDRFn(gateway+"/32", helper.TalEnv["SVCNET"], "GATEWAY", "SVCNET")
+	clusterenvValidateRangeNotInCIDRFn(helper.TalEnv["METALLB_RANGE"], helper.TalEnv["SVCNET"], "METALLB_RANGE", "SVCNET")
 }

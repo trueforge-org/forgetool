@@ -4,13 +4,9 @@ Sorted from lowest to highest coverage.
 
 - [ ]   0.00% (0/39) - pkg/fluxhandler/helmrelease_upgrade.go
 - [ ]   9.58% (16/167) - pkg/fluxhandler/helm.go
-- [ ]  15.48% (26/168) - pkg/initfiles/initfiles.go
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
-- [ ]  37.25% (57/153) - pkg/initfiles/clusterenv.go
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
 - [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
-- [ ]  47.22% (34/72) - pkg/initfiles/initfiles_age_sops.go
-- [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
 - [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
 - [ ]  88.73% (63/71) - pkg/fluxhandler/kustomizations.go
 - [ ] 100.00% (1/1) - cmd/adv.go
@@ -93,6 +89,10 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
 - [ ] 100.00% (15/15) - pkg/helper/yamlutil.go
 - [ ] 100.00% (12/12) - pkg/info/info.go
+- [ ] 100.00% (155/155) - pkg/initfiles/clusterenv.go
+- [ ] 100.00% (173/173) - pkg/initfiles/initfiles.go
+- [ ] 100.00% (75/75) - pkg/initfiles/initfiles_age_sops.go
+- [ ] 100.00% (16/16) - pkg/initfiles/initfiles_runagain.go
 - [ ] 100.00% (33/33) - pkg/kubectlcmds/apply.go
 - [ ] 100.00% (22/22) - pkg/kubectlcmds/approvecerts.go
 - [ ] 100.00% (31/31) - pkg/kubectlcmds/approvecerts_loop.go

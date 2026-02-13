@@ -15,33 +15,83 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
 
-func InitFiles() error {
-	removeRunAgainFile()
-	ageGen()
-	genRootFiles()
-	genBaseFiles()
-	UpdateRootFiles()
-	UpdateBaseFiles()
-	talassist.GenSchema()
-	GenPatches()
-	genKubernetes()
-	GenTalEnvConfigMap()
-	UpdateGitRepo()
-	fluxhandler.CreateGitSecret(helper.TalEnv["GITHUB_REPOSITORY"])
-	GenSopsSecret()
-	processKustomizations(path.Join(helper.ClusterPath, "kubernetes"))
+var (
+	initfilesRemoveRunAgainFileFn         = removeRunAgainFile
+	initfilesAgeGenFn                     = ageGen
+	initfilesGenRootFilesFn               = genRootFiles
+	initfilesGenBaseFilesFn               = genBaseFiles
+	initfilesUpdateRootFilesFn            = UpdateRootFiles
+	initfilesUpdateBaseFilesFn            = UpdateBaseFiles
+	initfilesGenSchemaFn                  = talassist.GenSchema
+	initfilesGenPatchesFn                 = GenPatches
+	initfilesGenKubernetesFn              = genKubernetes
+	initfilesGenTalEnvConfigMapFn         = GenTalEnvConfigMap
+	initfilesUpdateGitRepoFn              = UpdateGitRepo
+	initfilesCreateGitSecretFn            = fluxhandler.CreateGitSecret
+	initfilesGenSopsSecretFn              = GenSopsSecret
+	initfilesProcessKustomizationsFn      = processKustomizations
+	initfilesCreateEncrPreCommitHookFn    = helper.CreateEncrPreCommitHook
+	initfilesProcessDirectoryFn           = fluxhandler.ProcessDirectory
+	initfilesCopyDirFn                    = helper.CopyDir
+	initfilesReplaceInFileFn              = helper.ReplaceInFile
+	initfilesReadFileFn                   = os.ReadFile
+	initfilesMkdirAllFn                   = os.MkdirAll
+	initfilesCopyFileFn                   = helper.CopyFile
+	initfilesStatFn                       = os.Stat
+	initfilesIsNotExistFn                 = os.IsNotExist
+	initfilesCreateRunAgainFileFn         = createRunAgainFile
+	initfilesExitFn                       = os.Exit
+	initfilesReadFilenamesInDirFn         = readFilenamesInDir
+	initfilesReplaceContentBetweenLinesFn = helper.ReplaceContentBetweenLines
+	initfilesCheckEnvVariablesFn          = CheckEnvVariables
+	initfilesGetPubKeyFn                  = GetPubKey
+	initfilesLoadTalEnvFn                 = LoadTalEnv
+	initfilesCopyDirFilteredFn            = helper.CopyDirFiltered
+	initfilesEnvSubstRecursiveFn          = helper.EnvSubstRecursive
+	initfilesGetSecKeyFn                  = GetSecKey
+	initfilesSetDockerFn                  = setDocker
+	initfilesAppendContentToPatchFileFn   = appendContentToPatchFile
+	initfilesOpenFileFn                   = os.OpenFile
+	initfilesWriteFileContentFn           = func(file *os.File, content string) (int, error) {
+		return file.Write([]byte(content))
+	}
+	initfilesFatalErrMsgfFn = func(err error, format string, v ...interface{}) {
+		log.Error().Err(err).Msgf(format, v...)
+		initfilesExitFn(1)
+	}
+	initfilesFatalErrMsgFn = func(err error, msg string) {
+		log.Error().Err(err).Msg(msg)
+		initfilesExitFn(1)
+	}
+)
 
-	helper.CreateEncrPreCommitHook()
+func InitFiles() error {
+	initfilesRemoveRunAgainFileFn()
+	initfilesAgeGenFn()
+	initfilesGenRootFilesFn()
+	initfilesGenBaseFilesFn()
+	initfilesUpdateRootFilesFn()
+	initfilesUpdateBaseFilesFn()
+	initfilesGenSchemaFn()
+	initfilesGenPatchesFn()
+	initfilesGenKubernetesFn()
+	initfilesGenTalEnvConfigMapFn()
+	initfilesUpdateGitRepoFn()
+	initfilesCreateGitSecretFn(helper.TalEnv["GITHUB_REPOSITORY"])
+	initfilesGenSopsSecretFn()
+	initfilesProcessKustomizationsFn(path.Join(helper.ClusterPath, "kubernetes"))
+
+	initfilesCreateEncrPreCommitHookFn()
 	log.Info().Msg("Init: Completed Successfully!")
 	return nil
 }
 
 func processKustomizations(kubePath string) {
-	if err := fluxhandler.ProcessDirectory(kubePath); err != nil {
+	if err := initfilesProcessDirectoryFn(kubePath); err != nil {
 		log.Error().Msgf("Error: %v", err)
 	}
 
-	if err := fluxhandler.ProcessDirectory(kubePath); err != nil {
+	if err := initfilesProcessDirectoryFn(kubePath); err != nil {
 		log.Error().Msgf("Error: %v", err)
 		return
 	}
@@ -51,16 +101,16 @@ func processKustomizations(kubePath string) {
 
 func genKubernetes() error {
 
-	err := helper.CopyDir(helper.KubeCache, helper.ClusterPath+"/kubernetes", false)
+	err := initfilesCopyDirFn(helper.KubeCache, helper.ClusterPath+"/kubernetes", false)
 	if err != nil {
 		log.Info().Msgf("Error: %v", err)
 	} else {
 		log.Info().Msgf("Kubernetes files copied successfully.")
 	}
 
-	helper.ReplaceInFile(path.Join(helper.ClusterPath, "/kubernetes/flux-entry.yaml"), "REPLACEWITHCLUSTERNAME", helper.ClusterName)
+	initfilesReplaceInFileFn(path.Join(helper.ClusterPath, "/kubernetes/flux-entry.yaml"), "REPLACEWITHCLUSTERNAME", helper.ClusterName)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("Error: %s", err)
+		initfilesFatalErrMsgfFn(err, "Error: %s", err)
 	}
 
 	return nil
@@ -70,7 +120,7 @@ func GenTalEnvConfigMap() error {
 
 	log.Info().Msg("Creating TalEnv configmap reference 'clustersettings'.")
 	// Read the content of the talenv.yaml file
-	talenvContent, err := os.ReadFile(helper.ClusterEnvFile)
+	talenvContent, err := initfilesReadFileFn(helper.ClusterEnvFile)
 	if err != nil {
 		return err
 	}
@@ -91,12 +141,12 @@ func GenTalEnvConfigMap() error {
 	clusterSettings := filepath.Join("flux-system", "flux", "clustersettings.secret.yaml")
 	clusterSettingsDest := filepath.Join(helper.ClusterPath+"/kubernetes", clusterSettings)
 	clusterSettingsSrc := filepath.Join(helper.KubeCache, clusterSettings)
-	os.MkdirAll(filepath.Join(helper.ClusterPath, "/kubernetes", "flux-system", "flux"), os.ModePerm)
-	err = helper.CopyFile(clusterSettingsSrc, clusterSettingsDest, true)
+	initfilesMkdirAllFn(filepath.Join(helper.ClusterPath, "/kubernetes", "flux-system", "flux"), os.ModePerm)
+	err = initfilesCopyFileFn(clusterSettingsSrc, clusterSettingsDest, true)
 	log.Debug().Msgf("clusterSettingsDest %v", clusterSettingsDest)
-	helper.ReplaceInFile(clusterSettingsDest, "REPLACEWITHENV", indentedTalenvContent)
+	initfilesReplaceInFileFn(clusterSettingsDest, "REPLACEWITHENV", indentedTalenvContent)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error: %s")
+		initfilesFatalErrMsgFn(err, "Error: %s")
 	}
 	log.Info().Msg("Configmap reference Created.")
 	return nil
@@ -146,18 +196,18 @@ func FormatGitURL(input string) string {
 func genBaseFiles() error {
 	clusterEnvPresent := false
 
-	if _, err := os.Stat(helper.ClusterEnvFile); err == nil {
+	if _, err := initfilesStatFn(helper.ClusterEnvFile); err == nil {
 		clusterEnvPresent = true
 		log.Debug().Msg("Detected existing cluster, continuing")
-	} else if os.IsNotExist(err) {
-		createRunAgainFile()
+	} else if initfilesIsNotExistFn(err) {
+		initfilesCreateRunAgainFileFn()
 		log.Warn().Msg("New cluster detected, creating clusterenv.yaml\n Please fill out ClusterEnv.yaml and run init again, after setting-up clusterenv.yaml!")
 	} else {
-		log.Fatal().Err(err).Msgf("Error checking clusterenv file: %s", err)
+		initfilesFatalErrMsgfFn(err, "Error checking clusterenv file: %s", err)
 		return err
 	}
 
-	err := helper.CopyDir(helper.BaseCache, helper.ClusterPath+"", false)
+	err := initfilesCopyDirFn(helper.BaseCache, helper.ClusterPath+"", false)
 	if err != nil {
 		log.Error().Msgf("Error: %v", err)
 	} else {
@@ -165,7 +215,7 @@ func genBaseFiles() error {
 	}
 
 	if !clusterEnvPresent {
-		os.Exit(0)
+		initfilesExitFn(0)
 	}
 
 	log.Info().Msg("basefiles successfully altered.")
@@ -175,7 +225,7 @@ func genBaseFiles() error {
 func UpdateBaseFiles() error {
 	log.Info().Msg("Updating Base files for cluster: helper.ClusterPath")
 	// Read filenames in source directory
-	sourceFiles, err := readFilenamesInDir(helper.BaseCache)
+	sourceFiles, err := initfilesReadFilenamesInDirFn(helper.BaseCache)
 	if err != nil {
 		log.Info().Msgf("Error reading source directory: %v\n", err)
 		return err
@@ -185,11 +235,11 @@ func UpdateBaseFiles() error {
 	for _, filename := range sourceFiles {
 		sourceFilePath := filepath.Join(helper.BaseCache, filename)
 		targetFilePath := filepath.Join(helper.ClusterPath+"", helper.ReplaceDotInFilename(filename))
-		helper.ReplaceContentBetweenLines(targetFilePath, sourceFilePath, "## Do not edit between this and DO NOT REMOVE", "## DO NOT REMOVE: Personal setting go under this line")
+		initfilesReplaceContentBetweenLinesFn(targetFilePath, sourceFilePath, "## Do not edit between this and DO NOT REMOVE", "## DO NOT REMOVE: Personal setting go under this line")
 	}
 	log.Info().Msg("basefiles successfully updated.")
 
-	CheckEnvVariables()
+	initfilesCheckEnvVariablesFn()
 
 	return nil
 
@@ -197,21 +247,21 @@ func UpdateBaseFiles() error {
 
 func genRootFiles() error {
 
-	err := helper.CopyDir(helper.RootCache, "./", false)
+	err := initfilesCopyDirFn(helper.RootCache, "./", false)
 	if err != nil {
 		log.Info().Msgf("Error: %v", err)
 	} else {
 		log.Info().Msg("Root files copied successfully.")
 	}
 
-	agePubKey, err := GetPubKey()
+	agePubKey, err := initfilesGetPubKeyFn()
 	if err != nil {
-		log.Fatal().Err(err).Msg("error: %v")
+		initfilesFatalErrMsgFn(err, "error: %v")
 	}
 	log.Info().Msgf("Public Key: %v", agePubKey)
-	helper.ReplaceInFile(".sops.yaml", "REPLACEME", agePubKey)
+	initfilesReplaceInFileFn(".sops.yaml", "REPLACEME", agePubKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error: %s")
+		initfilesFatalErrMsgFn(err, "Error: %s")
 	}
 
 	log.Info().Msg("basefiles successfully altered.")
@@ -220,7 +270,7 @@ func genRootFiles() error {
 
 func UpdateRootFiles() error {
 	// Read filenames in source directory
-	sourceFiles, err := readFilenamesInDir(helper.RootCache)
+	sourceFiles, err := initfilesReadFilenamesInDirFn(helper.RootCache)
 	if err != nil {
 		log.Info().Msgf("Error reading source directory: %v\n", err)
 		return err
@@ -230,21 +280,21 @@ func UpdateRootFiles() error {
 	for _, filename := range sourceFiles {
 		sourceFilePath := filepath.Join(helper.BaseCache, filename)
 		targetFilePath := filepath.Join("./", helper.ReplaceDotInFilename(filename))
-		helper.ReplaceContentBetweenLines(targetFilePath, sourceFilePath, "## Do not edit between this and DO NOT REMOVE", "## DO NOT REMOVE: Personal setting go under this line")
+		initfilesReplaceContentBetweenLinesFn(targetFilePath, sourceFilePath, "## Do not edit between this and DO NOT REMOVE", "## DO NOT REMOVE: Personal setting go under this line")
 	}
 	log.Info().Msg("rootfiles successfully updated.")
 
-	agePubKey, err := GetPubKey()
+	agePubKey, err := initfilesGetPubKeyFn()
 	if err != nil {
-		log.Fatal().Err(err).Msg("error: %v")
+		initfilesFatalErrMsgFn(err, "error: %v")
 	}
 
-	helper.ReplaceInFile(".sops.yaml", "REPLACEME", agePubKey)
+	initfilesReplaceInFileFn(".sops.yaml", "REPLACEME", agePubKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error: %s")
+		initfilesFatalErrMsgFn(err, "Error: %s")
 	}
 
-	CheckEnvVariables()
+	initfilesCheckEnvVariablesFn()
 
 	return nil
 
@@ -267,13 +317,13 @@ func readFilenamesInDir(dir string) ([]string, error) {
 }
 
 func ResetBootstrapValues() error {
-	LoadTalEnv(false)
-	err := helper.CopyDirFiltered(helper.KubeCache, helper.ClusterPath+"/kubernetes", true, `^bootstrap-values\.yaml.ct$`)
+	initfilesLoadTalEnvFn(false)
+	err := initfilesCopyDirFilteredFn(helper.KubeCache, helper.ClusterPath+"/kubernetes", true, `^bootstrap-values\.yaml.ct$`)
 	if err != nil {
 		log.Info().Msg("Error:")
 	}
 
-	err2 := helper.EnvSubstRecursive(helper.ClusterPath+"/kubernetes", `^bootstrap-values\.yaml.ct$`, helper.TalEnv)
+	err2 := initfilesEnvSubstRecursiveFn(helper.ClusterPath+"/kubernetes", `^bootstrap-values\.yaml.ct$`, helper.TalEnv)
 	if err2 != nil {
 		log.Info().Msg("Error:")
 	}
@@ -284,20 +334,20 @@ func ResetBootstrapValues() error {
 
 func GenPatches() error {
 
-	err := helper.CopyDir(helper.PatchCache, path.Join(helper.ClusterPath, "/talos/patches"), true)
+	err := initfilesCopyDirFn(helper.PatchCache, path.Join(helper.ClusterPath, "/talos/patches"), true)
 	if err != nil {
 		log.Info().Msg("Error:")
 	} else {
 		log.Info().Msg("Patch files copied successfully.")
 	}
 
-	ageSecKey, err := GetSecKey()
-	helper.ReplaceInFile(filepath.Join(helper.ClusterPath+"/talos/patches", "sopssecret.yaml"), "REPLACEWITHSOPS", ageSecKey)
+	ageSecKey, err := initfilesGetSecKeyFn()
+	initfilesReplaceInFileFn(filepath.Join(helper.ClusterPath+"/talos/patches", "sopssecret.yaml"), "REPLACEWITHSOPS", ageSecKey)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error: %s")
+		initfilesFatalErrMsgFn(err, "Error: %s")
 	}
 
-	setDocker()
+	initfilesSetDockerFn()
 
 	return nil
 }
@@ -318,23 +368,23 @@ func setDocker() {
         auth:
           username: "%s"
           password: "%s"`, helper.TalEnv["DOCKERHUB_USER"], helper.TalEnv["DOCKERHUB_PASSWORD"], helper.TalEnv["DOCKERHUB_USER"], helper.TalEnv["DOCKERHUB_PASSWORD"])
-		appendContentToPatchFile(patchFilePath, configContent)
+		initfilesAppendContentToPatchFileFn(patchFilePath, configContent)
 	} else {
 		// Optional: Append a note if the environment variables are not set
 		emptyContent := `# No DockerHub credentials provided
     `
-		appendContentToPatchFile(patchFilePath, emptyContent)
+		initfilesAppendContentToPatchFileFn(patchFilePath, emptyContent)
 	}
 }
 
 func appendContentToPatchFile(filePath, content string) {
-	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := initfilesOpenFileFn(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Error opening file: %s")
+		initfilesFatalErrMsgFn(err, "Error opening file: %s")
 	}
 	defer file.Close()
 
-	if _, err := file.Write([]byte(content)); err != nil {
-		log.Fatal().Err(err).Msg("Error writing to file: %s")
+	if _, err := initfilesWriteFileContentFn(file, content); err != nil {
+		initfilesFatalErrMsgFn(err, "Error writing to file: %s")
 	}
 }
