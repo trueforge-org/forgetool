@@ -92,7 +92,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (11/11) - cmd/helmrelease_install.go
 - [ ] 100.00% (8/8) - cmd/helmrelease_upgrade.go
 - [ ] 100.00% (2/2) - cmd/info.go
-- [ ] 100.00% (13/13) - cmd/root.go
+- [ ] 100.00% (20/20) - cmd/root.go
 - [ ] 100.00% (1/1) - cmd/talos.go
 - [ ] 100.00% (45/45) - cmd/talos_apply.go
 - [ ] 100.00% (7/7) - cmd/talos_bootstrap.go
@@ -100,6 +100,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (10/10) - cmd/talos_kubeconfig.go
 - [ ] 100.00% (10/10) - cmd/talos_reset.go
 - [ ] 100.00% (16/16) - cmd/talos_upgrade.go
+- [ ] 100.00% (13/13) - cmd/talosctl.go
 - [ ] 100.00% (50/50) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
