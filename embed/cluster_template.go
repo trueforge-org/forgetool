@@ -31,13 +31,13 @@ var downloadClusterTemplateReleaseHook = downloadClusterTemplateRelease
 func clusterTemplateToCache() {
 	version, err := resolveClusterTemplateVersionHook()
 	if err != nil {
-		log.Info().Msgf("Error resolving cluster-template release version: %v", err)
+		log.Warn().Err(err).Msg("Failed to resolve cluster-template release version, falling back to embedded files")
 		filesToCache(GenericFiles, "generic")
 		return
 	}
 
 	if err := downloadClusterTemplateReleaseHook(version); err != nil {
-		log.Info().Msgf("Error downloading cluster-template release %q: %v", version, err)
+		log.Warn().Err(err).Str("version", version).Msg("Failed to download cluster-template release, falling back to embedded files")
 		filesToCache(GenericFiles, "generic")
 	}
 }
@@ -45,6 +45,9 @@ func clusterTemplateToCache() {
 func resolveClusterTemplateVersion() (string, error) {
 	if version := strings.TrimSpace(os.Getenv(clusterTemplateVersionEnv)); version != "" {
 		if !clusterTemplateVersionPattern.MatchString(version) {
+			return "", fmt.Errorf("invalid %s value %q", clusterTemplateVersionEnv, version)
+		}
+		if strings.Contains(version, "..") {
 			return "", fmt.Errorf("invalid %s value %q", clusterTemplateVersionEnv, version)
 		}
 
@@ -140,12 +143,7 @@ func extractClusterTemplateArchive(reader io.Reader) error {
 				return err
 			}
 
-			mode := os.FileMode(header.Mode)
-			if mode.Perm() == 0 {
-				mode = 0o644
-			}
-
-			file, err := os.OpenFile(cleanTargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
+			file, err := os.OpenFile(cleanTargetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 			if err != nil {
 				return err
 			}
