@@ -2,6 +2,7 @@ package nodestatus
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"strings"
 
@@ -9,6 +10,23 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
+
+func hasUnknownAuthorityError(out string, err error) bool {
+	if strings.Contains(out, "certificate signed by unknown authority") {
+		return true
+	}
+	if err != nil && strings.Contains(err.Error(), "certificate signed by unknown authority") {
+		return true
+	}
+	return false
+}
+
+func formatStatusError(out string, err error) error {
+	if err == nil {
+		return errors.New("status: " + out)
+	}
+	return fmt.Errorf("status: %s error: %w", out, err)
+}
 
 func baseStatusCMD(node string) []string {
 	argsslice := [...]string{talosctlpkg.CommandPrefix(), "--talosconfig=" + path.Join(helper.ClusterPath, "talos", "generated", "talosconfig"), "-n", node, "-e", node, "get", "machinestatus"}
@@ -24,23 +42,23 @@ func CheckNeedBootstrap(node string) (bool, error) {
 	out, err := talosctlpkg.Run(argsslice[1:], true)
 	if err != nil {
 		log.Warn().Err(err).Str("output", string(out)).Msg("Error running command, checking for certificate issue")
-		if strings.Contains(string(out), "certificate signed by unknown authority") {
+		if hasUnknownAuthorityError(string(out), err) {
 			log.Debug().Msg("Certificate signed by unknown authority; retrying with insecure flag")
 			argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
 			out2, err2 := talosctlpkg.Run(argsslice[1:], true)
 			if err2 != nil {
-				errstring := "status: " + string(out) + " error: " + err2.Error()
-				log.Error().Msg(errstring)
-				return false, errors.New(errstring)
+				formattedErr := formatStatusError(string(out), err2)
+				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
+				return false, formattedErr
 			}
 			if string(out2) != "" && strings.Contains(string(out2), "maintenance") {
 				log.Info().Msg("Node is in maintenance; bootstrap needed")
 				return true, nil
 			}
 		} else {
-			errstring := "status: " + string(out) + " error: " + err.Error()
-			log.Error().Msg(errstring)
-			return false, errors.New(errstring)
+			formattedErr := formatStatusError(string(out), err)
+			log.Error().Err(formattedErr).Msg("Failed to get machine status")
+			return false, formattedErr
 		}
 	}
 	log.Debug().Str("output", string(out)).Msg("No bootstrap needed; returning false")
@@ -54,21 +72,21 @@ func CheckStatus(node string) (string, error) {
 	out, err := talosctlpkg.Run(argsslice[1:], true)
 	if err != nil {
 		log.Debug().Err(err).Str("output", string(out)).Msg("Error running command, checking for certificate issue")
-		if strings.Contains(string(out), "certificate signed by unknown authority") {
+		if hasUnknownAuthorityError(string(out), err) {
 			log.Debug().Msg("Certificate signed by unknown authority; retrying with insecure flag")
 			argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}", "--insecure")
 			out2, err2 := talosctlpkg.Run(argsslice[1:], true)
 			if err2 != nil {
-				errstring := "status: " + string(out) + " error: " + err2.Error()
-				log.Error().Msg(errstring)
-				return "ERROR", errors.New(errstring)
+				formattedErr := formatStatusError(string(out), err2)
+				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
+				return "ERROR", formattedErr
 			}
 			log.Info().Msg("Successfully retrieved node status with insecure flag")
 			return string(out2), nil
 		} else {
-			errstring := "status: " + string(out) + " error: " + err.Error()
-			log.Error().Msg(errstring)
-			return "ERROR", errors.New(errstring)
+			formattedErr := formatStatusError(string(out), err)
+			log.Error().Err(formattedErr).Msg("Failed to get machine status")
+			return "ERROR", formattedErr
 		}
 	}
 	log.Info().Str("status", string(out)).Msg("Node status retrieved successfully")
