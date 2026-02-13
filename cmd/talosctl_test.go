@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt"
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/talos"
+	"github.com/spf13/cobra"
 )
 
 func TestTalosctlCommandConfig(t *testing.T) {
@@ -48,5 +52,37 @@ func TestInternalTalosctlHasExpectedSubcommands(t *testing.T) {
 		if !registered[command.Name()] {
 			t.Fatalf("expected talos command %q to be registered", command.Name())
 		}
+	}
+}
+
+func TestRunTalosctlArgsSilentCapturesProcessStdout(t *testing.T) {
+	oldInternal := internalTalosctl
+	t.Cleanup(func() {
+		internalTalosctl = oldInternal
+	})
+
+	root := &cobra.Command{
+		Use:           "talosctl",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+
+	root.AddCommand(&cobra.Command{
+		Use: "emit",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, _ = fmt.Fprint(os.Stdout, "maintenance")
+			return nil
+		},
+	})
+
+	internalTalosctl = root
+
+	out, err := runTalosctlArgs([]string{"emit"}, true)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !strings.Contains(out, "maintenance") {
+		t.Fatalf("expected output to contain maintenance, got %q", out)
 	}
 }

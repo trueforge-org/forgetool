@@ -16,6 +16,53 @@ import (
 	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
+func captureProcessIO(run func() error) (string, error) {
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		_ = stdoutReader.Close()
+		_ = stdoutWriter.Close()
+		return "", err
+	}
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	os.Stdout = stdoutWriter
+	os.Stderr = stderrWriter
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	stdoutDone := make(chan struct{})
+	stderrDone := make(chan struct{})
+
+	go func() {
+		_, _ = io.Copy(&stdoutBuf, stdoutReader)
+		close(stdoutDone)
+	}()
+
+	go func() {
+		_, _ = io.Copy(&stderrBuf, stderrReader)
+		close(stderrDone)
+	}()
+
+	runErr := run()
+
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	<-stdoutDone
+	<-stderrDone
+
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+
+	_ = stdoutReader.Close()
+	_ = stderrReader.Close()
+
+	return stdoutBuf.String() + stderrBuf.String(), runErr
+}
+
 var talosctlLongHelp = strings.TrimSpace(`
 These are all talosctlanced commands that should generally not be needed
 
@@ -76,10 +123,19 @@ func runTalosctlArgs(args []string, silent bool) (string, error) {
 	internalTalosctl.SetOut(stdoutWriter)
 	internalTalosctl.SetErr(stderrWriter)
 	internalTalosctl.SetArgs(args)
-	err := internalTalosctl.Execute()
+
+	var err error
+	processOut := ""
+	if silent {
+		processOut, err = captureProcessIO(func() error {
+			return internalTalosctl.Execute()
+		})
+	} else {
+		err = internalTalosctl.Execute()
+	}
 	internalTalosctl.SetArgs(nil)
 
-	return stdoutBuf.String() + stderrBuf.String(), err
+	return stdoutBuf.String() + stderrBuf.String() + processOut, err
 }
 
 func init() {

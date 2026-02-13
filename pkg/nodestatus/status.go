@@ -89,6 +89,7 @@ func CheckStatus(node string) (string, error) {
 			return "ERROR", formattedErr
 		}
 	}
+	log.Debug().Int("statusLen", len(out)).Str("statusRaw", fmt.Sprintf("%q", out)).Msg("Raw node status payload")
 	log.Info().Str("status", string(out)).Msg("Node status retrieved successfully")
 	return string(out), nil
 }
