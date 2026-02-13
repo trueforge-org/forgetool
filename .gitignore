@@ -24,3 +24,4 @@ ssh-public-key.txt
 coverage.txt
 test_output.txt
 coverage.out
+renovate.json5

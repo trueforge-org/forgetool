@@ -16,13 +16,54 @@ jobs:
     env:
       TALOS_VERSION: v1.10.2
       TALOS_IMAGE: ghcr.io/siderolabs/talos:v1.10.2
-      CLUSTER_NAME: ci-talos
       CONTROL_IP: 10.5.0.2
       WORKER_IP: 10.5.0.3
+      VIP: 10.5.0.10
+      GATEWAY: 10.5.0.1
+      METALLB_RANGE: 10.5.0.20-10.5.0.30
+      DASHBOARD_IP: 10.5.0.21
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Init ForgeTool cluster
+        run: |
+          set -euo pipefail
+          echo "Running: go run . cluster init"
+          go run . cluster init
+          echo "cluster init completed"
+
+      - name: Copy ForgeTool cluster Files
+        run: |
+          set -euo pipefail
+          bash .github/scripts/init_cluster_env.sh
+
+      - name: Second Init ForgeTool cluster
+        run: |
+          set -euo pipefail
+          echo "Running: go run . cluster init"
+          go run . cluster init
+          echo "cluster init completed"
+
+      - name: Run ForgeTool Genconfig
+        run: |
+          set -euo pipefail
+          echo "Running: go run . genconfig"
+          go run .  genconfig
+          echo "genconfig completed"
+
+      - name: Run ForgeTool Encryption test
+        run: |
+          set -euo pipefail
+          echo "Running: go run . encrypt"
+          go run .  encrypt
+          echo "Running: go run . checkcrypt"
+          go run .  checkcrypt
+          echo "Running: go run . decrypt"
+          go run .  decrypt
+          echo "Encryption test completed"
+
 
       - name: Start Talos nodes in Docker
         run: |
@@ -82,18 +123,7 @@ jobs:
             done
           done
 
-      - name: Apply machine configuration
-        run: |
-          set -euo pipefail
-          go run . talosctl -n "${CONTROL_IP}" apply-config --insecure -f /tmp/talos/controlplane.yaml
-          go run . talosctl -n "${WORKER_IP}" apply-config --insecure -f /tmp/talos/worker.yaml
-
-      - name: Bootstrap cluster
-        run: |
-          set -euo pipefail
-          go run . talosctl --talosconfig /tmp/talos/talosconfig config endpoint "${CONTROL_IP}"
-          go run . talosctl --talosconfig /tmp/talos/talosconfig config node "${CONTROL_IP}"
-          go run . talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" bootstrap
+## TODO: Insert ClusterTool bootstrap here
 
       - name: Verify Talos services
         run: |
