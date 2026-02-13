@@ -1,6 +1,10 @@
 package talosctl
 
-import "github.com/trueforge-org/forgetool/pkg/helper"
+import (
+	"fmt"
+
+	"github.com/trueforge-org/forgetool/pkg/helper"
+)
 
 var executor = func(args []string, silent bool) (string, error) {
 	commandSlice := append([]string{CommandPrefix()}, args...)
@@ -24,7 +28,11 @@ func Run(args []string, silent bool) (string, error) {
 }
 
 func RunCommand(commandSlice []string, silent bool) (string, error) {
-	if len(commandSlice) > 0 && commandSlice[0] == CommandPrefix() {
+	if len(commandSlice) == 0 {
+		return "", fmt.Errorf("commandSlice cannot be empty")
+	}
+
+	if commandSlice[0] == CommandPrefix() {
 		return Run(commandSlice[1:], silent)
 	}
 

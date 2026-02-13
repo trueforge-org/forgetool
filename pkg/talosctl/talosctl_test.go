@@ -118,3 +118,14 @@ func TestRunCommandBypassesExecutorWithoutPrefix(t *testing.T) {
 		t.Fatalf("expected output to contain hello, got %q", out)
 	}
 }
+
+func TestRunCommandReturnsErrorForEmptySlice(t *testing.T) {
+	_, err := RunCommand([]string{}, true)
+	if err == nil {
+		t.Fatalf("expected error for empty commandSlice, got nil")
+	}
+	if !strings.Contains(err.Error(), "commandSlice cannot be empty") {
+		t.Fatalf("expected error message to mention empty commandSlice, got: %v", err)
+	}
+}
+
