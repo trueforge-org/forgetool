@@ -2,8 +2,10 @@ name: forgetool-go-tests
 on:
   workflow_dispatch:
   workflow_call:
-  push:
   pull_request:
+  push:
+    branches:
+      - main
 permissions:
   contents: read
 jobs:
