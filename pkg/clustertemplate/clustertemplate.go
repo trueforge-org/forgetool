@@ -103,7 +103,11 @@ func extractArchive(reader io.Reader) error {
 	defer gzipReader.Close()
 
 	tarReader := tar.NewReader(gzipReader)
-	cacheDir := filepath.Clean(helper.CacheDir)
+	cacheDir, err := filepath.Abs(helper.CacheDir)
+	if err != nil {
+		return err
+	}
+	cacheDir = filepath.Clean(cacheDir)
 	cachePrefix := cacheDir + string(os.PathSeparator)
 
 	for {
@@ -122,6 +126,11 @@ func extractArchive(reader io.Reader) error {
 		nameParts := strings.SplitN(name, "/", 2)
 		if len(nameParts) < 2 || nameParts[1] == "" {
 			continue
+		}
+		// Prevent directory traversal by rejecting any archive entry
+		// whose relative path contains ".." path elements.
+		if strings.Contains(nameParts[1], "..") {
+			return fmt.Errorf("invalid archive path (contains '..'): %s", header.Name)
 		}
 
 		targetPath := filepath.Join(cacheDir, filepath.FromSlash(nameParts[1]))
