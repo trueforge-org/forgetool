@@ -141,6 +141,15 @@ func runNodeCommand(command string, node string) {
 		return
 	}
 
+	if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+		argslice = append(argslice, "--insecure")
+		log.Debug().Msgf("Re-Running command using insecure flag: %s", command)
+		if _, err2 := runTalosctlCommandFn(argslice, false); err2 != nil {
+			log.Info().Msgf("err:  %v", err2)
+		}
+		return
+	}
+
 	log.Info().Msgf("err:  %v", err)
 	log.Info().Msgf("node has thrown an error... %v", node)
 	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ", true) {
