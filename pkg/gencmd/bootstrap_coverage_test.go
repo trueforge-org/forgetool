@@ -96,6 +96,8 @@ func TestRunBootstrapNodeLifecycleAndExit(t *testing.T) {
 }
 
 func TestSetupBootstrapClusterVariants(t *testing.T) {
+	writeBootstrapChartsConfig(t)
+
 	resetGencmdHooks(t)
 	getClientsetFn = func() (*kubernetes.Clientset, error) { return nil, errors.New("no client") }
 	if _, _, _, _, err := setupBootstrapCluster(); err == nil {
