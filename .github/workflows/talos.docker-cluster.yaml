@@ -109,15 +109,6 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
-      - name: Generate Talos configs
-        run: |
-          set -euo pipefail
-          go run . talosctl gen config \
-            "${CLUSTER_NAME}" \
-            "https://${CONTROL_IP}:6443" \
-            --output-dir /tmp/talos \
-            --force
-
       - name: Wait for Talos API
         run: |
           set -euo pipefail
@@ -135,7 +126,7 @@ jobs:
             done
           done
 
-      - name: Run ForgeTool Genconfig
+      - name: Run ForgeTool Apply-Bootstrap
         run: |
           set -euo pipefail
           echo "Running: go run . talos apply --auto-bootstrap"
