@@ -45,7 +45,6 @@ Sorted from lowest to highest coverage.
 - [ ]  69.23% (18/26) - pkg/kubectlcmds/kustomize.go
 - [ ]  71.62% (53/74) - pkg/charts/changelog/patch.go
 - [ ]  75.00% (9/12) - cmd/charts_genmeta.go
-- [ ]  75.00% (3/4) - cmd/cluster_init.go
 - [ ]  75.00% (9/12) - pkg/charts/info/info.go
 - [ ]  75.00% (9/12) - pkg/info/info.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
@@ -70,7 +69,6 @@ Sorted from lowest to highest coverage.
 - [ ]  89.29% (50/56) - pkg/nodestatus/status.go
 - [ ]  89.47% (17/19) - pkg/gencmd/apply.go
 - [ ]  90.00% (45/50) - pkg/helper/replace.go
-- [ ]  90.91% (10/11) - cmd/helmrelease_install.go
 - [ ]  91.67% (11/12) - pkg/helper/marshaller.go
 - [ ]  92.11% (35/38) - pkg/charts/website/chart_list.go
 - [ ]  92.31% (24/26) - pkg/helper/runcmd.go
@@ -91,11 +89,13 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (1/1) - cmd/charts.go
 - [ ] 100.00% (5/5) - cmd/checkcrypt.go
 - [ ] 100.00% (1/1) - cmd/cluster.go
+- [ ] 100.00% (4/4) - cmd/cluster_init.go
 - [ ] 100.00% (3/3) - cmd/decrypt.go
 - [ ] 100.00% (3/3) - cmd/encrypt.go
 - [ ] 100.00% (1/1) - cmd/flux.go
 - [ ] 100.00% (6/6) - cmd/flux_bootstrap.go
 - [ ] 100.00% (1/1) - cmd/helmrelease.go
+- [ ] 100.00% (11/11) - cmd/helmrelease_install.go
 - [ ] 100.00% (8/8) - cmd/helmrelease_upgrade.go
 - [ ] 100.00% (2/2) - cmd/info.go
 - [ ] 100.00% (13/13) - cmd/root.go
