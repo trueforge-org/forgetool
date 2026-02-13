@@ -34,7 +34,6 @@ Sorted from lowest to highest coverage.
 - [ ]  93.10% (54/58) - pkg/helper/copy.go
 - [ ]  93.33% (28/30) - pkg/helper/talhelperextract.go
 - [ ]  93.33% (14/15) - pkg/helper/yamlutil.go
-- [ ]  93.33% (28/30) - pkg/talhelperutil/extractfromtalconfig.go
 - [ ]  98.04% (50/51) - pkg/helper/netvalidate.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
@@ -112,4 +111,5 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (21/21) - pkg/sops/loadsops.go
 - [ ] 100.00% (63/63) - pkg/sops/wrapper.go
 - [ ] 100.00% (46/46) - pkg/talassist/load.go
+- [ ] 100.00% (35/35) - pkg/talhelperutil/extractfromtalconfig.go
 - [ ] 100.00% (12/12) - pkg/talosctl/talosctl.go

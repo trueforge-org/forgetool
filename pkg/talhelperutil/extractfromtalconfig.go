@@ -9,6 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var (
+	talhelperutilFatalFn = defaultTalhelperutilFatal
+	talhelperutilExitFn  = os.Exit
+)
+
+func defaultTalhelperutilFatal(err error, msg string) {
+	log.Error().Err(err).Msg(msg)
+}
+
 // Node represents the structure of each node in the YAML file
 type Node struct {
 	Hostname     string `yaml:"hostname"`
@@ -35,14 +44,18 @@ func ExtractIPs() {
 func loadTalConfig() Config {
 	file, err := os.ReadFile("config.yaml")
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read file: config.yaml")
+		talhelperutilFatalFn(err, "Failed to read file: config.yaml")
+		talhelperutilExitFn(1)
+		return Config{}
 	}
 	log.Debug().Msg("Successfully read the YAML file")
 
 	var config Config
 	err = yaml.Unmarshal(file, &config)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to unmarshal YAML")
+		talhelperutilFatalFn(err, "Failed to unmarshal YAML")
+		talhelperutilExitFn(1)
+		return Config{}
 	}
 	log.Debug().Msg("Successfully unmarshaled YAML into Config struct")
 
