@@ -1,6 +1,7 @@
 package nodestatus
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,8 +18,9 @@ func TestCheckStatusError(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho 'error occurred' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "", fmt.Errorf("error occurred")
+	})
 
 	status, err := CheckStatus("10.0.0.1")
 	if err == nil {
@@ -39,8 +41,15 @@ func TestCheckStatusCertFallback(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\nif echo \"$*\" | grep -q -- '--insecure'; then\n  echo running\n  exit 0\nfi\necho 'certificate signed by unknown authority' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		// Check if --insecure flag is present
+		for _, arg := range args {
+			if arg == "--insecure" {
+				return "running", nil
+			}
+		}
+		return "certificate signed by unknown authority", fmt.Errorf("certificate signed by unknown authority")
+	})
 
 	status, err := CheckStatus("10.0.0.1")
 	if err != nil {
@@ -61,8 +70,9 @@ func TestCheckReadyStatusError(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho 'fail' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "", fmt.Errorf("fail")
+	})
 
 	status, err := CheckReadyStatus("10.0.0.1", false)
 	if err == nil {
@@ -83,8 +93,9 @@ func TestCheckReadyStatusSilent(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho 'fail' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "", fmt.Errorf("fail")
+	})
 
 	_, err := CheckReadyStatus("10.0.0.1", true)
 	if err == nil {
@@ -102,8 +113,13 @@ func TestCheckReadyStatusNotReady(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\ncase \"$*\" in\n  *\"jsonpath={.spec.status.ready}\"*) echo false ;;\n  *) echo running ;;\nesac\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		argsStr := strings.Join(args, " ")
+		if strings.Contains(argsStr, "jsonpath={.spec.status.ready}") {
+			return "false", nil
+		}
+		return "running", nil
+	})
 
 	status, err := CheckReadyStatus("10.0.0.1", false)
 	if err != nil {
@@ -125,8 +141,9 @@ func TestCheckNeedBootstrapNoBootstrap(t *testing.T) {
 	})
 
 	// Success with "running" status - no bootstrap needed
-	script := "#!/bin/sh\necho running\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "running", nil
+	})
 
 	need, err := CheckNeedBootstrap("10.0.0.1")
 	if err != nil {
@@ -148,8 +165,15 @@ func TestCheckNeedBootstrapCertErrorNoMaintenance(t *testing.T) {
 	})
 
 	// Certificate error fallback yields "running" (not maintenance)
-	script := "#!/bin/sh\nif echo \"$*\" | grep -q -- '--insecure'; then\n  echo running\n  exit 0\nfi\necho 'certificate signed by unknown authority' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		// Check if --insecure flag is present
+		for _, arg := range args {
+			if arg == "--insecure" {
+				return "running", nil
+			}
+		}
+		return "certificate signed by unknown authority", fmt.Errorf("certificate signed by unknown authority")
+	})
 
 	need, err := CheckNeedBootstrap("10.0.0.1")
 	if err != nil {
@@ -171,8 +195,9 @@ func TestCheckNeedBootstrapNonCertError(t *testing.T) {
 	})
 
 	// Non-certificate error
-	script := "#!/bin/sh\necho 'connection refused' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "", fmt.Errorf("connection refused")
+	})
 
 	_, err := CheckNeedBootstrap("10.0.0.1")
 	if err == nil {
@@ -191,8 +216,16 @@ func TestCheckHealthRunningWithReadyCheck(t *testing.T) {
 	})
 
 	// status="" + "running" output -> triggers CheckReadyStatus
-	script := "#!/bin/sh\ncase \"$*\" in\n  *\"jsonpath={.spec.stage}\"*) echo running ;;\n  *\"jsonpath={.spec.status.ready}\"*) echo true ;;\n  *) echo unknown ;;\nesac\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		argsStr := strings.Join(args, " ")
+		if strings.Contains(argsStr, "jsonpath={.spec.stage}") {
+			return "running", nil
+		}
+		if strings.Contains(argsStr, "jsonpath={.spec.status.ready}") {
+			return "true", nil
+		}
+		return "unknown", nil
+	})
 
 	err := CheckHealth("10.0.0.1", "", false)
 	if err != nil {
@@ -211,8 +244,16 @@ func TestCheckHealthRunningNotReady(t *testing.T) {
 	})
 
 	// status="" + "running" but ready check returns error
-	script := "#!/bin/sh\ncase \"$*\" in\n  *\"jsonpath={.spec.stage}\"*) echo running ;;\n  *\"jsonpath={.spec.status.ready}\"*) echo 'fail' >&2; exit 1 ;;\nesac\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		argsStr := strings.Join(args, " ")
+		if strings.Contains(argsStr, "jsonpath={.spec.stage}") {
+			return "running", nil
+		}
+		if strings.Contains(argsStr, "jsonpath={.spec.status.ready}") {
+			return "", fmt.Errorf("fail")
+		}
+		return "unknown", nil
+	})
 
 	err := CheckHealth("10.0.0.1", "", false)
 	if err == nil {
@@ -230,8 +271,9 @@ func TestCheckHealthSilentMode(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho running\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "running", nil
+	})
 
 	// Matching status, silent=true
 	err := CheckHealth("10.0.0.1", "running", true)
@@ -250,8 +292,9 @@ func TestWaitForHealthMultipleStatuses(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho maintenance\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "maintenance", nil
+	})
 
 	// "running" won't match, but "maintenance" will
 	got, err := WaitForHealth("10.0.0.1", []string{"running", "maintenance"})

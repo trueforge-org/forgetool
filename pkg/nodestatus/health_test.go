@@ -1,6 +1,7 @@
 package nodestatus
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -17,8 +18,9 @@ func TestCheckHealthMatchingStatus(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho running\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "running", nil
+	})
 
 	err := CheckHealth("10.0.0.1", "running", false)
 	if err != nil {
@@ -36,8 +38,9 @@ func TestCheckHealthMaintenanceMode(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho maintenance\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "maintenance", nil
+	})
 
 	err := CheckHealth("10.0.0.2", "", false)
 	if err != nil {
@@ -55,8 +58,9 @@ func TestCheckHealthMismatchedStatus(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho running\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "running", nil
+	})
 
 	err := CheckHealth("10.0.0.3", "maintenance", false)
 	if err == nil {
@@ -77,8 +81,9 @@ func TestCheckHealthCheckStatusError(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho 'connection refused' >&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "", fmt.Errorf("connection refused")
+	})
 
 	// silent=true
 	err := CheckHealth("10.0.0.4", "", true)
@@ -109,8 +114,9 @@ func TestWaitForHealthImmediateSuccess(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\necho running\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "running", nil
+	})
 
 	got, err := WaitForHealth("10.0.0.5", []string{"running"})
 	if err != nil {
@@ -132,8 +138,9 @@ func TestWaitForHealthEmptyStatusSlice(t *testing.T) {
 	})
 
 	// Empty status defaults to CheckHealth with status="" which accepts "maintenance"
-	script := "#!/bin/sh\necho maintenance\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		return "maintenance", nil
+	})
 
 	got, err := WaitForHealth("10.0.0.6", []string{})
 	if err != nil {
