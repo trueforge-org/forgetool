@@ -51,7 +51,8 @@ func CheckNeedBootstrap(node string) (bool, error) {
 				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
 				return false, formattedErr
 			}
-			if string(out2) != "" && strings.Contains(string(out2), "maintenance") {
+			normalizedOut := strings.TrimSpace(string(out2))
+			if normalizedOut != "" && strings.Contains(normalizedOut, "maintenance") {
 				log.Info().Msg("Node is in maintenance; bootstrap needed")
 				return true, nil
 			}
@@ -81,17 +82,23 @@ func CheckStatus(node string) (string, error) {
 				log.Error().Err(formattedErr).Msg("Failed to get machine status with insecure fallback")
 				return "ERROR", formattedErr
 			}
+			normalizedOut := strings.TrimSpace(string(out2))
 			log.Info().Msg("Successfully retrieved node status with insecure flag")
-			return string(out2), nil
+			return normalizedOut, nil
 		} else {
 			formattedErr := formatStatusError(string(out), err)
 			log.Error().Err(formattedErr).Msg("Failed to get machine status")
 			return "ERROR", formattedErr
 		}
 	}
-	log.Debug().Int("statusLen", len(out)).Str("statusRaw", fmt.Sprintf("%q", out)).Msg("Raw node status payload")
-	log.Info().Str("status", string(out)).Msg("Node status retrieved successfully")
-	return string(out), nil
+	normalizedOut := strings.TrimSpace(string(out))
+	log.Debug().
+		Int("statusLen", len(out)).
+		Str("statusRaw", fmt.Sprintf("%q", out)).
+		Str("statusNormalized", normalizedOut).
+		Msg("Raw node status payload")
+	log.Info().Str("status", normalizedOut).Msg("Node status retrieved successfully")
+	return normalizedOut, nil
 }
 
 func CheckReadyStatus(node string, silent bool) (string, error) {
@@ -107,10 +114,11 @@ func CheckReadyStatus(node string, silent bool) (string, error) {
 		}
 		return "ERROR", errors.New(errstring)
 	}
-	if strings.Contains(string(out), "true") {
+	normalizedOut := strings.TrimSpace(string(out))
+	if strings.Contains(normalizedOut, "true") {
 		log.Info().Msg("Node is ready")
 	} else {
 		log.Warn().Msg("Node is not ready")
 	}
-	return string(out), nil
+	return normalizedOut, nil
 }
