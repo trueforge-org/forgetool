@@ -14,6 +14,8 @@ import (
 )
 
 var (
+	talosApplyAutoBootstrap bool
+
 	talosApplyGenApply = gencmd.GenApply
 	talosApplyExecCmds = gencmd.ExecCmds
 	talosApplyGenPlain = gencmd.GenPlain
@@ -71,6 +73,15 @@ func runTalosApply(args []string) {
 
 		if bootstrapNeeded {
 			log.Info().Msg("First Node requires to be bootstrapped before it can be used.")
+			if talosApplyAutoBootstrap {
+				log.Info().Msg("Auto-bootstrap enabled, bootstrapping without confirmation prompt.")
+				talosApplyRunBootstrap(extraArgs)
+				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ") {
+					talosApplyRunApply(false, "", extraArgs)
+				}
+				return
+			}
+
 			if talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ") {
 				talosApplyRunBootstrap(extraArgs)
 				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ") {
@@ -152,5 +163,6 @@ func RunApply(kubeconfig bool, node string, extraArgs []string) {
 }
 
 func init() {
+	apply.Flags().BoolVar(&talosApplyAutoBootstrap, "auto-bootstrap", false, "Bootstrap automatically when needed, without asking for confirmation")
 	talosCmd.AddCommand(apply)
 }

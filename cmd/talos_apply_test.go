@@ -134,6 +134,71 @@ func TestRunTalosApplyMaintenanceBootstrapFlow(t *testing.T) {
 	}
 }
 
+func TestRunTalosApplyMaintenanceAutoBootstrapSkipsBootstrapPrompt(t *testing.T) {
+	oldDecrypt := talosApplyDecryptFiles
+	oldLoadEnv := talosApplyLoadTalEnv
+	oldLoadConfig := talosApplyLoadTalConfig
+	oldWait := talosApplyWaitForHealth
+	oldNeedBootstrap := talosApplyCheckNeedBootstrap
+	oldPrompt := talosApplyGetYesOrNo
+	oldRunBootstrap := talosApplyRunBootstrap
+	oldRunApply := talosApplyRunApply
+	oldAutoBootstrap := talosApplyAutoBootstrap
+	oldTalConfig := talassist.TalConfig
+	t.Cleanup(func() {
+		talosApplyDecryptFiles = oldDecrypt
+		talosApplyLoadTalEnv = oldLoadEnv
+		talosApplyLoadTalConfig = oldLoadConfig
+		talosApplyWaitForHealth = oldWait
+		talosApplyCheckNeedBootstrap = oldNeedBootstrap
+		talosApplyGetYesOrNo = oldPrompt
+		talosApplyRunBootstrap = oldRunBootstrap
+		talosApplyRunApply = oldRunApply
+		talosApplyAutoBootstrap = oldAutoBootstrap
+		talassist.TalConfig = oldTalConfig
+	})
+
+	talosApplyAutoBootstrap = true
+	talassist.TalConfig = &talhelperCfg.TalhelperConfig{Nodes: []talhelperCfg.Node{{IPAddress: "10.0.0.1"}}}
+	talosApplyDecryptFiles = func() error { return nil }
+	talosApplyLoadTalEnv = func(bool) error { return nil }
+	talosApplyLoadTalConfig = func() {}
+	talosApplyWaitForHealth = func(string, []string) (string, error) { return "maintenance", nil }
+	talosApplyCheckNeedBootstrap = func(string) (bool, error) { return true, nil }
+
+	prompts := 0
+	talosApplyGetYesOrNo = func(question string) bool {
+		prompts++
+		if prompts == 1 && question != "Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: " {
+			t.Fatalf("unexpected first prompt: %q", question)
+		}
+		return false
+	}
+
+	bootstrapped := false
+	talosApplyRunBootstrap = func(args []string) {
+		bootstrapped = true
+		if !reflect.DeepEqual(args, []string{"--flag"}) {
+			t.Fatalf("unexpected bootstrap args: %#v", args)
+		}
+	}
+
+	applied := false
+	talosApplyRunApply = func(bool, string, []string) { applied = true }
+
+	runTalosApply([]string{"all", "--flag"})
+
+	if !bootstrapped {
+		t.Fatalf("expected bootstrap in auto-bootstrap mode")
+	}
+	if prompts != 1 {
+		t.Fatalf("expected one prompt (post-bootstrap apply), got %d", prompts)
+	}
+	if applied {
+		t.Fatalf("did not expect post-bootstrap apply when prompt declined")
+	}
+}
+
 func TestRunTalosApplyMaintenanceNoBootstrapCallsApply(t *testing.T) {
 	oldDecrypt := talosApplyDecryptFiles
 	oldLoadEnv := talosApplyLoadTalEnv
