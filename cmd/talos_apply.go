@@ -71,7 +71,7 @@ func runTalosApply(args []string) {
 		}
 
 		if bootstrapNeeded {
-			log.Info().Msg("First Node requires to be bootstrapped before it can be used.")
+			log.Info().Msg("First node requires bootstrapping before it can be used.")
 			shouldBootstrap := true
 			if !helper.NonInteractive {
 				shouldBootstrap = talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ", true)
@@ -91,7 +91,7 @@ func runTalosApply(args []string) {
 			return
 		}
 
-		log.Info().Msg("First node does not require to be bootrapped.")
+		log.Info().Msg("First node does not require bootstrapping.")
 		log.Info().Msg("Assuming apply is requested... continuing with Apply...")
 		talosApplyRunApply(true, node, extraArgs)
 		return

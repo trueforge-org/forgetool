@@ -40,6 +40,7 @@ func CheckNeedBootstrap(node string) (bool, error) {
 
 	argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.stage}")
 	out, err := talosctlpkg.Run(argsslice[1:], true)
+	normalizedOut := strings.TrimSpace(string(out))
 	if err != nil {
 		log.Warn().Err(err).Str("output", string(out)).Msg("Error running command, checking for certificate issue")
 		if hasUnknownAuthorityError(string(out), err) {
@@ -62,7 +63,7 @@ func CheckNeedBootstrap(node string) (bool, error) {
 			return false, formattedErr
 		}
 	}
-	log.Debug().Str("output", string(out)).Msg("No bootstrap needed; returning false")
+	log.Debug().Str("output", normalizedOut).Msg("No bootstrap needed; returning false")
 	return false, nil
 }
 
