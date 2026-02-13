@@ -56,7 +56,7 @@ func evaluateHealthStatus(node string, status string, out string, silent bool) e
 		return errors.New("healthcheck failed: null or empty status output")
 	}
 
-	if status != "" && strings.Contains(out, status) {
+	if status != "" && strings.Contains(normalizedOut, status) {
 		log.Debug().Str("node", node).Str("matchedStatus", status).Msg("Expected status found in node output")
 		if !silent {
 			response := "Healthcheck: detected node " + node + " in mode " + status + " , continuing..."
@@ -67,16 +67,16 @@ func evaluateHealthStatus(node string, status string, out string, silent bool) e
 		return nil
 	}
 
-	if status == "" && strings.Contains(out, "maintenance") {
+	if status == "" && strings.Contains(normalizedOut, "maintenance") {
 		log.Debug().Str("node", node).Msg("Node in maintenance mode with no expected status configured")
 		response := "Healthcheck: WARN detected node " + node + " in mode " + "maintenance" + ".\nLikely a new node, so trying commands anyway. Continuing..."
 		log.Warn().Msg(response)
 		return nil
 	}
 
-	if status == "" && strings.Contains(out, "running") {
+	if status == "" && strings.Contains(normalizedOut, "running") {
 		log.Debug().Str("node", node).Msg("Node appears running; validating readiness")
-		return validateReadyStatus(node, out, silent)
+		return validateReadyStatus(node, normalizedOut, silent)
 	}
 
 	log.Debug().
@@ -91,7 +91,7 @@ func evaluateHealthStatus(node string, status string, out string, silent bool) e
 	} else {
 		log.Debug().
 			Str("node", node).
-			Str("currentStatus", out).
+			Str("currentStatus", normalizedOut).
 			Msg("Silent mode enabled; suppressing non-debug unexpected-status logs")
 	}
 
