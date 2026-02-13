@@ -2,7 +2,6 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]  96.23% (51/53) - pkg/gencmd/bootstrap_charts.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
@@ -68,6 +67,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (77/77) - pkg/fluxhandler/sshsecretgen.go
 - [ ] 100.00% (19/19) - pkg/gencmd/apply.go
 - [ ] 100.00% (88/88) - pkg/gencmd/bootstrap.go
+- [ ] 100.00% (53/53) - pkg/gencmd/bootstrap_charts.go
 - [ ] 100.00% (87/87) - pkg/gencmd/execcmd.go
 - [ ] 100.00% (51/51) - pkg/gencmd/genconfig.go
 - [ ] 100.00% (22/22) - pkg/gencmd/plain.go
