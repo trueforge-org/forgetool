@@ -111,18 +111,7 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
-          docker network ls
-          BRIDGE=$(docker network inspect talosnet -f '{{(index .Options "com.docker.network.bridge.name")}}')
-          if [ -z "${BRIDGE}" ]; then
-            NETWORK_ID=$(docker network inspect talosnet -f '{{.Id}}')
-            BRIDGE="br-${NETWORK_ID:0:12}"
-          fi
-
-          if [ -z "${BRIDGE}" ]; then
-            echo "ERROR: failed to resolve bridge interface for talosnet"
-            docker network inspect talosnet
-            exit 1
-          fi
+          docker network connect --ip 10.5.0.10 talosnet talos-control-1
 
           echo "Using bridge interface: ${BRIDGE}"
           ip addr add 10.5.0.10/24 dev "${BRIDGE}"
