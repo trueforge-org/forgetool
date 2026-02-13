@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -48,74 +46,6 @@ func (d dirEntryStub) Name() string               { return d.name }
 func (d dirEntryStub) IsDir() bool                { return d.dir }
 func (d dirEntryStub) Type() fs.FileMode          { return fs.ModeDir }
 func (d dirEntryStub) Info() (fs.FileInfo, error) { return nil, nil }
-
-func TestGetTalosExec_ReturnsPathForPlatform(t *testing.T) {
-	got := GetTalosExec()
-	if !strings.HasPrefix(got, helper.CacheDir) {
-		t.Fatalf("expected path to start with cache dir %s, got %s", helper.CacheDir, got)
-	}
-
-	var expect string
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
-	switch goos {
-	case "windows":
-		if goarch == "amd64" {
-			expect = "talosctl-windows-amd64.exe"
-		} else {
-			expect = "talosctl-windows-arm64.exe"
-		}
-	case "linux":
-		if goarch == "amd64" {
-			expect = "talosctl-linux-amd64"
-		} else {
-			expect = "talosctl-linux-arm64"
-		}
-	case "darwin":
-		if goarch == "amd64" {
-			expect = "talosctl-darwin-amd64"
-		} else {
-			expect = "talosctl-darwin-arm64"
-		}
-	case "freebsd":
-		if goarch == "amd64" {
-			expect = "talosctl-freebsd-amd64"
-		} else {
-			expect = "talosctl-freebsd-arm64"
-		}
-	default:
-		t.Skipf("unsupported platform %s/%s for this test", goos, goarch)
-	}
-
-	if filepath.Base(got) != expect {
-		t.Fatalf("expected exec basename %s, got %s", expect, filepath.Base(got))
-	}
-}
-
-func TestGetTalosExecFor_AllBranches(t *testing.T) {
-	testCases := []struct {
-		goos   string
-		goarch string
-		want   string
-	}{
-		{goos: "windows", goarch: "amd64", want: filepath.Join(helper.CacheDir, "talosctl-windows-amd64.exe")},
-		{goos: "windows", goarch: "arm64", want: filepath.Join(helper.CacheDir, "talosctl-windows-arm64.exe")},
-		{goos: "linux", goarch: "amd64", want: filepath.Join(helper.CacheDir, "talosctl-linux-amd64")},
-		{goos: "linux", goarch: "arm64", want: filepath.Join(helper.CacheDir, "talosctl-linux-arm64")},
-		{goos: "darwin", goarch: "amd64", want: filepath.Join(helper.CacheDir, "talosctl-darwin-amd64")},
-		{goos: "darwin", goarch: "arm64", want: filepath.Join(helper.CacheDir, "talosctl-darwin-arm64")},
-		{goos: "freebsd", goarch: "amd64", want: filepath.Join(helper.CacheDir, "talosctl-freebsd-amd64")},
-		{goos: "freebsd", goarch: "arm64", want: filepath.Join(helper.CacheDir, "talosctl-freebsd-arm64")},
-		{goos: "unknown", goarch: "unknown", want: helper.CacheDir},
-	}
-
-	for _, testCase := range testCases {
-		got := getTalosExecFor(testCase.goos, testCase.goarch)
-		if got != testCase.want {
-			t.Fatalf("getTalosExecFor(%s,%s) expected %q, got %q", testCase.goos, testCase.goarch, testCase.want, got)
-		}
-	}
-}
 
 func TestFilesToCache_WritesGenericFiles(t *testing.T) {
 	resetEmbedHooks()
@@ -259,16 +189,6 @@ func TestFilesToCache_WriteFileErrorPath(t *testing.T) {
 	}
 
 	filesToCache(GenericFiles, "generic")
-}
-
-func TestGetTalosExec_NonEmptyWithCachePrefix(t *testing.T) {
-	got := GetTalosExec()
-	if got == "" {
-		t.Fatal("expected non-empty path from GetTalosExec")
-	}
-	if !strings.HasPrefix(got, helper.CacheDir) {
-		t.Fatalf("expected path to start with CacheDir %q, got %q", helper.CacheDir, got)
-	}
 }
 
 func TestAllToCache_Idempotent(t *testing.T) {

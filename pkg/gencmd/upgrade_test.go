@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 func TestGenKubeUpgrade_Format(t *testing.T) {
@@ -16,7 +16,7 @@ func TestGenKubeUpgrade_Format(t *testing.T) {
 	})
 
 	result := GenKubeUpgrade("10.0.0.10")
-	talosPath := embed.GetTalosExec()
+	talosPath := talosctlpkg.CommandPrefix()
 
 	if !strings.HasPrefix(result, talosPath) {
 		t.Fatalf("expected command to start with talos path %q, got: %s", talosPath, result)

@@ -1,51 +1,25 @@
 package nodestatus
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
-func talosExecName() string {
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
-	if goos == "windows" {
-		if goarch == "amd64" {
-			return "talosctl-windows-amd64.exe"
-		}
-		return "talosctl-windows-arm64.exe"
-	}
-	if goos == "linux" {
-		if goarch == "amd64" {
-			return "talosctl-linux-amd64"
-		}
-		return "talosctl-linux-arm64"
-	}
-	if goos == "freebsd" {
-		if goarch == "amd64" {
-			return "talosctl-freebsd-amd64"
-		}
-		return "talosctl-freebsd-arm64"
-	}
-	if goarch == "amd64" {
-		return "talosctl-darwin-amd64"
-	}
-	return "talosctl-darwin-arm64"
-}
-
-func writeFakeTalos(t *testing.T, script string) {
+func writeFakeTalos(t *testing.T, stubFunc func(args []string) (string, error)) {
 	t.Helper()
-	path := filepath.Join(helper.CacheDir, talosExecName())
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		t.Fatalf("mkdir cache failed: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
-		t.Fatalf("write fake talos failed: %v", err)
-	}
+	talosctlpkg.SetExecutor(func(args []string, silent bool) (string, error) {
+		return stubFunc(args)
+	})
+	t.Cleanup(func() {
+		talosctlpkg.SetExecutor(func(args []string, silent bool) (string, error) {
+			commandSlice := append([]string{talosctlpkg.CommandPrefix()}, args...)
+			return helper.RunCommand(commandSlice, silent)
+		})
+	})
 }
 
 func TestStatusAndHealthSuccess(t *testing.T) {
@@ -58,8 +32,17 @@ func TestStatusAndHealthSuccess(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\ncase \"$*\" in\n  *\"jsonpath={.spec.stage}\"*) echo running ;;\n  *\"jsonpath={.spec.status.ready}\"*) echo true ;;\n  *) echo unknown ;;\nesac\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		// Join args to check what's being requested
+		argsStr := strings.Join(args, " ")
+		if strings.Contains(argsStr, "jsonpath={.spec.stage}") {
+			return "running", nil
+		}
+		if strings.Contains(argsStr, "jsonpath={.spec.status.ready}") {
+			return "true", nil
+		}
+		return "unknown", nil
+	})
 
 	cmd := baseStatusCMD("10.0.0.10")
 	if len(cmd) < 6 || !strings.Contains(strings.Join(cmd, " "), "machinestatus") {
@@ -97,8 +80,16 @@ func TestCheckNeedBootstrapInsecureFallback(t *testing.T) {
 		helper.ClusterPath = oldClusterPath
 	})
 
-	script := "#!/bin/sh\nif echo \"$*\" | grep -q -- '--insecure'; then\n  echo maintenance\n  exit 0\nfi\necho 'certificate signed by unknown authority' 1>&2\nexit 1\n"
-	writeFakeTalos(t, script)
+	writeFakeTalos(t, func(args []string) (string, error) {
+		// Check if --insecure flag is present
+		for _, arg := range args {
+			if arg == "--insecure" {
+				return "maintenance", nil
+			}
+		}
+		// Return error with message in output
+		return "certificate signed by unknown authority", fmt.Errorf("certificate signed by unknown authority")
+	})
 
 	need, err := CheckNeedBootstrap("10.0.0.20")
 	if err != nil {

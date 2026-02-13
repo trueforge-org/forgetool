@@ -1,13 +1,25 @@
 package gencmd
 
 import (
-	"os"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/nodestatus"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
+)
+
+var (
+	runTalosctlCommandFn  = talosctlpkg.RunCommand
+	sleepFn               = time.Sleep
+	nowFn                 = time.Now
+	sinceFn               = time.Since
+	bootstrapRetryTimeout = 2 * time.Minute
+	genConfigFn           = GenConfig
+	extractNodeFn         = helper.ExtractNode
+	checkNodeHealthFn     = nodestatus.CheckHealth
+	getYesOrNoFn          = helper.GetYesOrNo
 )
 
 func ExecCmd(cmd string) {
@@ -16,27 +28,27 @@ func ExecCmd(cmd string) {
 
 	// log.Info().Msg("test", strings.Join(argslice, " "))
 	//nolint:ineffassign
-	out, err := helper.RunCommand(argslice, false)
+	out, err := runTalosctlCommandFn(argslice, false)
 	if err != nil {
 		log.Info().Msgf("err:  %v", err)
 		if strings.Contains(cmd, "bootstrap") {
 			log.Info().Msg("Bootstrap: Fail, retrying...")
-			time.Sleep(5 * time.Second)
-			out, err = helper.RunCommand(argslice, false)
+			sleepFn(5 * time.Second)
+			out, err = runTalosctlCommandFn(argslice, false)
 
 			if err != nil && strings.Contains(string(out), "bootstrap is not available yet") {
-				start := time.Now()
-				timeout := 2 * time.Minute
+				start := nowFn()
+				timeout := bootstrapRetryTimeout
 
 				for {
 					log.Info().Msg("Bootstrap: Fail, retrying...")
-					time.Sleep(5 * time.Second)
+					sleepFn(5 * time.Second)
 
-					out, err = helper.RunCommand(argslice, false)
+					out, err = runTalosctlCommandFn(argslice, false)
 					if err != nil || !strings.Contains(string(out), "bootstrap is not available yet") {
 						break
 					}
-					if time.Since(start) >= timeout {
+					if sinceFn(start) >= timeout {
 						log.Info().Msg("Timeout reached: Node not ready for bootstrap within 2 minutes.")
 						break
 					}
@@ -49,14 +61,14 @@ func ExecCmd(cmd string) {
 
 func ExecCmds(taloscmds []string, healthcheck bool) error {
 	log.Info().Msg("Regenerating config prior to commands...")
-	GenConfig([]string{})
+	genConfigFn([]string{})
 	todocmds, skipped := buildTodoCmds(taloscmds, healthcheck)
 
 	log.Info().Msg("Executing Cmds...")
 	for _, command := range todocmds {
-		node := helper.ExtractNode(command)
+		node := extractNodeFn(command)
 		runNodeCommand(command, node)
-		time.Sleep(15 * time.Second)
+		sleepFn(15 * time.Second)
 
 		if healthcheck {
 			checkNodePostCommandHealth(node)
@@ -65,8 +77,8 @@ func ExecCmds(taloscmds []string, healthcheck bool) error {
 
 	if healthcheck && len(taloscmds) > 0 && !skipped && !strings.Contains(taloscmds[0], "upgrade") {
 		log.Info().Msg("Checking if cluster is healthy after commands...")
-		healthcmd := GenPlain("health", helper.TalEnv["VIP_IP"], []string{})
-		ExecCmd(healthcmd[0])
+		healthcmd := genPlainFn("health", helper.TalEnv["VIP_IP"], []string{})
+		execCmdFn(healthcmd[0])
 	}
 	return nil
 }
@@ -81,15 +93,15 @@ func buildTodoCmds(taloscmds []string, healthcheck bool) ([]string, bool) {
 	skipped := false
 
 	for _, command := range taloscmds {
-		node := helper.ExtractNode(command)
+		node := extractNodeFn(command)
 		log.Info().Msgf("checking node availability:  %v", node)
-		err := nodestatus.CheckHealth(node, "", false)
+		err := checkNodeHealthFn(node, "", false)
 		if err != nil {
 			log.Info().Msgf("node seems not to be runnign correctly and cannot be used %v", node)
 			log.Info().Msgf("node This will also make it impossible to poll total-cluster-health as well... %v", node)
-			if !helper.GetYesOrNo("Do you want to continue without this node? (yes/no) [y/n]: ") {
+			if !getYesOrNoFn("Do you want to continue without this node? (yes/no) [y/n]: ") {
 				log.Info().Msg("Exiting...")
-				os.Exit(1)
+				osExitFn(1)
 			}
 			skipped = true
 		}
@@ -101,10 +113,10 @@ func buildTodoCmds(taloscmds []string, healthcheck bool) ([]string, bool) {
 		return todocmds, true
 	}
 
-	if helper.GetYesOrNo("Do you want to check the health of the cluster? (yes/no) [y/n]: ") {
+	if getYesOrNoFn("Do you want to check the health of the cluster? (yes/no) [y/n]: ") {
 		log.Info().Msg("Checking if cluster is healthy...")
-		healthcmd := GenPlain("health", helper.TalEnv["VIP_IP"], []string{})
-		ExecCmd(healthcmd[0])
+		healthcmd := genPlainFn("health", helper.TalEnv["VIP_IP"], []string{})
+		execCmdFn(healthcmd[0])
 		return todocmds, false
 	}
 
@@ -115,7 +127,7 @@ func runNodeCommand(command string, node string) {
 	log.Info().Msgf("Executing commands on node:  %v", node)
 	argslice := strings.Split(command, " ")
 	log.Debug().Msgf("running command: %s", command)
-	out, err := helper.RunCommand(argslice, false)
+	out, err := runTalosctlCommandFn(argslice, false)
 	if err == nil {
 		return
 	}
@@ -123,7 +135,7 @@ func runNodeCommand(command string, node string) {
 	if strings.Contains(string(out), "certificate signed by unknown authority") {
 		argslice = append(argslice, "--insecure")
 		log.Debug().Msgf("Re-Running command using insecure flag: %s", command)
-		if _, err2 := helper.RunCommand(argslice, false); err2 != nil {
+		if _, err2 := runTalosctlCommandFn(argslice, false); err2 != nil {
 			log.Info().Msgf("err:  %v", err2)
 		}
 		return
@@ -131,22 +143,22 @@ func runNodeCommand(command string, node string) {
 
 	log.Info().Msgf("err:  %v", err)
 	log.Info().Msgf("node has thrown an error... %v", node)
-	if !helper.GetYesOrNo("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
+	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
 		log.Info().Msg("Exiting...")
-		os.Exit(1)
+		osExitFn(1)
 	}
 }
 
 func checkNodePostCommandHealth(node string) {
 	log.Info().Msgf("checking if node is back online:  %v", node)
-	err := nodestatus.CheckHealth(node, "", false)
+	err := checkNodeHealthFn(node, "", false)
 	if err == nil {
 		return
 	}
 
 	log.Info().Msgf("node seems not to be running correctly... %v", node)
-	if !helper.GetYesOrNo("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
+	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
 		log.Info().Msg("Exiting...")
-		os.Exit(1)
+		osExitFn(1)
 	}
 }

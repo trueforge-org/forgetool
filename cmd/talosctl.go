@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -9,6 +12,7 @@ import (
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/cluster"
 	_ "github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/cluster/create" // import to get the command registered via the init() function.
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/talos"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 var talosctlLongHelp = strings.TrimSpace(`
@@ -25,7 +29,28 @@ var talosctl = &cobra.Command{
 	SilenceErrors: true,
 }
 
+func runTalosctlArgs(args []string, silent bool) (string, error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
+	stdoutWriter := io.Writer(&stdoutBuf)
+	stderrWriter := io.Writer(&stderrBuf)
+
+	if !silent {
+		stdoutWriter = io.MultiWriter(&stdoutBuf, os.Stdout)
+		stderrWriter = io.MultiWriter(&stderrBuf, os.Stderr)
+	}
+
+	talosctl.SetOut(stdoutWriter)
+	talosctl.SetErr(stderrWriter)
+	talosctl.SetArgs(args)
+	err := talosctl.Execute()
+	talosctl.SetArgs(nil)
+
+	return stdoutBuf.String() + stderrBuf.String(), err
+}
+
 func init() {
+	talosctlpkg.SetExecutor(runTalosctlArgs)
+
 	RootCmd.AddCommand(talosctl)
 	const (
 		talosGroup   = "talos"

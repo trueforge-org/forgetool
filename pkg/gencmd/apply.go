@@ -1,20 +1,19 @@
 package gencmd
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
 func GenApply(node string, extraArgs []string) []string {
 
 	commands := []string{}
 
-	talosPath := embed.GetTalosExec()
+	talosPath := talosctlpkg.CommandPrefix()
 	if node == "" {
 
 		for _, noderef := range talassist.TalConfig.Nodes {
@@ -31,7 +30,7 @@ func GenApply(node string, extraArgs []string) []string {
 		}
 		if nodename == "" {
 			log.Error().Msgf("Node IP %s, does not match any node in talconfig. Exiting...", node)
-			os.Exit(1)
+			osExitFn(1)
 		}
 
 		filename := talassist.TalConfig.ClusterName + "-" + nodename + ".yaml"
