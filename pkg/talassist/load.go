@@ -2,6 +2,7 @@ package talassist
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 
@@ -18,12 +19,35 @@ import (
 var (
 	TalConfig          *talhelperCfg.TalhelperConfig
 	LatestTalosVersion string
+
+	loadAndValidateFromFileFn    = talhelperCfg.LoadAndValidateFromFile
+	parseContractFromVersionFn   = sideroConfig.ParseContractFromVersion
+	newSecretBundleFn            = talhelperTalos.NewSecretBundle
+	generateConfigFn             = generate.GenerateConfig
+	talConfigGenerateGitignoreFn = defaultTalConfigGenerateGitignore
+	mkdirAllFn                   = os.MkdirAll
+	writeFileFn                  = os.WriteFile
+	talassistFatalFn             = defaultTalassistFatal
+	talassistExitFn              = os.Exit
 )
 
+func defaultTalConfigGenerateGitignore(cfg *talhelperCfg.TalhelperConfig, outPath string) error {
+	if cfg == nil {
+		return fmt.Errorf("nil talconfig")
+	}
+	return cfg.GenerateGitignore(outPath)
+}
+
+func defaultTalassistFatal(err error, msg string) {
+	log.Error().Err(err).Msg(msg)
+}
+
 func LoadTalConfig() {
-	cfg, err := talhelperCfg.LoadAndValidateFromFile(helper.TalConfigFile, []string{helper.ClusterEnvFile}, false)
+	cfg, err := loadAndValidateFromFileFn(helper.TalConfigFile, []string{helper.ClusterEnvFile}, false)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to parse talconfig or talenv file: %s")
+		talassistFatalFn(err, "failed to parse talconfig or talenv file")
+		talassistExitFn(1)
+		return
 	}
 	TalConfig = cfg
 	LatestTalosVersion = talhelperCfg.LatestTalosVersion
@@ -35,20 +59,22 @@ func GenSchema() error {
 	r := new(jsonschema.Reflector)
 	r.FieldNameTag = "yaml"
 	r.RequiredFromJSONSchemaTags = true
-	os.MkdirAll(helper.ClusterPath+"/talos", os.ModePerm)
+	mkdirAllFn(helper.ClusterPath+"/talos", os.ModePerm)
 	var genschemaFile = path.Join(helper.ClusterPath, "/talos/talconfig.json")
 
 	schema := r.Reflect(&cfg)
 	data, _ := json.MarshalIndent(schema, "", "  ")
-	if err := os.WriteFile(genschemaFile, data, os.FileMode(0o644)); err != nil {
-		log.Fatal().Err(err).Msg("failed to write file to %s: %v")
+	if err := writeFileFn(genschemaFile, data, os.FileMode(0o644)); err != nil {
+		talassistFatalFn(err, "failed to write talconfig schema")
+		talassistExitFn(1)
+		return err
 	}
 	return nil
 }
 
 func NewSecretBundle() *secrets.Bundle {
-	version, _ := sideroConfig.ParseContractFromVersion(LatestTalosVersion)
-	s, err := talhelperTalos.NewSecretBundle(secrets.NewClock(), *version)
+	version, _ := parseContractFromVersionFn(LatestTalosVersion)
+	s, err := newSecretBundleFn(secrets.NewClock(), *version)
 	if err != nil {
 		log.Error().Msgf("Error loading secret bundle %s", err)
 	}
@@ -61,15 +87,19 @@ func TalhelperGenConfig() error {
 	genconfigDryRun := false
 	genconfigOfflineMode := false
 
-	err := generate.GenerateConfig(TalConfig, genconfigDryRun, helper.TalosGenerated, helper.TalSecretFile, genconfigTalosMode, genconfigOfflineMode, false)
+	err := generateConfigFn(TalConfig, genconfigDryRun, helper.TalosGenerated, helper.TalSecretFile, genconfigTalosMode, genconfigOfflineMode, false)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("failed to generate talos config: %s", err)
+		talassistFatalFn(err, "failed to generate talos config")
+		talassistExitFn(1)
+		return err
 	}
 
 	if !genconfigNoGitignore && !genconfigDryRun {
-		err = TalConfig.GenerateGitignore(helper.TalosGenerated)
+		err = talConfigGenerateGitignoreFn(TalConfig, helper.TalosGenerated)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("failed to generate gitignore file: %s", err)
+			talassistFatalFn(err, "failed to generate gitignore file")
+			talassistExitFn(1)
+			return err
 		}
 	}
 	return nil

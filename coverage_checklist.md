@@ -12,7 +12,6 @@ Sorted from lowest to highest coverage.
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
 - [ ]  37.25% (57/153) - pkg/initfiles/clusterenv.go
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
-- [ ]  41.18% (14/34) - pkg/talassist/load.go
 - [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
 - [ ]  47.22% (34/72) - pkg/initfiles/initfiles_age_sops.go
 - [ ]  50.00% (10/20) - pkg/kubectlcmds/approvecerts.go
@@ -112,4 +111,5 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (9/9) - pkg/sops/hooks.go
 - [ ] 100.00% (21/21) - pkg/sops/loadsops.go
 - [ ] 100.00% (63/63) - pkg/sops/wrapper.go
+- [ ] 100.00% (46/46) - pkg/talassist/load.go
 - [ ] 100.00% (12/12) - pkg/talosctl/talosctl.go
