@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	talhelperCfg "github.com/budimanjojo/talhelper/v3/pkg/config"
 	"github.com/budimanjojo/talhelper/v3/pkg/generate"
@@ -109,7 +110,7 @@ func TestNewSecretBundle_ErrorAndSuccess(t *testing.T) {
 func TestTalhelperGenConfig_ErrorAndSuccess(t *testing.T) {
 	resetTalassistHooks(t)
 	TalConfig = &talhelperCfg.TalhelperConfig{ClusterName: "demo"}
-	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool) error {
+	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool, time.Duration) error {
 		return errors.New("gen")
 	}
 	talassistFatalFn = func(error, string) {}
@@ -118,7 +119,7 @@ func TestTalhelperGenConfig_ErrorAndSuccess(t *testing.T) {
 
 	resetTalassistHooks(t)
 	TalConfig = &talhelperCfg.TalhelperConfig{ClusterName: "demo"}
-	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool) error { return nil }
+	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool, time.Duration) error { return nil }
 	talConfigGenerateGitignoreFn = func(*talhelperCfg.TalhelperConfig, string) error { return errors.New("gitignore") }
 	talassistFatalFn = func(error, string) {}
 	talassistExitFn = func(int) { panic(exitPanic{}) }
@@ -134,7 +135,7 @@ func TestTalhelperGenConfig_ErrorAndSuccess(t *testing.T) {
 		helper.TalosGenerated = oldTalosGenerated
 		helper.TalSecretFile = oldTalSecretFile
 	})
-	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool) error { return nil }
+	generateConfigFn = func(*talhelperCfg.TalhelperConfig, bool, string, string, string, bool, bool, time.Duration) error { return nil }
 	talConfigGenerateGitignoreFn = func(*talhelperCfg.TalhelperConfig, string) error { return nil }
 	if err := TalhelperGenConfig(); err != nil {
 		t.Fatalf("TalhelperGenConfig success path failed: %v", err)
