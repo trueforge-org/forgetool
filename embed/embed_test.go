@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"testing/fstest"
 
@@ -25,6 +26,7 @@ func resetEmbedHooks() {
 	writeFile = defaultWriteFile
 	walkDir = defaultWalkDir
 	fromEmbeddedFS = defaultFromEmbeddedFS
+	clusterTemplateToCache = func() error { return nil }
 	fatalErr = defaultFatalErr
 }
 
@@ -47,7 +49,7 @@ func (d dirEntryStub) IsDir() bool                { return d.dir }
 func (d dirEntryStub) Type() fs.FileMode          { return fs.ModeDir }
 func (d dirEntryStub) Info() (fs.FileInfo, error) { return nil, nil }
 
-func TestFilesToCache_WritesGenericFiles(t *testing.T) {
+func TestFilesToCache_WritesStaticFiles(t *testing.T) {
 	resetEmbedHooks()
 	t.Cleanup(resetEmbedHooks)
 
@@ -57,7 +59,7 @@ func TestFilesToCache_WritesGenericFiles(t *testing.T) {
 		helper.CacheDir = oldCache
 	})
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 
 	foundFile := false
 	err := filepath.WalkDir(helper.CacheDir, func(path string, d fs.DirEntry, err error) error {
@@ -105,7 +107,7 @@ func TestFilesToCache_MkdirAllErrorReturnsEarly(t *testing.T) {
 		return nil
 	}
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 
 	if calledWalk {
 		t.Fatal("expected filesToCache to return before walk when cache mkdir fails")
@@ -124,7 +126,7 @@ func TestFilesToCache_WalkDirErrorPath(t *testing.T) {
 		return fn("x", nil, errors.New("walk failed"))
 	}
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 }
 
 func TestFilesToCache_CreateDirectoryErrorPath(t *testing.T) {
@@ -144,7 +146,7 @@ func TestFilesToCache_CreateDirectoryErrorPath(t *testing.T) {
 		return fn("existing-file", dirEntryStub{name: "existing-file", dir: true}, nil)
 	}
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 }
 
 func TestFilesToCache_ReadFileErrorPath(t *testing.T) {
@@ -165,7 +167,7 @@ func TestFilesToCache_ReadFileErrorPath(t *testing.T) {
 		}, nil
 	}
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 }
 
 func TestFilesToCache_WriteFileErrorPath(t *testing.T) {
@@ -188,7 +190,7 @@ func TestFilesToCache_WriteFileErrorPath(t *testing.T) {
 		return errors.New("write failed")
 	}
 
-	filesToCache(GenericFiles, "generic")
+	filesToCache(StaticFiles, runtime.GOOS+"_"+runtime.GOARCH)
 }
 
 func TestAllToCache_Idempotent(t *testing.T) {

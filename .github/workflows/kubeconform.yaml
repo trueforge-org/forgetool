@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  KUBERNETES_DIR: ./embed/generic/kubernetes
+  KUBERNETES_DIR: /tmp/cluster-template/kubernetes
 
 jobs:
   kubeconform:
@@ -23,10 +23,26 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
       - name: Setup Workflow Tools
         run: brew install fluxcd/tap/flux kubeconform kustomize
+      - name: Download cluster-template release
+        shell: bash
+        run: |
+          TAG_NAME="$(curl -fsSL https://api.github.com/repos/trueforge-org/cluster-template/releases/latest | jq -r .tag_name)"
+          if [[ -z "$TAG_NAME" ]]; then
+            echo "Failed to fetch or parse latest release tag from GitHub API" >&2
+            exit 1
+          fi
+          curl -fsSL "https://codeload.github.com/trueforge-org/cluster-template/tar.gz/refs/tags/${TAG_NAME}" | tar -xz -C /tmp
+          EXTRACTED_DIR="/tmp/cluster-template-${TAG_NAME}"
+          if [[ ! -d "$EXTRACTED_DIR" ]]; then
+            echo "Expected extracted cluster-template directory in /tmp" >&2
+            exit 1
+          fi
+          rm -rf /tmp/cluster-template
+          mv "$EXTRACTED_DIR" /tmp/cluster-template
       - name: Create dummy deploykey secret (CI only)
         shell: bash
         run: |
-          SECRET_PATH="embed/generic/kubernetes/flux-system/flux/deploykey.secret.yaml"
+          SECRET_PATH="${KUBERNETES_DIR}/flux-system/flux/deploykey.secret.yaml"
 
           if [[ ! -f "$SECRET_PATH" ]]; then
             echo "Creating dummy deploykey.secret.yaml for kubeconform"
@@ -36,7 +52,7 @@ jobs:
       - name: Inject ConfigMap data for CI
         shell: bash
         run: |
-          CONFIG_PATH="embed/generic/kubernetes/flux-system/flux/clustersettings.secret.yaml"
+          CONFIG_PATH="${KUBERNETES_DIR}/flux-system/flux/clustersettings.secret.yaml"
 
           if [[ -f "$CONFIG_PATH" ]]; then
             echo "Replacing REPLACEWITHENV in clustersettings.secret.yaml"
