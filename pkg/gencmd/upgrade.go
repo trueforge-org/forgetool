@@ -45,7 +45,9 @@ func GenUpgrade(node string, extraFlags []string) []string {
 	extraFlags = append(extraFlags, "--preserve")
 	err := generateUpgradeCommandFn(talassist.TalConfig, helper.TalosGenerated, node, extraFlags, false)
 
-	w.Close()
+	if closeErr := w.Close(); closeErr != nil {
+		log.Warn().Err(closeErr).Msg("failed to close pipe writer")
+	}
 	out, readErr := io.ReadAll(r)
 	if readErr != nil {
 		upgradeFatalFn(fmt.Errorf("failed to read command output: %w", readErr))
