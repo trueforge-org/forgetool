@@ -13,39 +13,55 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+var (
+	checkStatusNewClientsetFn = newKubernetesClientset
+	checkStatusNowFn          = time.Now
+	checkStatusSleepFn        = time.Sleep
+	checkStatusListPodsFn     = func(clientset *kubernetes.Clientset) ([]corev1.Pod, error) {
+		pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return pods.Items, nil
+	}
+	checkStatusAllRunningFn   = allRequiredPodsRunning
+	checkstatusBuildConfigFn  = clientcmd.BuildConfigFromFlags
+	checkstatusNewForConfigFn = kubernetes.NewForConfig
+)
+
 func CheckStatus(requiredPods []string, excludePod []string, timeout time.Duration) error {
 	log.Trace().Msg("Starting CheckStatus function")
-	clientset, err := newKubernetesClientset()
+	clientset, err := checkStatusNewClientsetFn()
 	if err != nil {
 		return err
 	}
 
 	// Maximum duration to wait (timeout in minutes)
 	maxDuration := timeout * time.Minute
-	endTime := time.Now().Add(maxDuration)
+	endTime := checkStatusNowFn().Add(maxDuration)
 
 	log.Info().Msg("Checking status of required pods")
 	log.Debug().Msgf("required pods: %v, excluding pods: %v", requiredPods, excludePod)
 
-	for time.Now().Before(endTime) {
+	for checkStatusNowFn().Before(endTime) {
 		log.Debug().Msg("Retrieving list of pods")
 
-		pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+		pods, err := checkStatusListPodsFn(clientset)
 		if err != nil {
 			log.Debug().Err(err).Msg("Error listing pods")
 			log.Warn().Msg("Cannot recieve pods (yet), waiting before checking again")
-			time.Sleep(5 * time.Second)
+			checkStatusSleepFn(5 * time.Second)
 			continue
 		}
 
-		if allRequiredPodsRunning(requiredPods, excludePod, pods.Items) {
+		if checkStatusAllRunningFn(requiredPods, excludePod, pods) {
 			log.Info().Msg("All required pods are running")
 			return nil
 		}
 
 		log.Warn().Msg("Not all required pods are running, waiting before checking again")
 		// Wait for 5 seconds before checking again
-		time.Sleep(5 * time.Second)
+		checkStatusSleepFn(5 * time.Second)
 	}
 
 	log.Error().Msg("Timeout: Not all required pods are running after 15 minutes")
@@ -54,14 +70,14 @@ func CheckStatus(requiredPods []string, excludePod []string, timeout time.Durati
 
 func newKubernetesClientset() (*kubernetes.Clientset, error) {
 	kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	config, err := checkstatusBuildConfigFn("", kubeconfig)
 	if err != nil {
 		log.Error().Err(err).Msg("Error loading kubeconfig")
 		return nil, fmt.Errorf("error loading kubeconfig: %w", err)
 	}
 	log.Debug().Msg("Kubeconfig loaded successfully")
 
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := checkstatusNewForConfigFn(config)
 	if err != nil {
 		log.Error().Err(err).Msg("Error creating Kubernetes clientset")
 		return nil, fmt.Errorf("error creating clientset: %w", err)

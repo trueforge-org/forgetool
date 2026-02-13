@@ -10,18 +10,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var (
+	clientHomeDirFn          = homedir.HomeDir
+	clientBuildConfigFn      = clientcmd.BuildConfigFromFlags
+	clientNewRuntimeClientFn = client.New
+)
+
 // getKubeClient initializes and returns a controller-runtime client.Client
 func getKubeClient() (client.Client, error) {
 	log.Trace().Msg("Initializing Kubernetes client")
 
-	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	kubeconfig := filepath.Join(clientHomeDirFn(), ".kube", "config")
+	config, err := clientBuildConfigFn("", kubeconfig)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to load kubeconfig")
 		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
 	}
 
-	kubeClient, err := client.New(config, client.Options{})
+	kubeClient, err := clientNewRuntimeClientFn(config, client.Options{})
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create Kubernetes client")
 		return nil, fmt.Errorf("failed to create Kubernetes client: %v", err)

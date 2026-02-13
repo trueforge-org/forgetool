@@ -11,20 +11,26 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/filesys"
 )
 
+var (
+	kustomizeStatFn   = os.Stat
+	kustomizeRunFn    = runKustomize
+	kustomizeAsYAMLFn = func(r resmap.ResMap) ([]byte, error) { return r.AsYaml() }
+)
+
 func buildKustomizeYAML(filePath string) ([]byte, error) {
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := kustomizeStatFn(filePath)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to stat path")
 		return nil, fmt.Errorf("failed to stat path: %v", err)
 	}
 
 	kustomizePath := resolveKustomizePath(filePath, fileInfo)
-	resMap, err := runKustomize(kustomizePath)
+	resMap, err := kustomizeRunFn(kustomizePath)
 	if err != nil {
 		return nil, err
 	}
 
-	yamlData, err := resMap.AsYaml()
+	yamlData, err := kustomizeAsYAMLFn(resMap)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to convert kustomize output to YAML")
 		return nil, fmt.Errorf("failed to convert kustomize output to YAML: %v", err)

@@ -10,26 +10,40 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/kustomize/kyaml/kio"
-	"sigs.k8s.io/yaml"
+	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
+	syaml "sigs.k8s.io/yaml"
+)
+
+var (
+	yamlReadNodesFn = func(yamlData []byte) ([]*kyaml.RNode, error) {
+		reader := kio.ByteReader{Reader: bytes.NewReader(yamlData)}
+		return reader.Read()
+	}
+	yamlNodeToUnstructuredFn   = nodeToUnstructured
+	yamlApplyObjectWithRetryFn = applyObjectWithRetry
+	yamlPatchObjectFn          = func(ctx context.Context, k8sClient client.Client, obj *unstructured.Unstructured) error {
+		return k8sClient.Patch(ctx, obj, client.Apply, client.FieldOwner("kustomize-controller"))
+	}
+	yamlApplySleepFn       = time.Sleep
+	yamlNormalizeContextFn = normalizeContext
 )
 
 func applyYAML(ctx context.Context, k8sClient client.Client, yamlData []byte) error {
 	log.Trace().Msg("Applying YAML data to the Kubernetes cluster")
 
-	reader := kio.ByteReader{Reader: bytes.NewReader(yamlData)}
-	nodes, err := reader.Read()
+	nodes, err := yamlReadNodesFn(yamlData)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to parse YAML")
 		return fmt.Errorf("failed to parse YAML: %v", err)
 	}
 
 	for _, node := range nodes {
-		obj, err := nodeToUnstructured(node.MustString())
+		obj, err := yamlNodeToUnstructuredFn(node.MustString())
 		if err != nil {
 			return err
 		}
 
-		if err := applyObjectWithRetry(ctx, k8sClient, obj); err != nil {
+		if err := yamlApplyObjectWithRetryFn(ctx, k8sClient, obj); err != nil {
 			return err
 		}
 
@@ -42,7 +56,7 @@ func applyYAML(ctx context.Context, k8sClient client.Client, yamlData []byte) er
 
 func nodeToUnstructured(nodeYAML string) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
-	if err := yaml.Unmarshal([]byte(nodeYAML), obj); err != nil {
+	if err := syaml.Unmarshal([]byte(nodeYAML), obj); err != nil {
 		log.Error().Err(err).Msg("Failed to unmarshal node")
 		return nil, fmt.Errorf("failed to unmarshal node: %v", err)
 	}
@@ -51,12 +65,12 @@ func nodeToUnstructured(nodeYAML string) (*unstructured.Unstructured, error) {
 }
 
 func applyObjectWithRetry(ctx context.Context, k8sClient client.Client, obj *unstructured.Unstructured) error {
-	requestCtx := normalizeContext(ctx)
+	requestCtx := yamlNormalizeContextFn(ctx)
 
-	if err := k8sClient.Patch(requestCtx, obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
+	if err := yamlPatchObjectFn(requestCtx, k8sClient, obj); err != nil {
 		log.Warn().Err(err).Msg("Failed to apply yaml object... trying again in 15 seconds...")
-		time.Sleep(15 * time.Second)
-		if err := k8sClient.Patch(requestCtx, obj, client.Apply, client.FieldOwner("kustomize-controller")); err != nil {
+		yamlApplySleepFn(15 * time.Second)
+		if err := yamlPatchObjectFn(requestCtx, k8sClient, obj); err != nil {
 			log.Error().Err(err).Msg("Failed to apply object")
 			return fmt.Errorf("failed to apply object: %v", err)
 		}

@@ -3,22 +3,15 @@
 Sorted from lowest to highest coverage.
 
 - [ ]   0.00% (0/39) - pkg/fluxhandler/helmrelease_upgrade.go
-- [ ]   0.00% (0/21) - pkg/kubectlcmds/approvecerts_loop.go
-- [ ]   0.00% (0/31) - pkg/kubectlcmds/yaml_apply.go
 - [ ]   4.49% (4/89) - pkg/helper/git.go
 - [ ]   9.58% (16/167) - pkg/fluxhandler/helm.go
 - [ ]  15.48% (26/168) - pkg/initfiles/initfiles.go
-- [ ]  16.07% (9/56) - pkg/kubectlcmds/checkstatus.go
 - [ ]  20.83% (10/48) - pkg/fluxhandler/helmrelease.go
 - [ ]  37.25% (57/153) - pkg/initfiles/clusterenv.go
 - [ ]  37.78% (34/90) - pkg/fluxhandler/helm_pull.go
 - [ ]  41.33% (31/75) - pkg/fluxhandler/bootstrap.go
 - [ ]  47.22% (34/72) - pkg/initfiles/initfiles_age_sops.go
-- [ ]  50.00% (10/20) - pkg/kubectlcmds/approvecerts.go
-- [ ]  50.00% (6/12) - pkg/kubectlcmds/client.go
-- [ ]  51.52% (17/33) - pkg/kubectlcmds/apply.go
 - [ ]  58.82% (10/17) - pkg/helper/time.go
-- [ ]  69.23% (18/26) - pkg/kubectlcmds/kustomize.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
 - [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
 - [ ]  78.12% (50/64) - pkg/helper/git_precommit_hook.go
@@ -100,6 +93,13 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (7/7) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
 - [ ] 100.00% (12/12) - pkg/info/info.go
+- [ ] 100.00% (33/33) - pkg/kubectlcmds/apply.go
+- [ ] 100.00% (22/22) - pkg/kubectlcmds/approvecerts.go
+- [ ] 100.00% (31/31) - pkg/kubectlcmds/approvecerts_loop.go
+- [ ] 100.00% (60/60) - pkg/kubectlcmds/checkstatus.go
+- [ ] 100.00% (12/12) - pkg/kubectlcmds/client.go
+- [ ] 100.00% (27/27) - pkg/kubectlcmds/kustomize.go
+- [ ] 100.00% (33/33) - pkg/kubectlcmds/yaml_apply.go
 - [ ] 100.00% (38/38) - pkg/nodestatus/health.go
 - [ ] 100.00% (30/30) - pkg/nodestatus/health_wait.go
 - [ ] 100.00% (56/56) - pkg/nodestatus/status.go
