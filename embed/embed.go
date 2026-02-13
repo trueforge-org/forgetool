@@ -15,7 +15,6 @@ import (
 
 //go:embed generic/*
 var GenericFiles embed.FS
-var TalosExec string
 
 type readDirFS interface {
 	fs.FS
@@ -82,47 +81,4 @@ func filesToCache(embededfs embed.FS, sub string) {
 		}
 		return nil
 	})
-}
-
-func GetTalosExec() string {
-	return getTalosExecFor(runtime.GOOS, runtime.GOARCH)
-}
-
-func getTalosExecFor(goos string, goarch string) string {
-	execName := ""
-	if goos == "windows" {
-		if goarch == "amd64" {
-			execName = "talosctl-windows-amd64.exe"
-		} else {
-			execName = "talosctl-windows-arm64.exe"
-		}
-
-	}
-	if goos == "linux" {
-		if goarch == "amd64" {
-			execName = "talosctl-linux-amd64"
-		} else {
-			execName = "talosctl-linux-arm64"
-		}
-
-	}
-	if goos == "darwin" {
-		if goarch == "amd64" {
-			execName = "talosctl-darwin-amd64"
-		} else {
-			execName = "talosctl-darwin-arm64"
-		}
-
-	}
-	if goos == "freebsd" {
-		if goarch == "amd64" {
-			execName = "talosctl-freebsd-amd64"
-		} else {
-			execName = "talosctl-freebsd-arm64"
-		}
-
-	}
-
-	return filepath.Join(helper.CacheDir, execName)
-
 }

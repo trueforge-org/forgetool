@@ -1,28 +1,25 @@
 package nodestatus
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/trueforge-org/forgetool/pkg/helper"
+	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
-
-func talosExecName() string {
-	return "talosctl"
-}
 
 func writeFakeTalos(t *testing.T, script string) {
 	t.Helper()
-	path := filepath.Join(helper.CacheDir, talosExecName())
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		t.Fatalf("mkdir cache failed: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
-		t.Fatalf("write fake talos failed: %v", err)
-	}
-	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	talosctlpkg.SetExecutor(func(args []string, silent bool) (string, error) {
+		commandSlice := append([]string{"sh", "-c", script, "talosctl"}, args...)
+		return helper.RunCommand(commandSlice, silent)
+	})
+	t.Cleanup(func() {
+		talosctlpkg.SetExecutor(func(args []string, silent bool) (string, error) {
+			commandSlice := append([]string{talosctlpkg.CommandPrefix()}, args...)
+			return helper.RunCommand(commandSlice, silent)
+		})
+	})
 }
 
 func TestStatusAndHealthSuccess(t *testing.T) {

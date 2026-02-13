@@ -94,7 +94,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (10/10) - cmd/talos_reset.go
 - [ ] 100.00% (16/16) - cmd/talos_upgrade.go
 - [ ] 100.00% (26/26) - cmd/talosctl.go
-- [ ] 100.00% (50/50) - embed/embed.go
+- [ ] 100.00% (31/31) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
