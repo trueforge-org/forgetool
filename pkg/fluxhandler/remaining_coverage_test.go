@@ -58,11 +58,11 @@ func TestBootstrapFlows(t *testing.T) {
 	setupFluxhandlerTest(t)
 	helper.TalEnv["GITHUB_REPOSITORY"] = "repo"
 
-	fluxGetYesOrNoFn = func(string) bool { return false }
+	fluxGetYesOrNoFn = func(string, bool) bool { return false }
 	FluxBootstrap(context.Background())
 
 	calls := 0
-	fluxGetYesOrNoFn = func(string) bool { return true }
+	fluxGetYesOrNoFn = func(string, bool) bool { return true }
 	fluxBootstrapFluxCDFn = func(context.Context) error {
 		calls++
 		if calls == 1 {
