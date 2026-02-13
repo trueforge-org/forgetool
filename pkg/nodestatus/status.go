@@ -108,6 +108,21 @@ func CheckReadyStatus(node string, silent bool) (string, error) {
 
 	argsslice := append(baseStatusCMD(node), "-o", "jsonpath={.spec.status.ready}")
 	out, err := talosctlpkg.Run(argsslice[1:], true)
+	if hasUnknownAuthorityError(string(out), err) {
+		log.Warn().Err(err).Str("output", string(out)).Msg("Certificate signed by unknown authority; retrying readiness check with insecure flag")
+		argsslice = append(baseStatusCMD(node), "-o", "jsonpath={.spec.status.ready}", "--insecure")
+		out2, err2 := talosctlpkg.Run(argsslice[1:], true)
+		if err2 != nil {
+			errstring := "status: " + string(out2) + " error: " + err2.Error()
+			if !silent {
+				log.Error().Msg(errstring)
+			}
+			return "ERROR", errors.New(errstring)
+		}
+		out = out2
+		err = nil
+		log.Info().Msg("Successfully retrieved readiness status with insecure flag")
+	}
 
 	if err != nil {
 		errstring := "status: " + string(out) + " error: " + err.Error()

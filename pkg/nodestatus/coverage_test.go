@@ -130,6 +130,62 @@ func TestCheckReadyStatusNotReady(t *testing.T) {
 	}
 }
 
+func TestCheckReadyStatusCertFallback(t *testing.T) {
+	oldCache := helper.CacheDir
+	oldClusterPath := helper.ClusterPath
+	helper.CacheDir = t.TempDir()
+	helper.ClusterPath = t.TempDir()
+	t.Cleanup(func() {
+		helper.CacheDir = oldCache
+		helper.ClusterPath = oldClusterPath
+	})
+
+	writeFakeTalos(t, func(args []string) (string, error) {
+		for _, arg := range args {
+			if arg == "--insecure" {
+				return "true", nil
+			}
+		}
+		return "certificate signed by unknown authority", fmt.Errorf("certificate signed by unknown authority")
+	})
+
+	status, err := CheckReadyStatus("10.0.0.1", false)
+	if err != nil {
+		t.Fatalf("expected fallback success, got error: %v", err)
+	}
+	if !strings.Contains(status, "true") {
+		t.Fatalf("expected true from fallback, got %q", status)
+	}
+}
+
+func TestCheckReadyStatusCertOutputWithoutError(t *testing.T) {
+	oldCache := helper.CacheDir
+	oldClusterPath := helper.ClusterPath
+	helper.CacheDir = t.TempDir()
+	helper.ClusterPath = t.TempDir()
+	t.Cleanup(func() {
+		helper.CacheDir = oldCache
+		helper.ClusterPath = oldClusterPath
+	})
+
+	writeFakeTalos(t, func(args []string) (string, error) {
+		for _, arg := range args {
+			if arg == "--insecure" {
+				return "true", nil
+			}
+		}
+		return "certificate signed by unknown authority", nil
+	})
+
+	status, err := CheckReadyStatus("10.0.0.1", false)
+	if err != nil {
+		t.Fatalf("expected fallback success, got error: %v", err)
+	}
+	if !strings.Contains(status, "true") {
+		t.Fatalf("expected true from fallback, got %q", status)
+	}
+}
+
 func TestCheckNeedBootstrapNoBootstrap(t *testing.T) {
 	oldCache := helper.CacheDir
 	oldClusterPath := helper.ClusterPath
