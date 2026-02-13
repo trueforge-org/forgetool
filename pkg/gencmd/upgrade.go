@@ -8,7 +8,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/budimanjojo/talhelper/v3/pkg/generate"
-	"github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
@@ -28,11 +27,11 @@ func GenUpgrade(node string, extraFlags []string) []string {
 	os.Stdout = upgradeStdout
 
 	sliceOut := strings.Split(string(out), ";\n")
-	talosPath := embed.GetTalosExec()
+	talosPath := talosctlCommandPrefix()
 	var slice []string
 	for _, str := range sliceOut {
 		if str != "" {
-			str = strings.ReplaceAll(str, "talosctl", talosPath)
+			str = strings.Replace(str, "talosctl", talosPath, 1)
 			slice = append(slice, str)
 		}
 
@@ -45,7 +44,7 @@ func GenUpgrade(node string, extraFlags []string) []string {
 }
 
 func GenKubeUpgrade(node string) string {
-	talosPath := embed.GetTalosExec()
+	talosPath := talosctlCommandPrefix()
 	strout := talosPath + " upgrade-k8s --talosconfig " + helper.TalosConfigFile + " -n " + node
 	return strout
 }

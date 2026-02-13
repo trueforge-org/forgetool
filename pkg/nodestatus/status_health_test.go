@@ -3,7 +3,6 @@ package nodestatus
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -11,30 +10,7 @@ import (
 )
 
 func talosExecName() string {
-	goos := runtime.GOOS
-	goarch := runtime.GOARCH
-	if goos == "windows" {
-		if goarch == "amd64" {
-			return "talosctl-windows-amd64.exe"
-		}
-		return "talosctl-windows-arm64.exe"
-	}
-	if goos == "linux" {
-		if goarch == "amd64" {
-			return "talosctl-linux-amd64"
-		}
-		return "talosctl-linux-arm64"
-	}
-	if goos == "freebsd" {
-		if goarch == "amd64" {
-			return "talosctl-freebsd-amd64"
-		}
-		return "talosctl-freebsd-arm64"
-	}
-	if goarch == "amd64" {
-		return "talosctl-darwin-amd64"
-	}
-	return "talosctl-darwin-arm64"
+	return "talosctl"
 }
 
 func writeFakeTalos(t *testing.T, script string) {
@@ -46,6 +22,7 @@ func writeFakeTalos(t *testing.T, script string) {
 	if err := os.WriteFile(path, []byte(script), 0755); err != nil {
 		t.Fatalf("write fake talos failed: %v", err)
 	}
+	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func TestStatusAndHealthSuccess(t *testing.T) {

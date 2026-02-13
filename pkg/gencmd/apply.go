@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	"github.com/trueforge-org/forgetool/pkg/talassist"
 )
@@ -14,7 +13,7 @@ func GenApply(node string, extraArgs []string) []string {
 
 	commands := []string{}
 
-	talosPath := embed.GetTalosExec()
+	talosPath := talosctlCommandPrefix()
 	if node == "" {
 
 		for _, noderef := range talassist.TalConfig.Nodes {

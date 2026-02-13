@@ -10,19 +10,39 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/nodestatus"
 )
 
+var talosctlExecutor = func(args []string, silent bool) (string, error) {
+	commandSlice := append([]string{talosctlCommandPrefix()}, args...)
+	return helper.RunCommand(commandSlice, silent)
+}
+
+func SetTalosctlExecutor(executor func(args []string, silent bool) (string, error)) {
+	if executor == nil {
+		return
+	}
+
+	talosctlExecutor = executor
+}
+
+func runCommand(commandSlice []string, silent bool) (string, error) {
+	if len(commandSlice) > 0 && commandSlice[0] == talosctlCommandPrefix() {
+		return talosctlExecutor(commandSlice[1:], silent)
+	}
+	return helper.RunCommand(commandSlice, silent)
+}
+
 func ExecCmd(cmd string) {
 	argslice := strings.Split(cmd, " ")
 	log.Trace().Msgf("command %v", argslice)
 
 	// log.Info().Msg("test", strings.Join(argslice, " "))
 	//nolint:ineffassign
-	out, err := helper.RunCommand(argslice, false)
+	out, err := runCommand(argslice, false)
 	if err != nil {
 		log.Info().Msgf("err:  %v", err)
 		if strings.Contains(cmd, "bootstrap") {
 			log.Info().Msg("Bootstrap: Fail, retrying...")
 			time.Sleep(5 * time.Second)
-			out, err = helper.RunCommand(argslice, false)
+			out, err = runCommand(argslice, false)
 
 			if err != nil && strings.Contains(string(out), "bootstrap is not available yet") {
 				start := time.Now()
@@ -32,7 +52,7 @@ func ExecCmd(cmd string) {
 					log.Info().Msg("Bootstrap: Fail, retrying...")
 					time.Sleep(5 * time.Second)
 
-					out, err = helper.RunCommand(argslice, false)
+					out, err = runCommand(argslice, false)
 					if err != nil || !strings.Contains(string(out), "bootstrap is not available yet") {
 						break
 					}
@@ -115,7 +135,7 @@ func runNodeCommand(command string, node string) {
 	log.Info().Msgf("Executing commands on node:  %v", node)
 	argslice := strings.Split(command, " ")
 	log.Debug().Msgf("running command: %s", command)
-	out, err := helper.RunCommand(argslice, false)
+	out, err := runCommand(argslice, false)
 	if err == nil {
 		return
 	}
@@ -123,7 +143,7 @@ func runNodeCommand(command string, node string) {
 	if strings.Contains(string(out), "certificate signed by unknown authority") {
 		argslice = append(argslice, "--insecure")
 		log.Debug().Msgf("Re-Running command using insecure flag: %s", command)
-		if _, err2 := helper.RunCommand(argslice, false); err2 != nil {
+		if _, err2 := runCommand(argslice, false); err2 != nil {
 			log.Info().Msgf("err:  %v", err2)
 		}
 		return
