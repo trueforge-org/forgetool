@@ -111,7 +111,7 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
-          docker network connect --ip 10.5.0.10 talosnet talos-control-1
+          docker network connect --ip 10.5.0.10 --alias VIP talosnet talos-control-1
 
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
