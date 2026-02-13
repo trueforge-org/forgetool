@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rs/zerolog/log"
+	"github.com/siderolabs/talos/cmd/talosctl/cmd/common"
 	"github.com/spf13/cobra"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
@@ -26,6 +30,22 @@ func init() {
 }
 
 func Execute() error {
+
+	// Execute adds all child commands to the root command and sets flags appropriately.
+	// This is called by main.main(). It only needs to happen once to the RootCmd.
+	cmd, err := RootCmd.ExecuteContextC(context.Background())
+	if err != nil && !common.SuppressErrors {
+		fmt.Fprintln(os.Stderr, err.Error())
+
+		errorString := err.Error()
+		// TODO: this is a nightmare, but arg-flag related validation returns simple `fmt.Errorf`, no way to distinguish
+		//       these errors
+		if strings.Contains(errorString, "arg(s)") || strings.Contains(errorString, "flag") || strings.Contains(errorString, "command") {
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintln(os.Stderr, cmd.UsageString())
+		}
+	}
+
 	// Parse only the persistent flags (like --cluster) before executing any command
 	RootCmd.PersistentFlags().Parse(os.Args[1:])
 
