@@ -39,10 +39,10 @@ func FluxBootstrap(ctx context.Context) {
 
 	if helper.TalEnv["GITHUB_REPOSITORY"] != "" {
 		log.Info().Msg("GITHUB_Repository for Flux configured.")
-		if fluxGetYesOrNoFn("Do you want to (re)bootstrap FluxCD as well? (yes/no) [y/n]: ") {
+		if fluxGetYesOrNoFn("Do you want to (re)bootstrap FluxCD as well? (yes/no) [y/n]: ", true) {
 			if err := fluxBootstrapFluxCDFn(ctx); err != nil {
 				fluxFatalErrMsgFn(err, "Error during FluxCD bootstrap")
-				if fluxGetYesOrNoFn("Do you want to retry? (yes/no) [y/n]: ") {
+				if fluxGetYesOrNoFn("Do you want to retry? (yes/no) [y/n]: ", true) {
 					if err2 := fluxBootstrapFluxCDFn(ctx); err2 != nil {
 						fluxFatalErrMsgFn(err2, "Error during FluxCD bootstrap")
 					}

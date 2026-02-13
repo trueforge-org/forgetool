@@ -99,7 +99,7 @@ func buildTodoCmds(taloscmds []string, healthcheck bool) ([]string, bool) {
 		if err != nil {
 			log.Info().Msgf("node seems not to be runnign correctly and cannot be used %v", node)
 			log.Info().Msgf("node This will also make it impossible to poll total-cluster-health as well... %v", node)
-			if !getYesOrNoFn("Do you want to continue without this node? (yes/no) [y/n]: ") {
+			if !getYesOrNoFn("Do you want to continue without this node? (yes/no) [y/n]: ", true) {
 				log.Info().Msg("Exiting...")
 				osExitFn(1)
 			}
@@ -113,7 +113,7 @@ func buildTodoCmds(taloscmds []string, healthcheck bool) ([]string, bool) {
 		return todocmds, true
 	}
 
-	if getYesOrNoFn("Do you want to check the health of the cluster? (yes/no) [y/n]: ") {
+	if getYesOrNoFn("Do you want to check the health of the cluster? (yes/no) [y/n]: ", true) {
 		log.Info().Msg("Checking if cluster is healthy...")
 		healthcmd := genPlainFn("health", helper.TalEnv["VIP_IP"], []string{})
 		execCmdFn(healthcmd[0])
@@ -141,9 +141,18 @@ func runNodeCommand(command string, node string) {
 		return
 	}
 
+	if strings.Contains(err.Error(), "certificate signed by unknown authority") {
+		argslice = append(argslice, "--insecure")
+		log.Debug().Msgf("Re-Running command using insecure flag: %s", command)
+		if _, err2 := runTalosctlCommandFn(argslice, false); err2 != nil {
+			log.Info().Msgf("err:  %v", err2)
+		}
+		return
+	}
+
 	log.Info().Msgf("err:  %v", err)
 	log.Info().Msgf("node has thrown an error... %v", node)
-	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
+	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ", true) {
 		log.Info().Msg("Exiting...")
 		osExitFn(1)
 	}
@@ -157,7 +166,7 @@ func checkNodePostCommandHealth(node string) {
 	}
 
 	log.Info().Msgf("node seems not to be running correctly... %v", node)
-	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ") {
+	if !getYesOrNoFn("Are you sure you want to continue applying this to other nodes? (yes/no) [y/n]: ", true) {
 		log.Info().Msg("Exiting...")
 		osExitFn(1)
 	}

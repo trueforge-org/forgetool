@@ -32,7 +32,7 @@ var bootstrap = &cobra.Command{
 }
 
 func bootstrapfunc(cmd *cobra.Command, args []string) {
-	if talosBootstrapGetYesOrNo("Do you want to also run the complete ForgeTool Bootstrap, besides just talos? (yes/no) [y/n]: ") {
+	if talosBootstrapGetYesOrNo("Do you want to also run the complete ForgeTool Bootstrap, besides just talos? (yes/no) [y/n]: ", false) {
 		talosBootstrapLoadTalEnv(false)
 		talosBootstrapLoadTalConfig()
 		talosBootstrapRunBootstrap(args)

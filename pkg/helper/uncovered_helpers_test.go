@@ -77,7 +77,7 @@ func TestGetYesOrNoAndVarToFileAndYamlEncoder(t *testing.T) {
 	}
 	_ = inW.Close()
 
-	if !GetYesOrNo("continue? ") {
+	if !GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected yes after invalid then y input")
 	}
 
@@ -90,7 +90,7 @@ func TestGetYesOrNoAndVarToFileAndYamlEncoder(t *testing.T) {
 		t.Fatalf("stdin2 write failed: %v", err)
 	}
 	_ = inW2.Close()
-	if GetYesOrNo("continue? ") {
+	if GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected no for n input")
 	}
 

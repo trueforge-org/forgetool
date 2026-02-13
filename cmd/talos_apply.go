@@ -64,16 +64,24 @@ func runTalosApply(args []string) {
 	}
 
 	if status == "maintenance" {
+		log.Info().Msg("Detected maintenance mode...")
 		bootstrapNeeded, bootstrapErr := talosApplyCheckNeedBootstrap(bootstrapNode)
 		if bootstrapErr != nil {
 			return
 		}
 
 		if bootstrapNeeded {
-			log.Info().Msg("First Node requires to be bootstrapped before it can be used.")
-			if talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ") {
+			log.Info().Msg("First node requires bootstrapping before it can be used.")
+			shouldBootstrap := true
+			if !helper.NonInteractive {
+				shouldBootstrap = talosApplyGetYesOrNo("Do you want to bootstrap now? (yes/no) [y/n]: ", true)
+			} else {
+				log.Info().Msg("Non-interactive mode detected, proceeding with bootstrap...")
+			}
+
+			if shouldBootstrap {
 				talosApplyRunBootstrap(extraArgs)
-				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ") {
+				if talosApplyGetYesOrNo("Do you want to apply config to all remaining clusternodes as well? (yes/no) [y/n]: ", true) {
 					talosApplyRunApply(false, "", extraArgs)
 				}
 			} else {
@@ -83,7 +91,7 @@ func runTalosApply(args []string) {
 			return
 		}
 
-		log.Info().Msg("Detected maintenance mode, but first node does not require to be bootrapped.")
+		log.Info().Msg("First node does not require bootstrapping.")
 		log.Info().Msg("Assuming apply is requested... continuing with Apply...")
 		talosApplyRunApply(true, node, extraArgs)
 		return

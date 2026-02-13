@@ -53,9 +53,11 @@ var manifestPaths = []string{
 
 func RunBootstrap(args []string) {
 	extraArgs := parseBootstrapExtraArgsFn(args)
+	log.Debug().Strs("args", args).Strs("extraArgs", extraArgs).Msg("Bootstrap: parsed command arguments")
 	decryptBootstrapFilesFn()
 
 	bootstrapNode := talassist.TalConfig.Nodes[0].IPAddress
+	log.Debug().Str("bootstrapNode", bootstrapNode).Str("vip", helper.TalEnv["VIP_IP"]).Msg("Bootstrap: resolved target node and VIP")
 	runBootstrapNodeLifecycleFn(bootstrapNode, extraArgs)
 
 	ctx, stopCh, namespaceFilePaths, vscFilePaths, err := setupBootstrapClusterFn()
@@ -80,8 +82,10 @@ func RunBootstrap(args []string) {
 
 func parseBootstrapExtraArgs(args []string) []string {
 	if len(args) > 1 {
+		log.Debug().Strs("extraArgs", args[1:]).Msg("Bootstrap: forwarding extra arguments to talos commands")
 		return args[1:]
 	}
+	log.Debug().Msg("Bootstrap: no extra arguments provided")
 	return nil
 }
 
@@ -133,6 +137,7 @@ func setupBootstrapCluster() (context.Context, chan struct{}, []string, []string
 	if err := loadBootstrapHelmReposFn(); err != nil {
 		return nil, nil, nil, nil, err
 	}
+	log.Debug().Int("helmRepoCount", len(HelmRepos)).Msg("Bootstrap: Helm repositories loaded")
 
 	go approvePendingCertsFn(clientset, stopCh)
 	installChartsFn(baseBootstrapChartsFn(), HelmRepos, true)
@@ -141,6 +146,7 @@ func setupBootstrapCluster() (context.Context, chan struct{}, []string, []string
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
+	log.Debug().Int("namespaceManifestCount", len(namespaceFilePaths)).Int("volumeSnapshotClassManifestCount", len(vscFilePaths)).Msg("Bootstrap: discovered manifest file sets")
 
 	return ctx, stopCh, namespaceFilePaths, vscFilePaths, nil
 }
@@ -154,6 +160,7 @@ func loadBootstrapHelmRepos() error {
 	}
 
 	HelmRepos = loadedRepos
+	log.Debug().Str("helmRepoPath", helmRepoPath).Int("helmRepoCount", len(HelmRepos)).Msg("Bootstrap: cached Helm repository map")
 	return nil
 }
 
@@ -180,11 +187,13 @@ func collectBootstrapFilePaths() ([]string, []string, error) {
 		log.Info().Msgf("Error walking the path: %v\n", err)
 		return nil, nil, err
 	}
+	log.Debug().Int("namespaceManifestCount", len(namespaceFilePaths)).Int("volumeSnapshotClassManifestCount", len(vscFilePaths)).Msg("Bootstrap: file path collection complete")
 
 	return namespaceFilePaths, vscFilePaths, nil
 }
 
 func applyManifestFiles(ctx context.Context, files []string, label string) error {
+	log.Debug().Str("label", label).Int("fileCount", len(files)).Msg("Bootstrap: applying manifest files")
 	for _, filePath := range files {
 		log.Info().Msgf("Bootstrap: Loading %s: %v", label, filePath)
 		if err := kubectlApplyFn(ctx, filePath); err != nil {

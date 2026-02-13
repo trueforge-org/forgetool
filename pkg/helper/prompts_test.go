@@ -19,7 +19,7 @@ func TestGetYesOrNoYes(t *testing.T) {
 	}
 	w.Close()
 
-	if !GetYesOrNo("continue? ") {
+	if !GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected true for 'yes' input")
 	}
 }
@@ -38,7 +38,7 @@ func TestGetYesOrNoYESUpperCase(t *testing.T) {
 	}
 	w.Close()
 
-	if !GetYesOrNo("continue? ") {
+	if !GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected true for 'YES' input")
 	}
 }
@@ -57,7 +57,7 @@ func TestGetYesOrNoNo(t *testing.T) {
 	}
 	w.Close()
 
-	if GetYesOrNo("continue? ") {
+	if GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected false for 'no' input")
 	}
 }
@@ -76,7 +76,7 @@ func TestGetYesOrNoNUpperCase(t *testing.T) {
 	}
 	w.Close()
 
-	if GetYesOrNo("continue? ") {
+	if GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected false for 'N' input")
 	}
 }
@@ -95,7 +95,7 @@ func TestGetYesOrNoInvalidThenValid(t *testing.T) {
 	}
 	w.Close()
 
-	if !GetYesOrNo("continue? ") {
+	if !GetYesOrNo("continue? ", false) {
 		t.Fatalf("expected true after invalid input followed by 'yes'")
 	}
 }

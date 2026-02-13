@@ -64,14 +64,14 @@ func TestBuildTodoCmdsAndExecCmds(t *testing.T) {
 	}
 
 	checkNodeHealthFn = func(string, string, bool) error { return nil }
-	getYesOrNoFn = func(string) bool { return false }
+	getYesOrNoFn = func(string, bool) bool { return false }
 	cmds, skipped = buildTodoCmds([]string{"a"}, true)
 	if !skipped || len(cmds) != 1 {
 		t.Fatalf("unexpected skipped result: %v %v", cmds, skipped)
 	}
 
 	checkNodeHealthFn = func(string, string, bool) error { return errors.New("bad") }
-	getYesOrNoFn = func(string) bool { return true }
+	getYesOrNoFn = func(string, bool) bool { return true }
 	cmds, skipped = buildTodoCmds([]string{"a"}, true)
 	if !skipped || len(cmds) != 1 {
 		t.Fatalf("unexpected unhealthy-continue result: %v %v", cmds, skipped)
@@ -80,7 +80,7 @@ func TestBuildTodoCmdsAndExecCmds(t *testing.T) {
 	resetGencmdHooks(t)
 	osExitFn = func(int) { panic(exitPanic{}) }
 	checkNodeHealthFn = func(string, string, bool) error { return errors.New("bad") }
-	getYesOrNoFn = func(string) bool { return false }
+	getYesOrNoFn = func(string, bool) bool { return false }
 	expectExitPanic(t, func() {
 		_, _ = buildTodoCmds([]string{"a"}, true)
 	})
@@ -118,13 +118,13 @@ func TestRunNodeCommandAndPostHealth(t *testing.T) {
 	runNodeCommand("talosctl get", "n1")
 
 	resetGencmdHooks(t)
-	getYesOrNoFn = func(string) bool { return true }
+	getYesOrNoFn = func(string, bool) bool { return true }
 	runTalosctlCommandFn = func([]string, bool) (string, error) { return "other", errors.New("boom") }
 	runNodeCommand("talosctl get", "n1")
 
 	resetGencmdHooks(t)
 	osExitFn = func(int) { panic(exitPanic{}) }
-	getYesOrNoFn = func(string) bool { return false }
+	getYesOrNoFn = func(string, bool) bool { return false }
 	runTalosctlCommandFn = func([]string, bool) (string, error) { return "other", errors.New("boom") }
 	expectExitPanic(t, func() {
 		runNodeCommand("talosctl get", "n1")
@@ -135,11 +135,11 @@ func TestRunNodeCommandAndPostHealth(t *testing.T) {
 	checkNodePostCommandHealth("n1")
 
 	checkNodeHealthFn = func(string, string, bool) error { return errors.New("bad") }
-	getYesOrNoFn = func(string) bool { return true }
+	getYesOrNoFn = func(string, bool) bool { return true }
 	checkNodePostCommandHealth("n1")
 
 	osExitFn = func(int) { panic(exitPanic{}) }
-	getYesOrNoFn = func(string) bool { return false }
+	getYesOrNoFn = func(string, bool) bool { return false }
 	expectExitPanic(t, func() {
 		checkNodePostCommandHealth("n1")
 	})

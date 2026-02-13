@@ -56,7 +56,7 @@ func resetGencmdHooks(t *testing.T) {
 	genConfigFn = GenConfig
 	extractNodeFn = func(string) string { return "node" }
 	checkNodeHealthFn = func(string, string, bool) error { return nil }
-	getYesOrNoFn = func(string) bool { return true }
+	getYesOrNoFn = func(string, bool) bool { return true }
 
 	checkRunAgainFileExistsFn = func() bool { return false }
 	loadTalConfigFn = func() {}

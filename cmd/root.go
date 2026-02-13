@@ -27,9 +27,48 @@ var RootCmd = &cobra.Command{
 func init() {
 	// Define the --cluster flag
 	RootCmd.PersistentFlags().StringVar(&helper.ClusterName, "cluster", "main", "Cluster name")
+	RootCmd.PersistentFlags().BoolVar(&helper.NonInteractive, "non-interactive", false, "Bootstrap automatically when needed, without asking for confirmation")
+}
+
+func applyClusterContext(clusterName string) {
+	if clusterName == "" {
+		return
+	}
+
+	helper.ClusterName = clusterName
+	log.Info().Msgf("Cluster name: %s\n", helper.ClusterName)
+	helper.ClusterPath = filepath.Join("./clusters", helper.ClusterName)
+	helper.ClusterEnvFile = filepath.Join(helper.ClusterPath, "/clusterenv.yaml")
+	helper.TalConfigFile = filepath.Join(helper.ClusterPath, "/talos", "talconfig.yaml")
+	helper.TalosPath = filepath.Join(helper.ClusterPath, "/talos")
+	helper.KubernetesPath = filepath.Join(helper.ClusterPath, "/kubernetes")
+	helper.TalosGenerated = filepath.Join(helper.TalosPath, "/generated")
+	helper.TalosConfigFile = filepath.Join(helper.TalosGenerated, "talosconfig")
+	helper.TalSecretFile = filepath.Join(helper.TalosGenerated, "talsecret.yaml")
+}
+
+func clusterNameFromArgs(args []string, fallback string) string {
+	clusterName := fallback
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if strings.HasPrefix(arg, "--cluster=") {
+			clusterName = strings.TrimPrefix(arg, "--cluster=")
+			continue
+		}
+
+		if arg == "--cluster" {
+			if i+1 < len(args) {
+				clusterName = args[i+1]
+				i++
+			}
+		}
+	}
+
+	return clusterName
 }
 
 func Execute() error {
+	applyClusterContext(clusterNameFromArgs(os.Args[1:], helper.ClusterName))
 
 	// Execute adds all child commands to the root command and sets flags appropriately.
 	// This is called by main.main(). It only needs to happen once to the RootCmd.
@@ -46,22 +85,5 @@ func Execute() error {
 		}
 	}
 
-	// Parse only the persistent flags (like --cluster) before executing any command
-	RootCmd.PersistentFlags().Parse(os.Args[1:])
-
-	// You can now access the helper.ClusterName variable
-	if helper.ClusterName != "" {
-		log.Info().Msgf("Cluster name: %s\n", helper.ClusterName)
-		helper.ClusterPath = filepath.Join("./clusters", helper.ClusterName)
-		helper.ClusterEnvFile = filepath.Join(helper.ClusterPath, "/clusterenv.yaml")
-		helper.TalConfigFile = filepath.Join(helper.ClusterPath, "/talos", "talconfig.yaml")
-		helper.TalosPath = filepath.Join(helper.ClusterPath, "/talos")
-		helper.KubernetesPath = filepath.Join(helper.ClusterPath, "/kubernetes")
-		helper.TalosGenerated = filepath.Join(helper.TalosPath, "/generated")
-		helper.TalosConfigFile = filepath.Join(helper.TalosGenerated, "talosconfig")
-		helper.TalSecretFile = filepath.Join(helper.TalosGenerated, "talsecret.yaml")
-	}
-
-	// Execute the root command and all subcommands
-	return RootCmd.Execute()
+	return err
 }
