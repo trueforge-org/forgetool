@@ -16,22 +16,25 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+var httpGet = http.Get
+var helmPull = fluxhandler.HelmPull
+
 func LoadGPGKey() error {
 	log.Info().Msg("🔑 Fetching and Loading TrueCharts PGP Public Key 🔑")
 	if err := os.MkdirAll(helper.GpgDir, os.ModePerm); err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to create GPG directory")
+		return fmt.Errorf("failed to create GPG directory: %w", err)
 	}
 
 	keybaseURL := "https://trueforge.org/pub_key.gpg"
 	pubringPath := path.Join(helper.GpgDir, "pubring.gpg")
 	if err := downloadFile(keybaseURL, pubringPath); err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to download keybase public key")
+		return fmt.Errorf("failed to download keybase public key: %w", err)
 	}
 
 	certmanURL := "https://cert-manager.io/public-keys/cert-manager-keyring-2021-09-20-1020CF3C033D4F35BAE1C19E1226061C665DF13E.gpg"
 	certmanPath := path.Join(helper.GpgDir, "certman.gpg")
 	if err := downloadFile(certmanURL, certmanPath); err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to download certman public key")
+		return fmt.Errorf("failed to download certman public key: %w", err)
 	}
 
 	log.Info().Msg("✅ Public Key loaded successfully")
@@ -39,7 +42,7 @@ func LoadGPGKey() error {
 }
 
 func downloadFile(url, destination string) error {
-	response, err := http.Get(url)
+	response, err := httpGet(url)
 	if err != nil {
 		log.Error().Err(err).Msgf("❌ Failed to download [%s]", url)
 		return err
@@ -79,14 +82,14 @@ func fetchIndexFile(repo string, repoDir string, repoURL string) error {
 	// Create index directory
 	err := os.MkdirAll(path.Join(helper.IndexCache, repoDir), os.ModePerm)
 	if err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to create index directory")
+		return fmt.Errorf("failed to create index directory: %w", err)
 	}
 
 	// Download index file
 	log.Info().Msgf("⏬ Downloading index [%s]...", repoURL)
 	err = downloadFile(repoURL, destPath)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("❌ Failed to download index for [%s] from [%s]", repo, repoURL)
+		return fmt.Errorf("failed to download index for [%s] from [%s]: %w", repo, repoURL, err)
 	}
 
 	log.Info().Msg("✅ Index File downloaded")
@@ -112,7 +115,7 @@ func fetchDependency(repo string, repoDir string, name string, version string, r
 
 	// Download dependency
 	log.Info().Msgf("⏬ Downloading dependency [%s-%s] from [%s]", name, version, repo)
-	if err := fluxhandler.HelmPull(repo, name, version, repoCacheDir, false); err != nil {
+	if err := helmPull(repo, name, version, repoCacheDir, false); err != nil {
 		return fmt.Errorf("❌ Failed to download or verify dependency: %s", err)
 	}
 
@@ -165,11 +168,11 @@ func processChartDependency(chartFolder string, name string, version string, rep
 	}
 
 	if err := fetchDependency(repo, repoDir, name, version, repoURL); err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to fetch dependency")
+		return fmt.Errorf("failed to fetch dependency: %w", err)
 	}
 
 	if err := copyDependency(chartFolder, repo, repoDir, name, version); err != nil {
-		log.Fatal().Err(err).Msg("❌ Failed to copy dependency")
+		return fmt.Errorf("failed to copy dependency: %w", err)
 	}
 
 	log.Info().Msg("✅ Dependency processed!")
@@ -182,7 +185,7 @@ func DownloadDeps(chartPath string, placeholder string) error {
 	helmChart := chartFile.NewHelmChart()
 	err := helmChart.LoadFromFile(chartPath)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("❌ Failed to load Helm chart from file in [%s]", chartFolder)
+		return fmt.Errorf("failed to load Helm chart from file in [%s]: %w", chartFolder, err)
 	}
 
 	fmt.Print("\n\n")

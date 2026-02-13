@@ -276,6 +276,19 @@ func TestCheckValidLabelValue(t *testing.T) {
 	}
 }
 
+func TestTrimTrailingTagSuffix_DefaultBranch(t *testing.T) {
+	got := trimTrailingTagSuffix("abc-def")
+	if got != "abc-def" {
+		t.Fatalf("expected unchanged tag, got %s", got)
+	}
+}
+
+func TestClean_ReturnsError(t *testing.T) {
+	if err := Clean(""); err == nil {
+		t.Fatalf("expected error for empty tag")
+	}
+}
+
 func TestClean(t *testing.T) {
 	if err := Clean("v1.2.3"); err != nil {
 		t.Fatalf("Clean should succeed for valid tag: %v", err)

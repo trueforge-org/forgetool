@@ -33,6 +33,7 @@ url: https://discord.com/invite/tVsPTHWTtr`
 )
 
 var validate *validator.Validate
+var marshalYaml = helper.MarshalYaml
 
 // Maintainer represents a maintainer of the Helm chart.
 type Maintainer struct {
@@ -152,7 +153,7 @@ func (h *HelmChart) SaveToFile(filename string) error {
 	}
 
 	var configBytes bytes.Buffer
-	err := helper.MarshalYaml(&configBytes, h.Metadata)
+	err := marshalYaml(&configBytes, h.Metadata)
 	if err != nil {
 		return fmt.Errorf("error encoding data: %v", err)
 	}

@@ -35,3 +35,35 @@ func TestGenerateReadme(t *testing.T) {
 		t.Fatalf("expected placeholders replaced, got: %q", content)
 	}
 }
+
+func TestGenerateReadme_MissingTemplate(t *testing.T) {
+	err := GenerateReadme(t.TempDir(), filepath.Join(t.TempDir(), "Chart.yaml"), "chart", "stable")
+	if err == nil {
+		t.Fatalf("expected error when template is missing")
+	}
+}
+
+func TestGenerateReadme_WriteError(t *testing.T) {
+	tplRoot := t.TempDir()
+	chartDir := t.TempDir()
+	chartPath := filepath.Join(chartDir, "Chart.yaml")
+
+	if err := os.MkdirAll(filepath.Join(tplRoot, "templates"), os.ModePerm); err != nil {
+		t.Fatalf("mkdir templates failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tplRoot, "templates", "README.md.tpl"), []byte("# CHARTPLACEHOLDER\n"), 0644); err != nil {
+		t.Fatalf("write template failed: %v", err)
+	}
+	if err := os.WriteFile(chartPath, []byte("apiVersion: v2\n"), 0644); err != nil {
+		t.Fatalf("write chart failed: %v", err)
+	}
+
+	target := filepath.Join(chartDir, "README.md")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatalf("mkdir target dir failed: %v", err)
+	}
+
+	if err := GenerateReadme(tplRoot, chartPath, "chart", "stable"); err == nil {
+		t.Fatalf("expected write error when target path is a directory")
+	}
+}

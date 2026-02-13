@@ -2,7 +2,6 @@ package changelog
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -19,6 +18,9 @@ type ChangedData struct {
 	LastCommit string            `json:"last_commit"`
 	Charts     map[string]*Chart `json:"charts"`
 }
+
+var readChangedDataFileFunc = os.ReadFile
+var marshalChangedDataFunc = json.MarshalIndent
 
 type Chart struct {
 	Versions       map[string]*Version `json:"versions"`
@@ -110,30 +112,23 @@ func (v *Version) SortCommits(reverse bool) ([]*Commit, error) {
 		commits = append(commits, commit)
 	}
 
-	hasErr := false
+	parsedDates := make(map[*Commit]time.Time, len(commits))
+	for _, commit := range commits {
+		parsedDate, err := time.Parse(dateFormat, commit.Author.Date)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse date [%s]: %w", commit.Author.Date, err)
+		}
+		parsedDates[commit] = parsedDate
+	}
+
 	sort.Slice(commits, func(i, j int) bool {
-		// While we could store the time.Time in the Author struct,
-		// it was giving mixed results as the timezones were different.
-		// The dateFormat we use does not contain timezone, so it sorts better.
-		iDate, err := time.Parse(dateFormat, commits[i].Author.Date)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("Failed to parse date [%s]", commits[i].Author.Date)
-			return false
-		}
-		jDate, err := time.Parse(dateFormat, commits[j].Author.Date)
-		if err != nil {
-			log.Fatal().Err(err).Msgf("Failed to parse date [%s]", commits[j].Author.Date)
-			return false
-		}
+		iDate := parsedDates[commits[i]]
+		jDate := parsedDates[commits[j]]
 		if reverse {
 			return iDate.After(jDate)
 		}
 		return iDate.Before(jDate)
 	})
-
-	if hasErr {
-		return nil, errors.New("failed to sort commits")
-	}
 
 	v.SortedCommits = commits
 	return commits, nil
@@ -164,7 +159,7 @@ func (c *ChangedData) LoadFromFile(path string) error {
 		return fmt.Errorf("path is a directory")
 	}
 
-	bytes, err := os.ReadFile(path)
+	bytes, err := readChangedDataFileFunc(path)
 	if err != nil {
 		return err
 	}
@@ -178,7 +173,7 @@ func (c *ChangedData) LoadFromFile(path string) error {
 }
 
 func (c *ChangedData) WriteToFile(path string) error {
-	data, err := json.MarshalIndent(c, "", "  ")
+	data, err := marshalChangedDataFunc(c, "", "  ")
 	if err != nil {
 		return err
 	}

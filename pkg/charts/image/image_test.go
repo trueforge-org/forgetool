@@ -2,6 +2,8 @@ package image
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -167,5 +169,35 @@ func TestLoadValuesFile(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLoadValuesFile_UnmarshalError(t *testing.T) {
+	td := t.TempDir()
+	valuesFile := filepath.Join(td, "values.yaml")
+	if err := os.WriteFile(valuesFile, []byte("image: not-a-map\n"), 0644); err != nil {
+		t.Fatalf("write values file failed: %v", err)
+	}
+
+	var images Images
+	if err := images.LoadValuesFile(valuesFile); err == nil {
+		t.Fatalf("expected unmarshal error when image key is not a map")
+	}
+}
+
+func TestLoadValuesFile_CleanTagErrorPath(t *testing.T) {
+	td := t.TempDir()
+	valuesFile := filepath.Join(td, "values.yaml")
+	content := "image:\n  repository: nginx\n  tag: \"\"\n"
+	if err := os.WriteFile(valuesFile, []byte(content), 0644); err != nil {
+		t.Fatalf("write values file failed: %v", err)
+	}
+
+	var images Images
+	if err := images.LoadValuesFile(valuesFile); err != nil {
+		t.Fatalf("LoadValuesFile should continue on CleanTag error, got: %v", err)
+	}
+	if images.ImagesMap["image"].Version != "" {
+		t.Fatalf("expected empty cleaned version when tag cleaning fails")
 	}
 }

@@ -2,11 +2,13 @@ package deps
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/trueforge-org/forgetool/pkg/helper"
@@ -154,5 +156,232 @@ func TestLoadGPGKeyWithMockTransport(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(helper.GpgDir, "certman.gpg")); err != nil {
 		t.Fatalf("expected certman.gpg to be created: %v", err)
+	}
+}
+
+func TestLoadGPGKey_DownloadFailures(t *testing.T) {
+	oldGpgDir := helper.GpgDir
+	helper.GpgDir = t.TempDir()
+	t.Cleanup(func() { helper.GpgDir = oldGpgDir })
+
+	origGet := httpGet
+	t.Cleanup(func() { httpGet = origGet })
+
+	call := 0
+	httpGet = func(_ string) (*http.Response, error) {
+		call++
+		if call == 1 {
+			return nil, errors.New("first")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("ok")), Header: make(http.Header)}, nil
+	}
+	if err := LoadGPGKey(); err == nil {
+		t.Fatalf("expected first download failure")
+	}
+
+	call = 0
+	httpGet = func(_ string) (*http.Response, error) {
+		call++
+		if call == 2 {
+			return nil, errors.New("second")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("ok")), Header: make(http.Header)}, nil
+	}
+	if err := LoadGPGKey(); err == nil {
+		t.Fatalf("expected second download failure")
+	}
+}
+
+func TestDownloadFile_ErrorBranches(t *testing.T) {
+	origGet := httpGet
+	t.Cleanup(func() { httpGet = origGet })
+
+	httpGet = func(_ string) (*http.Response, error) { return nil, errors.New("boom") }
+	if err := downloadFile("https://example.com", filepath.Join(t.TempDir(), "x")); err == nil {
+		t.Fatalf("expected get error")
+	}
+
+	httpGet = func(_ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: errReadCloser{}, Header: make(http.Header)}, nil
+	}
+	if err := downloadFile("https://example.com", filepath.Join(t.TempDir(), "x")); err == nil {
+		t.Fatalf("expected body read error")
+	}
+
+	httpGet = func(_ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString("x")), Header: make(http.Header)}, nil
+	}
+	d := filepath.Join(t.TempDir(), "dest-dir")
+	if err := os.MkdirAll(d, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := downloadFile("https://example.com", d); err == nil {
+		t.Fatalf("expected write error")
+	}
+}
+
+type errReadCloser struct{}
+
+func (errReadCloser) Read(_ []byte) (int, error) { return 0, errors.New("read") }
+func (errReadCloser) Close() error               { return nil }
+
+func TestFetchDependency_NonCachedBranches(t *testing.T) {
+	origHelmCache := helper.HelmCache
+	helper.HelmCache = t.TempDir()
+	t.Cleanup(func() { helper.HelmCache = origHelmCache })
+
+	origPull := helmPull
+	t.Cleanup(func() { helmPull = origPull })
+
+	helper.HelmCache = filepath.Join(t.TempDir(), "cache-file")
+	if err := os.WriteFile(helper.HelmCache, []byte("x"), 0644); err != nil {
+		t.Fatalf("write cache-file failed: %v", err)
+	}
+	if err := fetchDependency("repo", "repo/dir", "dep", "1.0.0", "url"); err == nil {
+		t.Fatalf("expected mkdir error")
+	}
+
+	helper.HelmCache = t.TempDir()
+	helmPull = func(_, _, _, _ string, _ bool) error { return errors.New("pull") }
+	if err := fetchDependency("repo", "repo/dir", "dep", "1.0.0", "url"); err == nil {
+		t.Fatalf("expected pull error")
+	}
+
+	helmPull = func(_, _, _, _ string, _ bool) error { return nil }
+	if err := fetchDependency("repo", "repo/dir", "dep", "1.0.0", "url"); err == nil {
+		t.Fatalf("expected missing file error")
+	}
+
+	helmPull = func(_, name, version, repoCacheDir string, _ bool) error {
+		return os.WriteFile(filepath.Join(repoCacheDir, name+"-"+version+".tgz"), []byte("tgz"), 0644)
+	}
+	if err := fetchDependency("repo", "repo/dir", "dep", "1.0.0", "url"); err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+}
+
+func TestProcessChartDependencyAndDownloadDepsBranches(t *testing.T) {
+	origIndexCache := helper.IndexCache
+	origHelmCache := helper.HelmCache
+	origGet := httpGet
+	origPull := helmPull
+	t.Cleanup(func() {
+		helper.IndexCache = origIndexCache
+		helper.HelmCache = origHelmCache
+		httpGet = origGet
+		helmPull = origPull
+	})
+
+	helper.IndexCache = t.TempDir()
+	helper.HelmCache = t.TempDir()
+	httpGet = func(_ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("index")), Header: make(http.Header)}, nil
+	}
+	helmPull = func(_, name, version, repoCacheDir string, _ bool) error {
+		return os.WriteFile(filepath.Join(repoCacheDir, name+"-"+version+".tgz"), []byte("tgz"), 0644)
+	}
+
+	if err := processChartDependency(t.TempDir(), "dep", "1.0.0", "https://example.com/charts"); err != nil {
+		t.Fatalf("expected process success, got %v", err)
+	}
+
+	helper.IndexCache = filepath.Join(t.TempDir(), "index-file")
+	if err := os.WriteFile(helper.IndexCache, []byte("x"), 0644); err != nil {
+		t.Fatalf("write index-file failed: %v", err)
+	}
+	if err := processChartDependency(t.TempDir(), "dep", "1.0.0", "https://example.com/charts"); err == nil {
+		t.Fatalf("expected fetch index wrapper error")
+	}
+
+	helper.IndexCache = t.TempDir()
+	helper.HelmCache = filepath.Join(t.TempDir(), "helm-file")
+	if err := os.WriteFile(helper.HelmCache, []byte("x"), 0644); err != nil {
+		t.Fatalf("write helm-file failed: %v", err)
+	}
+	if err := processChartDependency(t.TempDir(), "dep", "1.0.0", "https://example.com/charts"); err == nil {
+		t.Fatalf("expected fetch dependency wrapper error")
+	}
+
+	chartDir := t.TempDir()
+	chartPath := filepath.Join(chartDir, "Chart.yaml")
+	chartYAML := "apiVersion: v2\nname: app\nversion: 0.1.0\ndependencies:\n  - name: dep\n    version: 1.0.0\n    repository: https://example.com/charts\n"
+	if err := os.WriteFile(chartPath, []byte(chartYAML), 0644); err != nil {
+		t.Fatalf("write chart failed: %v", err)
+	}
+
+	helper.IndexCache = filepath.Join(t.TempDir(), "index-file2")
+	if err := os.WriteFile(helper.IndexCache, []byte("x"), 0644); err != nil {
+		t.Fatalf("write index-file2 failed: %v", err)
+	}
+	if err := DownloadDeps(chartPath, ""); err == nil {
+		t.Fatalf("expected dependency processing error")
+	}
+
+	blockingChartsPath := filepath.Join(chartDir, "charts")
+	if err := os.RemoveAll(blockingChartsPath); err != nil {
+		t.Fatalf("remove charts path failed: %v", err)
+	}
+	if err := os.WriteFile(blockingChartsPath, []byte("x"), 0644); err != nil {
+		t.Fatalf("write blocking charts file failed: %v", err)
+	}
+	if err := DownloadDeps(chartPath, ""); err == nil {
+		t.Fatalf("expected charts mkdir error")
+	}
+}
+
+func TestDeps_FinalErrorBranches(t *testing.T) {
+	oldGpgDir := helper.GpgDir
+	oldIndexCache := helper.IndexCache
+	oldHelmCache := helper.HelmCache
+	origGet := httpGet
+	origPull := helmPull
+	t.Cleanup(func() {
+		helper.GpgDir = oldGpgDir
+		helper.IndexCache = oldIndexCache
+		helper.HelmCache = oldHelmCache
+		httpGet = origGet
+		helmPull = origPull
+	})
+
+	root := t.TempDir()
+	blocking := filepath.Join(root, "block")
+	if err := os.WriteFile(blocking, []byte("x"), 0644); err != nil {
+		t.Fatalf("write blocking file failed: %v", err)
+	}
+	helper.GpgDir = filepath.Join(blocking, "dir")
+	if err := LoadGPGKey(); err == nil {
+		t.Fatalf("expected gpg mkdir error")
+	}
+
+	helper.IndexCache = t.TempDir()
+	httpGet = func(_ string) (*http.Response, error) { return nil, errors.New("download fail") }
+	if err := fetchIndexFile("repo", "repoDir", "https://example.com/index.yaml"); err == nil {
+		t.Fatalf("expected fetch index download wrapper error")
+	}
+
+	helper.HelmCache = t.TempDir()
+	chartFolder := t.TempDir()
+	chartsPath := filepath.Join(chartFolder, "charts")
+	if err := os.WriteFile(chartsPath, []byte("x"), 0644); err != nil {
+		t.Fatalf("write blocking charts failed: %v", err)
+	}
+	if err := copyDependency(chartFolder, "repo", "repoDir", "dep", "1.0.0"); err == nil {
+		t.Fatalf("expected copyDependency mkdir error")
+	}
+
+	helper.IndexCache = t.TempDir()
+	helper.HelmCache = t.TempDir()
+	httpGet = func(_ string) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("index")), Header: make(http.Header)}, nil
+	}
+	helmPull = func(_, name, version, repoCacheDir string, _ bool) error {
+		return os.WriteFile(filepath.Join(repoCacheDir, name+"-"+version+".tgz"), []byte("tgz"), 0644)
+	}
+	if err := processChartDependency(chartFolder, "dep", "1.0.0", "https://example.com/charts"); err == nil {
+		t.Fatalf("expected wrapped copyDependency error")
+	}
+
+	if err := DownloadDeps(filepath.Join(t.TempDir(), "missing-chart.yaml"), ""); err == nil {
+		t.Fatalf("expected wrapped load chart error")
 	}
 }
