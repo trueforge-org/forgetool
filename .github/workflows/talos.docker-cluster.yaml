@@ -109,6 +109,15 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
+          echo "Waiting 10 seconds for Talos containers to initialize..."
+          sleep 10
+
+          echo "=== talos-control-1 logs ==="
+          docker logs talos-control-1
+
+          echo "=== talos-worker-1 logs ==="
+          docker logs talos-worker-1
+
       - name: Wait for Talos API
         run: |
           set -euo pipefail
@@ -149,8 +158,8 @@ jobs:
         if: failure()
         run: |
           set +e
-          docker logs talos-control-1 > /tmp/talos-control-1.log 2>&1
-          docker logs talos-worker-1 > /tmp/talos-worker-1.log 2>&1
+          docker logs talos-control-1
+          docker logs talos-worker-1
 
       - name: Upload logs
         if: failure()
