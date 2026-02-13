@@ -17,8 +17,10 @@ type Data struct {
 	GitDirty  bool
 }
 
+var readBuildInfoFn = debug.ReadBuildInfo
+
 func NewInfo() *Data {
-	info, _ := debug.ReadBuildInfo()
+	info, _ := readBuildInfoFn()
 	data := &Data{
 		GoVersion: info.GoVersion,
 	}

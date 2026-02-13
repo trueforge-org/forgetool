@@ -19,7 +19,6 @@ Sorted from lowest to highest coverage.
 - [ ]  51.52% (17/33) - pkg/kubectlcmds/apply.go
 - [ ]  58.82% (10/17) - pkg/helper/time.go
 - [ ]  69.23% (18/26) - pkg/kubectlcmds/kustomize.go
-- [ ]  75.00% (9/12) - pkg/info/info.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
 - [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
 - [ ]  78.12% (50/64) - pkg/helper/git_precommit_hook.go
@@ -100,6 +99,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (12/12) - pkg/helper/dns.go
 - [ ] 100.00% (7/7) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
+- [ ] 100.00% (12/12) - pkg/info/info.go
 - [ ] 100.00% (38/38) - pkg/nodestatus/health.go
 - [ ] 100.00% (30/30) - pkg/nodestatus/health_wait.go
 - [ ] 100.00% (56/56) - pkg/nodestatus/status.go
