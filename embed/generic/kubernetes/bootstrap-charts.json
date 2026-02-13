@@ -1,0 +1,29 @@
+{
+  "charts": [
+    { "path": "kubernetes/kube-system/cilium/app", "retry": false, "wait": true, "stage": 0 },
+    { "path": "kubernetes/kube-system/kubelet-csr-approver/app", "retry": false, "wait": true, "stage": 0 },
+    { "path": "kubernetes/system/kube-prometheus-stack/app", "retry": false, "wait": false, "stage": 0 },
+
+    { "path": "kubernetes/system/spegel/app", "retry": false, "wait": true, "stage": 1 },
+    { "path": "kubernetes/system/cert-manager/app", "retry": false, "wait": false, "stage": 1 },
+    { "path": "kubernetes/system/kubernetes-reflector/app", "retry": false, "wait": false, "stage": 1 },
+
+    { "path": "kubernetes/system/metallb/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/core/clusterissuer/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/system/cloudnative-pg/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/kube-system/node-feature-discovery/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/kube-system/metrics-server/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/kube-system/descheduler/app", "retry": false, "wait": false, "stage": 2 },
+    { "path": "kubernetes/system/volsync/app", "retry": false, "wait": true, "stage": 2 },
+    { "path": "kubernetes/system/snapshot-controller/app", "retry": false, "wait": true, "stage": 2 },
+    { "path": "kubernetes/system/openebs/app", "retry": false, "wait": true, "stage": 2 },
+    { "path": "kubernetes/system/longhorn/app", "retry": false, "wait": true, "stage": 2 },
+
+    { "path": "kubernetes/core/metallb-config/app", "retry": false, "wait": false, "stage": 3 },
+
+    { "path": "kubernetes/networking/nginx-internal/app", "retry": false, "wait": true, "stage": 4 },
+    { "path": "kubernetes/networking/nginx-external/app", "retry": false, "wait": true, "stage": 4 },
+    { "path": "kubernetes/core/blocky/app", "retry": false, "wait": true, "stage": 4 },
+    { "path": "kubernetes/apps/kubernetes-dashboard/app", "retry": false, "wait": true, "stage": 4 }
+  ]
+}
