@@ -13,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	sideroConfig "github.com/siderolabs/talos/pkg/machinery/config"
 	"github.com/siderolabs/talos/pkg/machinery/config/generate/secrets"
+	"github.com/siderolabs/talos/pkg/machinery/constants"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
@@ -86,8 +87,9 @@ func TalhelperGenConfig() error {
 	genconfigNoGitignore := false
 	genconfigDryRun := false
 	genconfigOfflineMode := false
+	genconfigCrtTTL := constants.TalosAPIDefaultCertificateValidityDuration
 
-	err := generateConfigFn(TalConfig, genconfigDryRun, helper.TalosGenerated, helper.TalSecretFile, genconfigTalosMode, genconfigOfflineMode, false)
+	err := generateConfigFn(TalConfig, genconfigDryRun, helper.TalosGenerated, helper.TalSecretFile, genconfigTalosMode, genconfigOfflineMode, false, genconfigCrtTTL)
 	if err != nil {
 		talassistFatalFn(err, "failed to generate talos config")
 		talassistExitFn(1)
