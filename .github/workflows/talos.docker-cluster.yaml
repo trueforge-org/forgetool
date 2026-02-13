@@ -14,6 +14,8 @@ jobs:
   talos-cluster:
     runs-on: ubuntu-latest
     env:
+      LOGLEVEL: debug
+      DEBUG: "1"
       TALOS_VERSION: v1.12.0
       TALOS_IMAGE: ghcr.io/siderolabs/talos:v1.12.0
       CONTROL_IP: 10.5.0.2
