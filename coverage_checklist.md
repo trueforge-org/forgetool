@@ -41,7 +41,6 @@ Sorted from lowest to highest coverage.
 - [ ]  75.00% (9/12) - pkg/info/info.go
 - [ ]  75.00% (12/16) - pkg/initfiles/initfiles_runagain.go
 - [ ]  76.32% (58/76) - pkg/fluxhandler/sshsecretgen.go
-- [ ]  76.92% (10/13) - cmd/charts_genchartlist.go
 - [ ]  78.12% (50/64) - pkg/helper/git_precommit_hook.go
 - [ ]  80.00% (8/10) - pkg/charts/helmignore/helmignore.go
 - [ ]  82.09% (55/67) - pkg/charts/changelog/utils.go
@@ -50,7 +49,6 @@ Sorted from lowest to highest coverage.
 - [ ]  84.21% (80/95) - pkg/helper/tooldocs.go
 - [ ]  84.62% (11/13) - pkg/helper/prompts.go
 - [ ]  84.76% (89/105) - pkg/charts/chartFile/updater.go
-- [ ]  85.71% (12/14) - cmd/charts_genchangelog.go
 - [ ]  85.71% (18/21) - pkg/sops/loadsops.go
 - [ ]  86.36% (19/22) - pkg/gencmd/plain.go
 - [ ]  87.50% (14/16) - pkg/charts/valuesYaml/parse.go
@@ -80,6 +78,8 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (1/1) - cmd/charts.go
 - [ ] 100.00% (5/5) - cmd/charts_bump.go
 - [ ] 100.00% (10/10) - cmd/charts_deps.go
+- [ ] 100.00% (14/14) - cmd/charts_genchangelog.go
+- [ ] 100.00% (13/13) - cmd/charts_genchartlist.go
 - [ ] 100.00% (13/13) - cmd/charts_genmeta.go
 - [ ] 100.00% (6/6) - cmd/charts_tagclean.go
 - [ ] 100.00% (5/5) - cmd/checkcrypt.go

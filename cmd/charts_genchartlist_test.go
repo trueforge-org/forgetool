@@ -181,3 +181,22 @@ func TestRunChartsGenChartListWithDefaultFixture(t *testing.T) {
 		t.Fatalf("expected at least one chart in output")
 	}
 }
+
+func TestDefaultChartListWrappers(t *testing.T) {
+	opts := defaultChartsGenChartListOptionsFactory()
+	if opts.OutputPath != "./charts.json" {
+		t.Fatalf("unexpected default output path: %s", opts.OutputPath)
+	}
+	if len(opts.TrainFilter) != 0 {
+		t.Fatalf("expected empty default train filter")
+	}
+
+	if defaultChartsGenChartListGetChartData(opts) == nil {
+		t.Fatalf("expected chart data walker function")
+	}
+
+	opts.OutputPath = filepath.Join(t.TempDir(), "charts.json")
+	if err := defaultChartsGenChartListWrite(opts); err == nil {
+		t.Fatalf("expected write error when chart list is nil")
+	}
+}

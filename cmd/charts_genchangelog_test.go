@@ -99,8 +99,8 @@ func TestDefaultChangelogWrappersReturnErrorsOnInvalidInput(t *testing.T) {
 		chartsGenChangelogRender = oldRender
 	})
 
-	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error { return opts.Generate() }
-	chartsGenChangelogRender = func(opts *changelog.ChangelogOptions) error { return opts.Render() }
+	chartsGenChangelogGenerate = defaultChartsGenChangelogGenerate
+	chartsGenChangelogRender = defaultChartsGenChangelogRender
 
 	bad := &changelog.ChangelogOptions{
 		RepoPath:                  "",
@@ -121,4 +121,21 @@ func TestDefaultChangelogWrappersReturnErrorsOnInvalidInput(t *testing.T) {
 	t.Cleanup(func() { chartsGenChangelogOnError = oldOnError })
 	chartsGenChangelogOnError = func(err error) { oldOnError(err) }
 	chartsGenChangelogOnError(errors.New("boom"))
+}
+
+func TestDefaultChangelogWrappersDirect(t *testing.T) {
+	bad := &changelog.ChangelogOptions{
+		RepoPath:                  "",
+		TemplatePath:              filepath.Join("..", "does-not-exist"),
+		ChartsDir:                 "",
+		ChangelogFileName:         "CHANGELOG.md",
+		JSONOutputPath:            filepath.Join(t.TempDir(), "changelog.json"),
+		StatusUpdateInterval:      1,
+		SkipCommitsWithBadMessage: false,
+	}
+
+	if err := defaultChartsGenChangelogGenerate(bad); err == nil {
+		t.Fatalf("expected error from default generate wrapper")
+	}
+	_ = defaultChartsGenChangelogRender(bad)
 }

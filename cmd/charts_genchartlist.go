@@ -16,18 +16,28 @@ var chartsGenChartsListLongHelp = strings.TrimSpace(`
 
 `)
 
+func defaultChartsGenChartListOptionsFactory() *website.ChartListOptions {
+	return &website.ChartListOptions{
+		OutputPath:  "./charts.json",
+		TrainFilter: []string{},
+	}
+}
+
+func defaultChartsGenChartListGetChartData(opts *website.ChartListOptions) fs.WalkDirFunc {
+	return opts.GetChartData
+}
+
+func defaultChartsGenChartListWrite(opts *website.ChartListOptions) error {
+	return opts.WriteChartList()
+}
+
 var (
 	chartsGenChartListWalkCharts2    = helper.WalkCharts2
-	chartsGenChartListOptionsFactory = func() *website.ChartListOptions {
-		return &website.ChartListOptions{
-			OutputPath:  "./charts.json",
-			TrainFilter: []string{},
-		}
-	}
-	chartsGenChartListGetChartData = func(opts *website.ChartListOptions) fs.WalkDirFunc { return opts.GetChartData }
-	chartsGenChartListWrite        = func(opts *website.ChartListOptions) error { return opts.WriteChartList() }
-	chartsGenChartListRunner       = runChartsGenChartList
-	chartsGenChartListOnError      = func(err error) { log.Fatal().Err(err).Msg("chart list generation failed") }
+	chartsGenChartListOptionsFactory = defaultChartsGenChartListOptionsFactory
+	chartsGenChartListGetChartData   = defaultChartsGenChartListGetChartData
+	chartsGenChartListWrite          = defaultChartsGenChartListWrite
+	chartsGenChartListRunner         = runChartsGenChartList
+	chartsGenChartListOnError        = func(err error) { log.Fatal().Err(err).Msg("chart list generation failed") }
 )
 
 func runChartsGenChartList(args []string) error {

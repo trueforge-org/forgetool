@@ -15,9 +15,17 @@ var chartsGenChangelogLongHelp = strings.TrimSpace(`
 
 `)
 
+func defaultChartsGenChangelogGenerate(opts *changelog.ChangelogOptions) error {
+	return opts.Generate()
+}
+
+func defaultChartsGenChangelogRender(opts *changelog.ChangelogOptions) error {
+	return opts.Render()
+}
+
 var (
-	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error { return opts.Generate() }
-	chartsGenChangelogRender   = func(opts *changelog.ChangelogOptions) error { return opts.Render() }
+	chartsGenChangelogGenerate = defaultChartsGenChangelogGenerate
+	chartsGenChangelogRender   = defaultChartsGenChangelogRender
 	chartsGenChangelogRunner   = runChartsGenChangelog
 	chartsGenChangelogOnError  = func(err error) { log.Fatal().Err(err) }
 )
