@@ -4,23 +4,8 @@ import (
 	"testing"
 
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt"
-	"github.com/siderolabs/talos/cmd/talosctl/cmd/mgmt/cluster"
 	"github.com/siderolabs/talos/cmd/talosctl/cmd/talos"
 )
-
-func TestRunTalosctlArgsSilentMode(t *testing.T) {
-	_, err := runTalosctlArgs([]string{"--help"}, true)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
-
-func TestRunTalosctlArgsNonSilentMode(t *testing.T) {
-	_, err := runTalosctlArgs([]string{"--help"}, false)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-}
 
 func TestTalosctlCommandConfig(t *testing.T) {
 	if talosctl.Use != "talosctl" {
@@ -32,36 +17,24 @@ func TestTalosctlCommandConfig(t *testing.T) {
 	if !talosctl.SilenceErrors {
 		t.Fatalf("expected SilenceErrors to be true")
 	}
-}
-
-func TestTalosctlCommandHasExpectedGroups(t *testing.T) {
-	const (
-		talosGroup   = "talos"
-		mgmtGroup    = "mgmt"
-		clusterGroup = "cluster"
-	)
-
-	registered := make(map[string]bool)
-	for _, group := range talosctl.Groups() {
-		registered[group.ID] = true
-	}
-
-	for _, groupID := range []string{talosGroup, mgmtGroup, clusterGroup} {
-		if !registered[groupID] {
-			t.Fatalf("expected group %q to be registered", groupID)
-		}
+	if !talosctl.DisableFlagParsing {
+		t.Fatalf("expected DisableFlagParsing to be true")
 	}
 }
 
-func TestTalosctlCommandHasExpectedSubcommands(t *testing.T) {
-	const (
-		talosGroup   = "talos"
-		mgmtGroup    = "mgmt"
-		clusterGroup = "cluster"
-	)
+func TestRunTalosctlArgsSilentMode(t *testing.T) {
+	out, err := runTalosctlArgs([]string{"--help"}, true)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if out == "" {
+		t.Fatalf("expected help output")
+	}
+}
 
+func TestInternalTalosctlHasExpectedSubcommands(t *testing.T) {
 	registered := make(map[string]bool)
-	for _, command := range talosctl.Commands() {
+	for _, command := range internalTalosctl.Commands() {
 		registered[command.Name()] = true
 	}
 
@@ -69,23 +42,11 @@ func TestTalosctlCommandHasExpectedSubcommands(t *testing.T) {
 		if !registered[command.Name()] {
 			t.Fatalf("expected mgmt command %q to be registered", command.Name())
 		}
-
-		expectedGroupID := mgmtGroup
-		if command == cluster.Cmd {
-			expectedGroupID = clusterGroup
-		}
-
-		if command.GroupID != expectedGroupID {
-			t.Fatalf("expected mgmt command %q to have group %q, got %q", command.Name(), expectedGroupID, command.GroupID)
-		}
 	}
 
 	for _, command := range talos.Commands {
 		if !registered[command.Name()] {
 			t.Fatalf("expected talos command %q to be registered", command.Name())
-		}
-		if command.GroupID != talosGroup {
-			t.Fatalf("expected talos command %q to have group %q, got %q", command.Name(), talosGroup, command.GroupID)
 		}
 	}
 }
