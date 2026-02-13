@@ -1,0 +1,133 @@
+name: talos-docker-cluster
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  talos-cluster:
+    runs-on: default
+    env:
+      TALOS_VERSION: v1.10.2
+      TALOS_IMAGE: ghcr.io/siderolabs/talos:v1.10.2
+      CLUSTER_NAME: ci-talos
+      CONTROL_IP: 10.5.0.2
+      WORKER_IP: 10.5.0.3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install talosctl
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/siderolabs/talos/releases/download/${TALOS_VERSION}/talosctl-linux-amd64" -o /tmp/talosctl
+          chmod +x /tmp/talosctl
+          sudo mv /tmp/talosctl /usr/local/bin/talosctl
+          talosctl version --client
+
+      - name: Start Talos nodes in Docker
+        run: |
+          set -euo pipefail
+
+          docker network create --subnet 10.5.0.0/24 talosnet || true
+
+          docker run -d \
+            --name talos-control-1 \
+            --hostname talos-control-1 \
+            --privileged \
+            --read-only \
+            --tmpfs /run \
+            --tmpfs /system \
+            --tmpfs /tmp \
+            --network talosnet \
+            --ip "${CONTROL_IP}" \
+            -e PLATFORM=container \
+            "${TALOS_IMAGE}"
+
+          docker run -d \
+            --name talos-worker-1 \
+            --hostname talos-worker-1 \
+            --privileged \
+            --read-only \
+            --tmpfs /run \
+            --tmpfs /system \
+            --tmpfs /tmp \
+            --network talosnet \
+            --ip "${WORKER_IP}" \
+            -e PLATFORM=container \
+            "${TALOS_IMAGE}"
+
+      - name: Generate Talos configs
+        run: |
+          set -euo pipefail
+          talosctl gen config \
+            "${CLUSTER_NAME}" \
+            "https://${CONTROL_IP}:6443" \
+            --output-dir /tmp/talos \
+            --force
+
+      - name: Wait for Talos API
+        run: |
+          set -euo pipefail
+          for node in "${CONTROL_IP}" "${WORKER_IP}"; do
+            for attempt in $(seq 1 90); do
+              if talosctl -n "${node}" version --insecure >/dev/null 2>&1; then
+                echo "Talos API is reachable on ${node}"
+                break
+              fi
+              if [ "${attempt}" -eq 90 ]; then
+                echo "Timed out waiting for Talos API on ${node}"
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Apply machine configuration
+        run: |
+          set -euo pipefail
+          talosctl -n "${CONTROL_IP}" apply-config --insecure -f /tmp/talos/controlplane.yaml
+          talosctl -n "${WORKER_IP}" apply-config --insecure -f /tmp/talos/worker.yaml
+
+      - name: Bootstrap cluster
+        run: |
+          set -euo pipefail
+          talosctl --talosconfig /tmp/talos/talosconfig config endpoint "${CONTROL_IP}"
+          talosctl --talosconfig /tmp/talos/talosconfig config node "${CONTROL_IP}"
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" bootstrap
+
+      - name: Verify Talos services
+        run: |
+          set -euo pipefail
+
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service etcd
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kube-apiserver
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP}" service kubelet
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${WORKER_IP}" service kubelet
+
+          talosctl --talosconfig /tmp/talos/talosconfig -n "${CONTROL_IP},${WORKER_IP}" get machinestatus
+
+      - name: Collect Talos logs on failure
+        if: failure()
+        run: |
+          set +e
+          docker logs talos-control-1 > /tmp/talos-control-1.log 2>&1
+          docker logs talos-worker-1 > /tmp/talos-worker-1.log 2>&1
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+        with:
+          name: talos-docker-logs
+          path: |
+            /tmp/talos-control-1.log
+            /tmp/talos-worker-1.log
+
+      - name: Cleanup containers and network
+        if: always()
+        run: |
+          docker rm -f talos-control-1 talos-worker-1 2>/dev/null || true
+          docker network rm talosnet 2>/dev/null || true
