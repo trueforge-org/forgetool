@@ -17,10 +17,27 @@ import (
 var GenericFiles embed.FS
 var TalosExec string
 
+type readDirFS interface {
+	fs.FS
+	fs.ReadFileFS
+}
+
+var removeAll = os.RemoveAll
+var mkdirAll = os.MkdirAll
+var writeFile = os.WriteFile
+var walkDir = fs.WalkDir
+var fromEmbeddedFS = func(embeddedFS embed.FS, sub string) (readDirFS, error) {
+	return debme.FS(embeddedFS, sub)
+}
+var fatalErr = func(err error) {
+	log.Fatal().Err(err)
+}
+
 func AllToCache() {
-	err := os.RemoveAll(helper.CacheDir)
+	err := removeAll(helper.CacheDir)
 	if err != nil {
-		log.Fatal().Err(err)
+		fatalErr(err)
+		return
 	}
 	GOOSARCH := runtime.GOOS + "_" + runtime.GOARCH
 	filesToCache(StaticFiles, GOOSARCH)
@@ -30,13 +47,13 @@ func AllToCache() {
 func filesToCache(embededfs embed.FS, sub string) {
 
 	// Ensure the base cache directory exists
-	if err := os.MkdirAll(helper.CacheDir, os.ModePerm); err != nil {
+	if err := mkdirAll(helper.CacheDir, os.ModePerm); err != nil {
 		log.Info().Msgf("Error creating base cache directory: %v", err)
 		return
 	}
 
-	root, _ := debme.FS(embededfs, sub)
-	fs.WalkDir(root, ".", func(path string, d fs.DirEntry, err error) error {
+	root, _ := fromEmbeddedFS(embededfs, sub)
+	walkDir(root, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -57,7 +74,7 @@ func filesToCache(embededfs embed.FS, sub string) {
 					return err
 				}
 				writePath := filepath.Join(helper.CacheDir, path)
-				if err := os.WriteFile(writePath, data, 0755); err != nil {
+				if err := writeFile(writePath, data, 0755); err != nil {
 					log.Info().Msgf("Error writing file to cache: %v", err)
 					return err
 				}
@@ -68,33 +85,37 @@ func filesToCache(embededfs embed.FS, sub string) {
 }
 
 func GetTalosExec() string {
+	return getTalosExecFor(runtime.GOOS, runtime.GOARCH)
+}
+
+func getTalosExecFor(goos string, goarch string) string {
 	execName := ""
-	if runtime.GOOS == "windows" {
-		if runtime.GOARCH == "amd64" {
+	if goos == "windows" {
+		if goarch == "amd64" {
 			execName = "talosctl-windows-amd64.exe"
 		} else {
 			execName = "talosctl-windows-arm64.exe"
 		}
 
 	}
-	if runtime.GOOS == "linux" {
-		if runtime.GOARCH == "amd64" {
+	if goos == "linux" {
+		if goarch == "amd64" {
 			execName = "talosctl-linux-amd64"
 		} else {
 			execName = "talosctl-linux-arm64"
 		}
 
 	}
-	if runtime.GOOS == "darwin" {
-		if runtime.GOARCH == "amd64" {
+	if goos == "darwin" {
+		if goarch == "amd64" {
 			execName = "talosctl-darwin-amd64"
 		} else {
 			execName = "talosctl-darwin-arm64"
 		}
 
 	}
-	if runtime.GOOS == "freebsd" {
-		if runtime.GOARCH == "amd64" {
+	if goos == "freebsd" {
+		if goarch == "amd64" {
 			execName = "talosctl-freebsd-amd64"
 		} else {
 			execName = "talosctl-freebsd-arm64"

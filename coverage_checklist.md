@@ -30,7 +30,6 @@ Sorted from lowest to highest coverage.
 - [ ]  51.52% (17/33) - pkg/kubectlcmds/apply.go
 - [ ]  52.94% (18/34) - pkg/charts/changelog/commit.go
 - [ ]  56.44% (57/101) - pkg/charts/deps/deps.go
-- [ ]  56.52% (26/46) - embed/embed.go
 - [ ]  58.82% (10/17) - pkg/helper/time.go
 - [ ]  66.67% (20/30) - pkg/nodestatus/health_wait.go
 - [ ]  68.09% (32/47) - pkg/charts/changelog/render.go
@@ -102,6 +101,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (10/10) - cmd/talos_kubeconfig.go
 - [ ] 100.00% (10/10) - cmd/talos_reset.go
 - [ ] 100.00% (16/16) - cmd/talos_upgrade.go
+- [ ] 100.00% (50/50) - embed/embed.go
 - [ ] 100.00% (3/3) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
 - [ ] 100.00% (23/23) - pkg/fluxhandler/helmrepo.go
