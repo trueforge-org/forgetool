@@ -84,22 +84,10 @@ func expectExitPanic(t *testing.T, fn func()) {
 		if _, ok := r.(exitPanic); !ok {
 			t.Fatalf("expected exit panic, got %v", r)
 		}
-	}()
+		}()
 	fn()
-}
-
-func failErr(msg string) error { return errors.New(msg) }
-
-func noOpStringSliceFn(string, string, []string) []string { return []string{"ok"} }
-
-func markCalled(flag *bool) {
-	*flag = true
 }
 
 func markCalledWithIndex(calls *[]string, name string) {
 	*calls = append(*calls, name)
-}
-
-func formatCommand(args []string) string {
-	return fmt.Sprint(args)
 }
