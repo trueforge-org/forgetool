@@ -83,7 +83,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          docker network create --subnet 10.5.0.0/24 talosnet || true
+          docker network create --subnet 10.5.0.0/24 talosnet
 
           docker run -d \
             --name talos-control-1 \
@@ -112,7 +112,19 @@ jobs:
             "${TALOS_IMAGE}"
 
           BRIDGE=$(docker network inspect talosnet -f '{{(index .Options "com.docker.network.bridge.name")}}')
-          ip addr add 10.5.0.10/24 dev $BRIDGE
+          if [ -z "${BRIDGE}" ]; then
+            NETWORK_ID=$(docker network inspect talosnet -f '{{.Id}}')
+            BRIDGE="br-${NETWORK_ID:0:12}"
+          fi
+
+          if [ -z "${BRIDGE}" ]; then
+            echo "ERROR: failed to resolve bridge interface for talosnet"
+            docker network inspect talosnet
+            exit 1
+          fi
+
+          echo "Using bridge interface: ${BRIDGE}"
+          ip addr add 10.5.0.10/24 dev "${BRIDGE}"
 
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
