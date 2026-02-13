@@ -12,6 +12,8 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+var marshalChartList = json.Marshal
+
 type ChartList struct {
 	TotalCount int64   `json:"totalCount"`
 	Trains     []Train `json:"trains"`
@@ -44,7 +46,7 @@ func (o *ChartListOptions) WriteChartList() error {
 		return fmt.Errorf("chart list is nil")
 	}
 
-	data, err := json.Marshal(o.list)
+	data, err := marshalChartList(o.list)
 	if err != nil {
 		return err
 	}

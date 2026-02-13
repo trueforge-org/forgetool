@@ -1,6 +1,8 @@
 package chartFile
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -271,6 +273,32 @@ func TestSetDefaultValues_SetsAllFields(t *testing.T) {
 	}
 	if h.Metadata.Annotations["trueforge.org/category"] != defaultCategory {
 		t.Fatalf("expected category annotation %q", defaultCategory)
+	}
+}
+
+func TestSaveToFile_MarshalError(t *testing.T) {
+	h := NewHelmChart()
+	h.Metadata = ChartMetadata{
+		APIVersion:  "v2",
+		Name:        "test",
+		Version:     "1.0.0",
+		Description: "test",
+		AppVersion:  "1.0",
+		Icon:        "https://example.com/icon.png",
+		Home:        "https://example.com",
+		KubeVersion: ">=1.27.0-0",
+		Maintainers: []Maintainer{{Name: "Test", URL: "https://test.com"}},
+	}
+
+	orig := marshalYaml
+	marshalYaml = func(_ *bytes.Buffer, _ interface{}) error {
+		return errors.New("marshal fail")
+	}
+	t.Cleanup(func() { marshalYaml = orig })
+
+	err := h.SaveToFile(filepath.Join(t.TempDir(), "Chart.yaml"))
+	if err == nil {
+		t.Fatal("expected marshal error")
 	}
 }
 

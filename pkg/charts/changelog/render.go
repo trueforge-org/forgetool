@@ -2,6 +2,7 @@ package changelog
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"os"
 	"path/filepath"
@@ -12,22 +13,28 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+var loadChangedDataFileFunc = func(cd *ChangedData, path string) error { return cd.LoadFromFile(path) }
+var walkChartsRenderFunc = helper.WalkCharts2
+var renderChartChangelogFunc = func(o *ChangelogOptions, data *ChangedData, chartName, train string) error {
+	return o.renderChartChangelog(data, chartName, train)
+}
+
 func (o *ChangelogOptions) Render() error {
 	start := time.Now()
 	log.Info().Msgf("Starting changelog render at %s", start)
 
 	changelogData := ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
 	activeCharts := ActiveCharts{items: make(map[string]ActiveChart), mu: &sync.RWMutex{}}
-	if err := changelogData.LoadFromFile(o.JSONOutputPath); err != nil {
-		log.Fatal().Err(err).Msgf("failed to load %s", o.JSONOutputPath)
+	if err := loadChangedDataFileFunc(&changelogData, o.JSONOutputPath); err != nil {
+		return fmt.Errorf("failed to load %s: %w", o.JSONOutputPath, err)
 	}
-	if err := helper.WalkCharts2([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
-		log.Fatal().Err(err).Msg("failed to walk charts")
+	if err := walkChartsRenderFunc([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
+		return fmt.Errorf("failed to walk charts: %w", err)
 	}
 
 	for _, chart := range activeCharts.items {
-		if err := o.renderChartChangelog(&changelogData, chart.Name, chart.Train); err != nil {
-			log.Fatal().Err(err).Msgf("failed to render changelog for chart [%s]", chart.Name)
+		if err := renderChartChangelogFunc(o, &changelogData, chart.Name, chart.Train); err != nil {
+			return fmt.Errorf("failed to render changelog for chart [%s]: %w", chart.Name, err)
 		}
 	}
 

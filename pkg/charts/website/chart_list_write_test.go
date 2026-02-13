@@ -2,6 +2,7 @@ package website
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,5 +47,19 @@ func TestWriteChartList_WriteError(t *testing.T) {
 	opts.list = &ChartList{TotalCount: 1}
 	if err := opts.WriteChartList(); err == nil {
 		t.Fatalf("expected write error when output path is a directory")
+	}
+}
+
+func TestWriteChartList_MarshalError(t *testing.T) {
+	orig := marshalChartList
+	marshalChartList = func(_ interface{}) ([]byte, error) {
+		return nil, errors.New("marshal fail")
+	}
+	t.Cleanup(func() { marshalChartList = orig })
+
+	opts := &ChartListOptions{OutputPath: filepath.Join(t.TempDir(), "out.json")}
+	opts.list = &ChartList{TotalCount: 1}
+	if err := opts.WriteChartList(); err == nil {
+		t.Fatalf("expected marshal error")
 	}
 }

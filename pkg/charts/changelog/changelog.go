@@ -84,16 +84,26 @@ var activeCharts ActiveCharts = ActiveCharts{items: make(map[string]ActiveChart)
 var currentStatus status = status{processedCount: 0, totalCount: 0, skippedCount: 0, avgTime: 0, totalProcessingTime: 0, mu: &sync.RWMutex{}}
 var skipCommitsWithBadMessage bool
 var dateFormat = "2006-01-02"
+var walkChartsFunc = helper.WalkCharts2
+var openRepoFunc = git.PlainOpen
+var processCommitFunc = processCommit
+var mergeStagingToCurrentFunc = mergeStagingToCurrent
+var writeChangedDataFunc = func(path string) error { return changedData.WriteToFile(path) }
+var prepareGenerateFunc = func(o *ChangelogOptions, start time.Time) error { return o.prepareGenerate(start) }
+var loadCommitsForGenerateFunc = func(o *ChangelogOptions) ([]*gitobject.Commit, error) { return o.loadCommitsForGenerate() }
+var repoLogFunc = func(repo *git.Repository) (gitobject.CommitIter, error) {
+	return repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
+}
 
 func (o *ChangelogOptions) Generate() error {
 	start := time.Now()
 	skipCommitsWithBadMessage = o.SkipCommitsWithBadMessage
 	log.Info().Msgf("Starting changelog generation at %s", start)
-	if err := o.prepareGenerate(start); err != nil {
+	if err := prepareGenerateFunc(o, start); err != nil {
 		return err
 	}
 
-	commits, err := o.loadCommitsForGenerate()
+	commits, err := loadCommitsForGenerateFunc(o)
 	if err != nil {
 		return err
 	}
@@ -110,11 +120,11 @@ func (o *ChangelogOptions) Generate() error {
 
 	stop <- struct{}{}
 
-	if err := mergeStagingToCurrent(); err != nil {
+	if err := mergeStagingToCurrentFunc(); err != nil {
 		return err
 	}
 	log.Info().Msgf("Writhing json to %s", o.JSONOutputPath)
-	if err := changedData.WriteToFile(o.JSONOutputPath); err != nil {
+	if err := writeChangedDataFunc(o.JSONOutputPath); err != nil {
 		return fmt.Errorf("error writing json new file: %s", err)
 	}
 	log.Info().Msgf("Finished in %s", time.Since(start))
@@ -127,7 +137,7 @@ func (o *ChangelogOptions) prepareGenerate(start time.Time) error {
 		return err
 	}
 
-	if err := helper.WalkCharts2([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
+	if err := walkChartsFunc([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
 		return err
 	}
 	log.Info().Msgf("Found [%d] active charts in [%s]", len(activeCharts.items), time.Since(start))
@@ -146,12 +156,12 @@ func (o *ChangelogOptions) prepareGenerate(start time.Time) error {
 }
 
 func (o *ChangelogOptions) loadCommitsForGenerate() ([]*gitobject.Commit, error) {
-	repo, err := git.PlainOpen(o.RepoPath)
+	repo, err := openRepoFunc(o.RepoPath)
 	if err != nil {
 		return nil, err
 	}
 
-	cIter, err := repo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime})
+	cIter, err := repoLogFunc(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +176,7 @@ func (o *ChangelogOptions) processCommits(commits []*gitobject.Commit) {
 		changedData.mu.Unlock()
 
 		commitStart := time.Now()
-		if err := processCommit(c); err != nil {
+		if err := processCommitFunc(c); err != nil {
 			log.Error().Err(err).Msgf("Error processing commit: %s", c.Hash.String())
 		}
 

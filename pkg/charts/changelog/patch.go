@@ -12,6 +12,11 @@ import (
 )
 
 var errSkipPatch = errors.New("skip patch")
+var getChartPathFunc = getChartPath
+var getChartVersionFunc = getChartVersion
+var getFilePatchesFunc = func(p *object.Patch) []diff.FilePatch { return p.FilePatches() }
+var getChangedFilePairFunc = getChangedFilePair
+var getOldAndNewVersionFunc = getOldAndNewVersion
 
 func getChangedFilePair(p diff.FilePatch) (string, oldNewPaths, error) {
 	old, new := p.Files()
@@ -28,12 +33,12 @@ func getChangedFilePair(p diff.FilePatch) (string, oldNewPaths, error) {
 		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not an active chart", new.Path())
 		return "", oldNewPaths{}, errSkipPatch
 	}
-	if _, err := getChartPath(new.Path()); err != nil {
+	if _, err := getChartPathFunc(new.Path()); err != nil {
 		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid chart path", new.Path())
 		return "", oldNewPaths{}, errSkipPatch
 	}
 	if old != nil { // If an old file exists in the patch
-		if _, err := getChartPath(old.Path()); err != nil {
+		if _, err := getChartPathFunc(old.Path()); err != nil {
 			log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid chart path", old.Path())
 			return "", oldNewPaths{}, errSkipPatch
 		}
@@ -43,23 +48,23 @@ func getChangedFilePair(p diff.FilePatch) (string, oldNewPaths, error) {
 }
 
 func getOldAndNewVersion(c *object.Commit, par *object.Commit, paths oldNewPaths) (string, string, error) {
-	newChartPath, err := getChartPath(paths.new.Path())
+	newChartPath, err := getChartPathFunc(paths.new.Path())
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get chart path from file path [%s]: %w", paths.new.Path(), err)
 	}
-	newChartVer, err := getChartVersion(c, newChartPath)
+	newChartVer, err := getChartVersionFunc(c, newChartPath)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get chart data from path [%s]: %w", newChartPath, err)
 	}
 
 	oldChartVer := ""
 	if paths.old != nil { // If an old file exists in the patch
-		oldChartPath, err := getChartPath(paths.old.Path())
+		oldChartPath, err := getChartPathFunc(paths.old.Path())
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get chart path from file path [%s]: %w", paths.old.Path(), err)
 		}
 		// Note here we pass the parent commit, not the current commit
-		oldChartVer, err = getChartVersion(par, oldChartPath)
+		oldChartVer, err = getChartVersionFunc(par, oldChartPath)
 		if err != nil {
 			return "", "", fmt.Errorf("failed to get chart data from path [%s]: %w", oldChartPath, err)
 		}
@@ -70,9 +75,9 @@ func getOldAndNewVersion(c *object.Commit, par *object.Commit, paths oldNewPaths
 
 func getChartsWithMultipleChangedFiles(p *object.Patch) (chartsWithChangedFiles, error) {
 	chartsWithMultipleFiles := make(chartsWithChangedFiles)
-	for _, p := range p.FilePatches() {
+	for _, p := range getFilePatchesFunc(p) {
 		// Get chart name and the "new" file path
-		chartName, paths, err := getChangedFilePair(p)
+		chartName, paths, err := getChangedFilePairFunc(p)
 		if err != nil {
 			if errors.Is(err, errSkipPatch) {
 				continue
@@ -111,7 +116,7 @@ func getChartsWithSingleChangedFile(c chartsWithChangedFiles) chartsWithChangedF
 func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, chartsWithSingleFile chartsWithChangedFile) error {
 	// For each chart, get the old and new versions
 	for chartName, paths := range chartsWithSingleFile {
-		oldVer, newVer, err := getOldAndNewVersion(c, par, paths)
+		oldVer, newVer, err := getOldAndNewVersionFunc(c, par, paths)
 		if err != nil {
 			return fmt.Errorf("failed to get old and new versions: %w", err)
 		}

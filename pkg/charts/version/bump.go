@@ -43,7 +43,7 @@ func Bump(semVer, kind string) error {
 
 	newVersion, err := IncrementVersion(semVer, kind)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to increment version")
+		return err
 	}
 
 	log.Info().Msgf("🆚 Updated SemVer from [%s] to [%s]", semVer, newVersion)

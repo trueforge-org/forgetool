@@ -1,6 +1,8 @@
 package chartFile
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -61,6 +63,163 @@ func TestSetAppVersionFromImage(t *testing.T) {
 		if tt.chart.Metadata.AppVersion != tt.result {
 			t.Errorf("Expected %s, got %s", tt.result, tt.chart.Metadata.AppVersion)
 		}
+	}
+}
+
+func TestResolveChartPath_ErrorsAndDirectory(t *testing.T) {
+	if _, err := resolveChartPath(filepath.Join(t.TempDir(), "does-not-exist")); err == nil {
+		t.Fatalf("expected stat error for missing path")
+	}
+
+	d := t.TempDir()
+	resolved, err := resolveChartPath(d)
+	if err != nil {
+		t.Fatalf("unexpected resolve error: %v", err)
+	}
+	if resolved != filepath.Join(d, "Chart.yaml") {
+		t.Fatalf("unexpected resolved chart path: %s", resolved)
+	}
+}
+
+func TestLoadChartImages_Error(t *testing.T) {
+	if _, _, err := loadChartImages(filepath.Join(t.TempDir(), "Chart.yaml")); err == nil {
+		t.Fatalf("expected error when values.yaml is missing")
+	}
+}
+
+func TestBumpChartVersion_InvalidAndInvalidSemver(t *testing.T) {
+	chart := NewHelmChart()
+	chart.Metadata.Name = "test"
+	chart.Metadata.Version = "1.2.3"
+	bumpChartVersion(chart, "noop")
+	if chart.Metadata.Version != "1.2.3" {
+		t.Fatalf("expected version unchanged for invalid bump kind")
+	}
+
+	chart.Metadata.Version = "not-semver"
+	bumpChartVersion(chart, "patch")
+	if chart.Metadata.Version != "" {
+		t.Fatalf("expected version to be empty when semver increment fails")
+	}
+}
+
+func TestGenerateChartArtifacts_ReadmeAndHelmignoreErrors(t *testing.T) {
+	td := t.TempDir()
+	chartPath := filepath.Join(td, "stable", "app", "Chart.yaml")
+	if err := os.MkdirAll(filepath.Dir(chartPath), 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(chartPath, []byte("name: app\nversion: 1.0.0\n"), 0644); err != nil {
+		t.Fatalf("write chart failed: %v", err)
+	}
+
+	if err := generateChartArtifacts(chartPath, "app", "stable"); err == nil {
+		t.Fatalf("expected readme generation error when template root is missing")
+	}
+
+	tplRoot := filepath.Join(td, "templates-root")
+	if err := os.MkdirAll(filepath.Join(tplRoot, "templates"), 0755); err != nil {
+		t.Fatalf("mkdir templates failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tplRoot, "templates", "README.md.tpl"), []byte("# CHARTPLACEHOLDER\n"), 0644); err != nil {
+		t.Fatalf("write readme template failed: %v", err)
+	}
+
+	deepChartPath := filepath.Join(tplRoot, "charts", "stable", "app", "Chart.yaml")
+	if err := os.MkdirAll(filepath.Dir(deepChartPath), 0755); err != nil {
+		t.Fatalf("mkdir deep chart failed: %v", err)
+	}
+	if err := os.WriteFile(deepChartPath, []byte("name: app\nversion: 1.0.0\n"), 0644); err != nil {
+		t.Fatalf("write deep chart failed: %v", err)
+	}
+
+	if err := generateChartArtifacts(deepChartPath, "app", "stable"); err == nil {
+		t.Fatalf("expected helmignore generation error when helmignore template is missing")
+	}
+}
+
+func TestUpdateChartFile_ErrorBranches(t *testing.T) {
+	if err := UpdateChartFile(filepath.Join(t.TempDir(), "missing"), "patch"); err == nil {
+		t.Fatalf("expected resolveChartPath error")
+	}
+
+	badChartDir := t.TempDir()
+	badChartPath := filepath.Join(badChartDir, "Chart.yaml")
+	if err := os.WriteFile(badChartPath, []byte("name: [broken\n"), 0644); err != nil {
+		t.Fatalf("write bad chart failed: %v", err)
+	}
+	if err := UpdateChartFile(badChartPath, "patch"); err == nil {
+		t.Fatalf("expected chart load error")
+	}
+
+	chartDir := filepath.Join(t.TempDir(), "stable", "app")
+	chartPath := filepath.Join(chartDir, "Chart.yaml")
+	if err := os.MkdirAll(chartDir, 0755); err != nil {
+		t.Fatalf("mkdir chart dir failed: %v", err)
+	}
+	if err := os.WriteFile(chartPath, []byte("apiVersion: v2\nname: app\nversion: 1.0.0\ndescription: d\nappVersion: 1.0\nicon: https://x\nhome: https://x\nkubeVersion: '>=1.27.0-0'\nmaintainers:\n  - name: t\n    url: https://x\n"), 0644); err != nil {
+		t.Fatalf("write chart failed: %v", err)
+	}
+	if err := UpdateChartFile(chartPath, "patch"); err == nil {
+		t.Fatalf("expected loadChartImages error when values.yaml is missing")
+	}
+
+	if err := os.WriteFile(filepath.Join(chartDir, "values.yaml"), []byte("image:\n  repository: nginx\n  tag: 1.2.3\n"), 0644); err != nil {
+		t.Fatalf("write values failed: %v", err)
+	}
+	orig := updateSourcesFunc
+	updateSourcesFunc = func(_ *HelmChart, _ string, _ []string) error { return os.ErrInvalid }
+	t.Cleanup(func() { updateSourcesFunc = orig })
+	if err := UpdateChartFile(chartPath, "patch"); err == nil {
+		t.Fatalf("expected updateSources error")
+	}
+}
+
+func TestUpdateChartFile_SaveAndArtifactErrors(t *testing.T) {
+	orig := updateSourcesFunc
+	updateSourcesFunc = updateSources
+	t.Cleanup(func() { updateSourcesFunc = orig })
+	origSave := saveChartFunc
+	t.Cleanup(func() { saveChartFunc = origSave })
+
+	chartDir := filepath.Join(t.TempDir(), "stable", "broken-save")
+	chartPath := filepath.Join(chartDir, "Chart.yaml")
+	if err := os.MkdirAll(chartDir, 0755); err != nil {
+		t.Fatalf("mkdir chart dir failed: %v", err)
+	}
+	if err := os.WriteFile(chartPath, []byte("apiVersion: v2\nname: app\nversion: 1.0.0\ndescription: d\nappVersion: 1.0\nicon: https://x\nhome: https://x\nkubeVersion: '>=1.27.0-0'\nmaintainers:\n  - name: t\n    url: https://x\n"), 0644); err != nil {
+		t.Fatalf("write chart failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(chartDir, "values.yaml"), []byte("image:\n  repository: nginx\n  tag: 1.2.3\n"), 0644); err != nil {
+		t.Fatalf("write values failed: %v", err)
+	}
+	saveChartFunc = func(_ *HelmChart, _ string) error { return os.ErrInvalid }
+	if err := UpdateChartFile(chartPath, "patch"); err == nil {
+		t.Fatalf("expected save error")
+	}
+	saveChartFunc = origSave
+
+	chartDir2 := filepath.Join(t.TempDir(), "stable", "artifact-fail")
+	chartPath2 := filepath.Join(chartDir2, "Chart.yaml")
+	if err := os.MkdirAll(chartDir2, 0755); err != nil {
+		t.Fatalf("mkdir chart dir 2 failed: %v", err)
+	}
+	if err := os.WriteFile(chartPath2, []byte("apiVersion: v2\nname: app\nversion: 1.0.0\ndescription: d\nappVersion: 1.0\nicon: https://x\nhome: https://x\nkubeVersion: '>=1.27.0-0'\nmaintainers:\n  - name: t\n    url: https://x\n"), 0644); err != nil {
+		t.Fatalf("write chart 2 failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(chartDir2, "values.yaml"), []byte("image:\n  repository: nginx\n  tag: 1.2.3\n"), 0644); err != nil {
+		t.Fatalf("write values 2 failed: %v", err)
+	}
+	if err := UpdateChartFile(chartPath2, "patch"); err == nil {
+		t.Fatalf("expected artifact generation error because templates are missing")
+	}
+}
+
+func TestInitializeAnnotations_NilMap(t *testing.T) {
+	chart := &HelmChart{}
+	initializeAnnotations(chart)
+	if chart.Metadata.Annotations == nil {
+		t.Fatalf("expected annotations map to be initialized")
 	}
 }
 func TestGetTrain(t *testing.T) {

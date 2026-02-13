@@ -25,23 +25,27 @@ func NewInfo() *Data {
 
 	// Available info: https://github.com/golang/go/blob/master/src/runtime/debug/mod.go#L73
 	for _, kv := range info.Settings {
-		switch kv.Key {
-		case "GOARCH":
-			data.GoArch = kv.Value
-		case "GOOS":
-			data.GoOS = kv.Value
-		case "CGO_ENABLED":
-			data.GoC = kv.Value == "1"
-		case "vcs.revision":
-			data.GitCommit = kv.Value
-		case "vcs.time":
-			data.GitDate, _ = time.Parse(time.RFC3339, kv.Value)
-		case "vcs.modified":
-			data.GitDirty = kv.Value == "true"
-		}
+		applyBuildSetting(data, kv.Key, kv.Value)
 	}
 
 	return data
+}
+
+func applyBuildSetting(data *Data, key, value string) {
+	switch key {
+	case "GOARCH":
+		data.GoArch = value
+	case "GOOS":
+		data.GoOS = value
+	case "CGO_ENABLED":
+		data.GoC = value == "1"
+	case "vcs.revision":
+		data.GitCommit = value
+	case "vcs.time":
+		data.GitDate, _ = time.Parse(time.RFC3339, value)
+	case "vcs.modified":
+		data.GitDirty = value == "true"
+	}
 }
 
 func (d *Data) Print() {

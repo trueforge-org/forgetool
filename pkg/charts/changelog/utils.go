@@ -94,6 +94,9 @@ func getChartName(path string) string {
 }
 
 var chartFilePathRegex = regexp.MustCompile(`^charts/([\w-_]+)/([\w-_]+)/Chart.yaml$`)
+var commitTreeFunc = func(c *object.Commit) (*object.Tree, error) { return c.Tree() }
+var treeFileFunc = func(t *object.Tree, path string) (*object.File, error) { return t.File(path) }
+var fileContentsFunc = func(f *object.File) (string, error) { return f.Contents() }
 
 func getChartPath(path string) (string, error) {
 	original := path
@@ -109,16 +112,22 @@ func getChartPath(path string) (string, error) {
 	}
 }
 
-func getChartVersion(c *object.Commit, path string) (string, error) {
-	tree, err := c.Tree()
+func getChartVersion(c *object.Commit, path string) (version string, retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("failed to get tree: %v", r)
+		}
+	}()
+
+	tree, err := commitTreeFunc(c)
 	if err != nil {
 		return "", fmt.Errorf("failed to get tree: %w", err)
 	}
-	file, err := tree.File(path)
+	file, err := treeFileFunc(tree, path)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file: %w", err)
 	}
-	strData, err := file.Contents()
+	strData, err := fileContentsFunc(file)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file contents: %w", err)
 	}

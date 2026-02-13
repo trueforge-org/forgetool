@@ -39,3 +39,16 @@ func TestBump_ReturnsNilOnValid(t *testing.T) {
 		t.Fatalf("Bump returned error for valid input: %v", err)
 	}
 }
+
+func TestIncrementVersion_SemverParserError(t *testing.T) {
+	_, err := IncrementVersion("9999999999999999999999999999.1.1", Patch)
+	if err == nil {
+		t.Fatalf("expected semver parser error for overflow value")
+	}
+}
+
+func TestBump_ReturnsErrorOnInvalid(t *testing.T) {
+	if err := Bump("not-semver", Patch); err == nil {
+		t.Fatalf("expected Bump to return error on invalid semver")
+	}
+}

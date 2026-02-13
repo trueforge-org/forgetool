@@ -110,7 +110,7 @@ func Clean(tag string) error {
 
 	newTag, err := CleanTag(tag)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("Failed to clean tag [%s]", tag)
+		return err
 	}
 
 	log.Info().Msgf("Tag [%s] cleaned to [%s]", tag, newTag)

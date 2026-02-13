@@ -14,6 +14,11 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/charts/version"
 )
 
+var updateSourcesFunc = updateSources
+var saveChartFunc = func(chart *HelmChart, chartPath string) error {
+	return chart.SaveToFile(chartPath)
+}
+
 // UpdateChartFile updates the specified Chart.yaml file with an optional bump parameter.
 func UpdateChartFile(chartPathOrFolder, bump string) error {
 	chartPath, err := resolveChartPath(chartPathOrFolder)
@@ -38,7 +43,7 @@ func UpdateChartFile(chartPathOrFolder, bump string) error {
 	setAppVersionFromImage(chart, values, "image")
 
 	// Attempt to update sources
-	if err := updateSources(chart, train, imageLinks); err != nil {
+	if err := updateSourcesFunc(chart, train, imageLinks); err != nil {
 		return err
 	}
 
@@ -46,7 +51,7 @@ func UpdateChartFile(chartPathOrFolder, bump string) error {
 	bumpChartVersion(chart, bump)
 
 	// Save the modified metadata back to the file
-	if err := chart.SaveToFile(chartPath); err != nil {
+	if err := saveChartFunc(chart, chartPath); err != nil {
 		return fmt.Errorf("error saving Chart.yaml: %s", err)
 	}
 
@@ -115,14 +120,14 @@ func generateChartArtifacts(chartPath, chartName, train string) error {
 	readmeErr := readme.GenerateReadme(templateDir, chartPath, chartName, train)
 	if readmeErr != nil {
 		log.Info().Msgf("Error Generating readme for %v: %v\n", chartName, readmeErr)
-		os.Exit(1)
+		return fmt.Errorf("error generating readme for %s: %w", chartName, readmeErr)
 	}
 
 	// Generate .helmignore for the specified train and chart
 	helmignoreErr := helmignore.GenerateHelmIgnore(templateDir, chartPath)
 	if helmignoreErr != nil {
 		log.Info().Msgf("Error Generating helmignore for %v: %v\n", chartName, helmignoreErr)
-		os.Exit(1)
+		return fmt.Errorf("error generating helmignore for %s: %w", chartName, helmignoreErr)
 	}
 
 	return nil

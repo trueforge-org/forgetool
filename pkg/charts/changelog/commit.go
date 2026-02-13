@@ -54,24 +54,29 @@ type oldNewPaths struct {
 type chartsWithChangedFiles map[string][]oldNewPaths
 type chartsWithChangedFile map[string]oldNewPaths
 
+var getParentCommitFunc = func(c *object.Commit) (*object.Commit, error) { return c.Parent(0) }
+var getPatchFunc = func(par, c *object.Commit) (*object.Patch, error) { return par.Patch(c) }
+var getChartsWithMultipleChangedFilesFunc = getChartsWithMultipleChangedFiles
+var processChartsWithSingleChangedFileFunc = processChartsWithSingleChangedFile
+
 func processCommit(c *object.Commit) error {
 	var err error
 	if !isValidCommit(c) {
 		return nil
 	}
 
-	parCommit, err := c.Parent(0)
+	parCommit, err := getParentCommitFunc(c)
 	if err != nil {
 		return fmt.Errorf("failed to get parent commit: %w", err)
 	}
-	patch, err := parCommit.Patch(c)
+	patch, err := getPatchFunc(parCommit, c)
 	if err != nil {
 		return fmt.Errorf("failed to get patch: %w", err)
 	}
 
 	// Go over the filePatches (old/new pairs) and get create a
 	// map of charts with an slice of all the old/new fileDiffs
-	chartsWithMultipleFiles, err := getChartsWithMultipleChangedFiles(patch)
+	chartsWithMultipleFiles, err := getChartsWithMultipleChangedFilesFunc(patch)
 	if err != nil {
 		return fmt.Errorf("failed to get changed files: %w", err)
 	}
@@ -81,7 +86,7 @@ func processCommit(c *object.Commit) error {
 	chartsWithSingleFile := getChartsWithSingleChangedFile(chartsWithMultipleFiles)
 
 	// Populate the changedData and stagingData
-	if err := processChartsWithSingleChangedFile(c, parCommit, chartsWithSingleFile); err != nil {
+	if err := processChartsWithSingleChangedFileFunc(c, parCommit, chartsWithSingleFile); err != nil {
 		return fmt.Errorf("failed to process changed file: %w", err)
 	}
 

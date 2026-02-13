@@ -9,6 +9,13 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
+type fakeDirEntry struct{ name string }
+
+func (f fakeDirEntry) Name() string               { return f.name }
+func (f fakeDirEntry) IsDir() bool                { return false }
+func (f fakeDirEntry) Type() os.FileMode          { return 0 }
+func (f fakeDirEntry) Info() (os.FileInfo, error) { return nil, nil }
+
 func TestGetChartData_AddsChart(t *testing.T) {
 	// Create temp charts structure: <tmp>/trainA/mychart/Chart.yaml
 	td := t.TempDir()
@@ -227,5 +234,58 @@ func TestGetChartData_SkipExcludedDir(t *testing.T) {
 	err = opts.GetChartData(exPath, entry, nil)
 	if err == nil {
 		t.Fatalf("expected filepath.SkipDir error for excluded dir")
+	}
+}
+
+func TestGetChartData_InvalidChartYAML(t *testing.T) {
+	td := t.TempDir()
+	chartDir := filepath.Join(td, "stable", "badchart")
+	if err := os.MkdirAll(chartDir, 0755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	chartPath := filepath.Join(chartDir, "Chart.yaml")
+	if err := os.WriteFile(chartPath, []byte("name: [broken\n"), 0644); err != nil {
+		t.Fatalf("write invalid chart failed: %v", err)
+	}
+	entries, err := os.ReadDir(chartDir)
+	if err != nil {
+		t.Fatalf("readdir failed: %v", err)
+	}
+	if err := os.Remove(chartPath); err != nil {
+		t.Fatalf("remove chart file failed: %v", err)
+	}
+
+	opts := &ChartListOptions{}
+	if err := opts.GetChartData(chartPath, entries[0], nil); err == nil {
+		t.Fatalf("expected error when chart yaml cannot be loaded")
+	}
+}
+
+func TestAddChartToTrain_AppendsExistingTrain(t *testing.T) {
+	opts := &ChartListOptions{list: &ChartList{Trains: []Train{{Name: "stable", Count: 1, Charts: []Chart{{Name: "first", Train: "stable"}}}}}}
+	opts.addChartToTrain(Chart{Name: "second", Train: "stable"})
+
+	if opts.list.Trains[0].Count != 2 {
+		t.Fatalf("expected train count to increment")
+	}
+	if len(opts.list.Trains[0].Charts) != 2 {
+		t.Fatalf("expected chart to be appended")
+	}
+}
+
+func TestAddChartToTrain_AppendsNewTrainAfterContinue(t *testing.T) {
+	opts := &ChartListOptions{list: &ChartList{Trains: []Train{{Name: "incubator", Count: 1, Charts: []Chart{{Name: "x", Train: "incubator"}}}}}}
+	opts.addChartToTrain(Chart{Name: "app", Train: "stable"})
+
+	if len(opts.list.Trains) != 2 {
+		t.Fatalf("expected second train to be appended")
+	}
+}
+
+func TestGetChartData_LoadErrorWithFakeEntry(t *testing.T) {
+	opts := &ChartListOptions{}
+	err := opts.GetChartData(filepath.Join(t.TempDir(), "missing", "Chart.yaml"), fakeDirEntry{name: "Chart.yaml"}, nil)
+	if err == nil {
+		t.Fatalf("expected chart load error for missing Chart.yaml path")
 	}
 }

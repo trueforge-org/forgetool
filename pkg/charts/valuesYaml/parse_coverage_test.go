@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/knadh/koanf/v2"
 )
 
 func TestNewValuesFile_HasKoanf(t *testing.T) {
@@ -124,5 +126,73 @@ func TestLoadFromFile_NilKoanf(t *testing.T) {
 	}
 	if v.K == nil {
 		t.Fatal("expected K to be initialized after LoadFromFile")
+	}
+}
+
+func TestLoadFromFile_UnmarshalError(t *testing.T) {
+	td := t.TempDir()
+	f := filepath.Join(td, "values.yaml")
+	if err := os.WriteFile(f, []byte("workload: string-instead-of-map\n"), 0644); err != nil {
+		t.Fatalf("write file failed: %v", err)
+	}
+	v := NewValuesFile()
+	if err := v.LoadFromFile(f); err == nil {
+		t.Fatalf("expected unmarshal error for invalid workload type")
+	}
+}
+
+func TestSaveToFile_MarshalError(t *testing.T) {
+	v := &ValuesFile{K: koanf.New(".")}
+	orig := marshalValues
+	marshalValues = func(_ *koanf.Koanf) ([]byte, error) {
+		return nil, os.ErrInvalid
+	}
+	t.Cleanup(func() { marshalValues = orig })
+
+	if err := v.SaveToFile(filepath.Join(t.TempDir(), "out.yaml")); err == nil {
+		t.Fatalf("expected marshal error for unsupported value type")
+	}
+}
+
+func TestUpdatevaluesFile_LoadError(t *testing.T) {
+	td := t.TempDir()
+	valuesPath := filepath.Join(td, "values.yaml")
+	if err := os.WriteFile(valuesPath, []byte("not: [valid\n"), 0644); err != nil {
+		t.Fatalf("write malformed values failed: %v", err)
+	}
+	if err := UpdatevaluesFile(valuesPath, ""); err == nil {
+		t.Fatalf("expected load error for malformed yaml")
+	}
+}
+
+func TestUpdatevaluesFile_SaveError(t *testing.T) {
+	td := t.TempDir()
+	testDataPath := filepath.Join("..", "..", "..", "testdata", "values_yaml")
+	srcFile := filepath.Join(testDataPath, "singleImageValues.yaml")
+
+	data, err := os.ReadFile(srcFile)
+	if err != nil {
+		t.Fatalf("failed to read source values file: %v", err)
+	}
+	valuesPath := filepath.Join(td, "values.yaml")
+	if err := os.WriteFile(valuesPath, data, 0444); err != nil {
+		t.Fatalf("failed to write readonly values file: %v", err)
+	}
+
+	if err := UpdatevaluesFile(valuesPath, ""); err == nil {
+		t.Fatalf("expected save error for readonly values file")
+	}
+}
+
+func TestSaveToFile_MarshalPanicRecovered(t *testing.T) {
+	v := &ValuesFile{K: koanf.New(".")}
+	orig := marshalValues
+	marshalValues = func(_ *koanf.Koanf) ([]byte, error) {
+		panic("boom")
+	}
+	t.Cleanup(func() { marshalValues = orig })
+
+	if err := v.SaveToFile(filepath.Join(t.TempDir(), "out.yaml")); err == nil {
+		t.Fatalf("expected panic to be recovered as error")
 	}
 }

@@ -53,6 +53,10 @@ type ValuesFile struct {
 	Values Values `yaml:"metadata" validate:"required,dive"`
 }
 
+var marshalValues = func(k *koanf.Koanf) ([]byte, error) {
+	return k.Marshal(yaml.Parser())
+}
+
 func NewValuesFile() *ValuesFile {
 	return &ValuesFile{
 		K: koanf.New("."),
@@ -96,9 +100,15 @@ func (v *ValuesFile) setDefaultValues() {
 }
 
 // SaveToFile saves the Helm values metadata back to the values.yaml file.
-func (v *ValuesFile) SaveToFile(filename string) error {
+func (v *ValuesFile) SaveToFile(filename string) (retErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			retErr = fmt.Errorf("error marshalling data: %v", r)
+		}
+	}()
+
 	// Marshal the existing metadata to YAML
-	loadedData, err := v.K.Marshal(yaml.Parser())
+	loadedData, err := marshalValues(v.K)
 	if err != nil {
 		return fmt.Errorf("error marshalling data: %v", err)
 	}
