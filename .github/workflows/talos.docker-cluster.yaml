@@ -148,9 +148,6 @@ jobs:
             -e PLATFORM=container \
             "${TALOS_IMAGE}"
 
-          BRIDGE=$(docker network inspect talosnet -f '{{(index .Options "com.docker.network.bridge.name")}}')
-          ip addr add 10.5.0.10/24 dev $BRIDGE
-
           echo "Waiting 10 seconds for Talos containers to initialize..."
           sleep 10
 
