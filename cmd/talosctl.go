@@ -16,12 +16,16 @@ import (
 	talosctlpkg "github.com/trueforge-org/forgetool/pkg/talosctl"
 )
 
+var (
+	talosctlPipeFn = os.Pipe
+)
+
 func captureProcessIO(run func() error) (string, error) {
-	stdoutReader, stdoutWriter, err := os.Pipe()
+	stdoutReader, stdoutWriter, err := talosctlPipeFn()
 	if err != nil {
 		return "", err
 	}
-	stderrReader, stderrWriter, err := os.Pipe()
+	stderrReader, stderrWriter, err := talosctlPipeFn()
 	if err != nil {
 		_ = stdoutReader.Close()
 		_ = stdoutWriter.Close()
@@ -72,12 +76,12 @@ var internalTalosctlMu sync.Mutex
 var internalTalosctl = buildInternalTalosctlCommand()
 
 var talosctl = &cobra.Command{
-	Use:           "talosctl",
-	Short:         "A CLI for out-of-band management of Kubernetes nodes created by Talos",
-	Example:       "forgetool talosctl <bootstrap/health/precommit>",
-	Long:          talosctlLongHelp,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:                "talosctl",
+	Short:              "A CLI for out-of-band management of Kubernetes nodes created by Talos",
+	Example:            "forgetool talosctl <bootstrap/health/precommit>",
+	Long:               talosctlLongHelp,
+	SilenceUsage:       true,
+	SilenceErrors:      true,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		out, err := runTalosctlArgs(args, false)
