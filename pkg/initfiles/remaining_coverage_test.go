@@ -185,9 +185,9 @@ func TestClusterenvValidatorsAndChecks(t *testing.T) {
 
 	calls := 0
 	clusterenvExitFn = func(int) { calls++ }
-	validateNodeAndGatewayIPs("10.0.0.11", "10.0.0.11", "10.0.0.1")
-	if calls < 2 {
-		t.Fatalf("expected both exit branches hit, got %d", calls)
+	validateNodeAndGatewayIPs("10.0.0.10", "10.0.0.11", "10.0.0.11")
+	if calls != 1 {
+		t.Fatalf("expected MASTER1IP/GATEWAY exit branch hit once, got %d", calls)
 	}
 
 	clusterenvIPInRangeFn = func(string, string) (bool, error) { return false, errors.New("range") }
