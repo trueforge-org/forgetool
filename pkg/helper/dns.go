@@ -2,7 +2,6 @@ package helper
 
 import (
 	"net"
-	"os"
 
 	"github.com/rs/zerolog/log"
 )
@@ -18,8 +17,7 @@ func checkDNSResolution(domain string) bool {
 func checkAllDomains(domains []string, verbose bool) {
 	for _, domain := range domains {
 		if !checkDNSResolution(domain) {
-			log.Info().Msgf("DNS for %s does not resolve.\n", domain)
-			os.Exit(1)
+			log.Fatal().Msgf("DNS for %s does not resolve.", domain)
 		} else {
 			if verbose {
 				log.Info().Msgf("DNS for %s resolves.\n", domain)

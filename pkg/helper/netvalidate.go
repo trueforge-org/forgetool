@@ -3,7 +3,6 @@ package helper
 import (
 	"fmt"
 	"net"
-	"os"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -87,8 +86,7 @@ func CheckIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName string) error
 
 func ValidateIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName string) {
 	if err := CheckIPorCIDRNotInCIDR(ipOrCIDR, cidr, ipOrCIDRName, cidrName); err != nil {
-		log.Info().Msg(err.Error())
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("validation failed")
 	}
 }
 
@@ -115,7 +113,6 @@ func CheckRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName string) error {
 
 func ValidateRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName string) {
 	if err := CheckRangeNotInCIDR(rangeStr, cidr, rangeName, cidrName); err != nil {
-		log.Info().Msg(err.Error())
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("validation failed")
 	}
 }

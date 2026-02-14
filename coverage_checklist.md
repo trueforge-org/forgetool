@@ -36,7 +36,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (62/62) - cmd/talosctl.go
 - [ ] 100.00% (32/32) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
-- [ ] 100.00% (3/3) - partial_builds/precommit/main.go
+- [ ] 100.00% (2/2) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
 - [ ] 100.00% (68/68) - pkg/charts/changelog/changed_data.go
 - [ ] 100.00% (137/137) - pkg/charts/changelog/changelog.go
@@ -73,13 +73,13 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (22/22) - pkg/gencmd/plain.go
 - [ ] 100.00% (35/35) - pkg/gencmd/upgrade.go
 - [ ] 100.00% (58/58) - pkg/helper/copy.go
-- [ ] 100.00% (12/12) - pkg/helper/dns.go
+- [ ] 100.00% (11/11) - pkg/helper/dns.go
 - [ ] 100.00% (61/61) - pkg/helper/envsubst.go
 - [ ] 100.00% (89/89) - pkg/helper/git.go
 - [ ] 100.00% (65/65) - pkg/helper/git_precommit_hook.go
 - [ ] 100.00% (35/35) - pkg/helper/helper.go
 - [ ] 100.00% (12/12) - pkg/helper/marshaller.go
-- [ ] 100.00% (51/51) - pkg/helper/netvalidate.go
+- [ ] 100.00% (49/49) - pkg/helper/netvalidate.go
 - [ ] 100.00% (18/18) - pkg/helper/prompts.go
 - [ ] 100.00% (50/50) - pkg/helper/replace.go
 - [ ] 100.00% (26/26) - pkg/helper/runcmd.go
