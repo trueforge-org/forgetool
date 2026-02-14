@@ -5,16 +5,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'main.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'cmd/**'
-      - 'embed/**'
-      - 'pkg/**'
-      - 'partial_builds/**'
-      - 'pkg/**'
-      - ".github/workflows/forgetool.test.yaml"
 permissions:
   contents: read
 jobs:
