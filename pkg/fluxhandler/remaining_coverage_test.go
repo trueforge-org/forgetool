@@ -622,35 +622,37 @@ func TestInstallUpgradeAndSSHFlows(t *testing.T) {
 	if err := CreateGitSecret("x"); err == nil {
 		t.Fatalf("expected existing secret path error")
 	}
+	tmpSecretPath := filepath.Join(t.TempDir(), "secret.yaml")
+	tmpPublicKeyPath := filepath.Join(t.TempDir(), "public.key")
 
 	sshGenerateKeyFn = func() (*ecdsa.PrivateKey, error) { return nil, errors.New("key") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected key generation error")
 	}
 	sshGenerateKeyFn = defaultSSHGenerateKeyFn
 	sshPemBlockForKeyFn = func(*ecdsa.PrivateKey) ([]byte, error) { return nil, errors.New("pem") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected pem error")
 	}
 	sshPemBlockForKeyFn = defaultSSHPemBlockForKeyFn
 	sshPublicKeyToOpenSSHFn = func(*ecdsa.PublicKey) (string, error) { return "", errors.New("pub") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected public key conversion error")
 	}
 
 	sshPublicKeyToOpenSSHFn = defaultSSHPublicKeyToOpenSSHFn
 	sshWriteFileFn = func(string, []byte, os.FileMode) error { return errors.New("write") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected write public key error")
 	}
 	sshWriteFileFn = os.WriteFile
 	sshBuildGitSecretYAMLFn = func(string, string, string) ([]byte, error) { return nil, errors.New("yaml") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected build yaml error")
 	}
 	sshBuildGitSecretYAMLFn = defaultSSHBuildGitSecretYAMLFn
 	sshMkdirAllFn = func(string, os.FileMode) error { return errors.New("mkdir") }
-	if err := createNewGitSecretFiles("x", "s", "p"); err == nil {
+	if err := createNewGitSecretFiles("x", tmpSecretPath, tmpPublicKeyPath); err == nil {
 		t.Fatalf("expected mkdir error")
 	}
 	sshMkdirAllFn = os.MkdirAll
