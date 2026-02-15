@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,10 +16,12 @@ import (
 )
 
 type Config struct {
-	Paths          []string    `yaml:"paths"`
-	Files          []FileCheck `yaml:"files"`
-	URLs           []URLCheck  `yaml:"urls"`
-	TimeoutSeconds int         `yaml:"timeoutSeconds"`
+	Paths           []string    `yaml:"paths"`
+	ExternalStorage []string    `yaml:"externalStorage"`
+	Files           []FileCheck `yaml:"files"`
+	URLs            []URLCheck  `yaml:"urls"`
+	TCP             []TCPCheck  `yaml:"tcp"`
+	TimeoutSeconds  int         `yaml:"timeoutSeconds"`
 }
 
 type FileCheck struct {
@@ -30,6 +34,11 @@ type URLCheck struct {
 	URL      string   `yaml:"url"`
 	Status   int      `yaml:"status"`
 	Contains []string `yaml:"contains"`
+}
+
+type TCPCheck struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 const defaultTimeoutSeconds = 10
@@ -67,6 +76,16 @@ func Run(cfg Config) error {
 	for _, path := range cfg.Paths {
 		if _, err := statFn(path); err != nil {
 			failures = append(failures, fmt.Sprintf("path check failed for %q: %v", path, err))
+		}
+	}
+
+	externalStorage := append([]string{}, cfg.ExternalStorage...)
+	if len(externalStorage) > 0 && !containsString(externalStorage, "/config") {
+		externalStorage = append(externalStorage, "/config")
+	}
+	for _, path := range externalStorage {
+		if _, err := statFn(path); err != nil {
+			failures = append(failures, fmt.Sprintf("external storage check failed for %q: %v", path, err))
 		}
 	}
 
@@ -152,9 +171,38 @@ func Run(cfg Config) error {
 		}
 	}
 
+	for _, tcpCheck := range cfg.TCP {
+		if tcpCheck.Host == "" {
+			failures = append(failures, "tcp check failed: host is required")
+			continue
+		}
+		if tcpCheck.Port <= 0 {
+			failures = append(failures, fmt.Sprintf("tcp check failed for host %q: port must be greater than 0", tcpCheck.Host))
+			continue
+		}
+
+		address := net.JoinHostPort(tcpCheck.Host, strconv.Itoa(tcpCheck.Port))
+		conn, err := net.DialTimeout("tcp", address, timeout)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("tcp check failed for %q: %v", address, err))
+			continue
+		}
+		_ = conn.Close()
+	}
+
 	if len(failures) > 0 {
 		return fmt.Errorf("container tests failed:\n- %s", strings.Join(failures, "\n- "))
 	}
 
 	return nil
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+
+	return false
 }

@@ -1,13 +1,15 @@
 package containertest
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
-
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
 )
 
 func TestRunFromConfigFileSuccess(t *testing.T) {
@@ -73,5 +75,66 @@ func TestRunFromConfigFileReturnsFailures(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "container tests failed") {
 		t.Fatalf("expected failure summary, got %v", err)
+	}
+}
+
+func TestRunExternalStorageIncludesConfig(t *testing.T) {
+	oldStat := statFn
+	t.Cleanup(func() {
+		statFn = oldStat
+	})
+
+	calls := make(map[string]int)
+	statFn = func(name string) (os.FileInfo, error) {
+		calls[name]++
+		if name == "/mnt/external" || name == "/config" {
+			return nil, nil
+		}
+		return nil, errors.New("not found")
+	}
+
+	if err := Run(Config{ExternalStorage: []string{"/mnt/external"}}); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if calls["/config"] == 0 {
+		t.Fatal("expected /config to be checked as external storage")
+	}
+}
+
+func TestRunTCPCheckSuccess(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start tcp listener: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	_, portString, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatalf("failed to parse addr: %v", err)
+	}
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		t.Fatalf("failed to parse port: %v", err)
+	}
+
+	if err := Run(Config{TCP: []TCPCheck{{Host: "127.0.0.1", Port: port}}}); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+}
+
+func TestRunTCPCheckFailure(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to allocate tcp port: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+
+	err = Run(Config{TCP: []TCPCheck{{Host: "127.0.0.1", Port: port}}})
+	if err == nil {
+		t.Fatal("expected tcp failure error")
+	}
+	if !strings.Contains(err.Error(), "tcp check failed") {
+		t.Fatalf("expected tcp failure message, got %v", err)
 	}
 }

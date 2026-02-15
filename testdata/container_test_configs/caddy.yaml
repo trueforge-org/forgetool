@@ -3,8 +3,13 @@
 paths:
   - /app
   - /config
+externalStorage:
+  - /config
 files:
   - path: /app/caddy
 urls:
   - url: http://127.0.0.1:8080
     status: 200
+tcp:
+  - host: 127.0.0.1
+    port: 8080
