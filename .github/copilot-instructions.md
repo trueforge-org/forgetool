@@ -5,4 +5,5 @@
 - Keep changes idiomatic Go and run `gofmt` on touched Go files.
 - Validate changes with targeted tests first, then `go test ./...` when practical.
 - Do not add new dependencies unless absolutely required.
+- Always use semantic commit names for commits and semantic titles for PRs.
 - Keep generated or temporary files out of commits.
