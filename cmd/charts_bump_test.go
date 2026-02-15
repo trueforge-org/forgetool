@@ -94,3 +94,14 @@ func TestRunChartsBumpWithDefaultImplementation(t *testing.T) {
 		t.Fatalf("expected default bump implementation to succeed, got %v", err)
 	}
 }
+
+func TestRunChartsBumpWithPatchAlias(t *testing.T) {
+	old := chartsBumpVersion
+	t.Cleanup(func() { chartsBumpVersion = old })
+
+	chartsBumpVersion = version.Bump
+
+	if err := runChartsBump([]string{"1.2.3", "pinDigest"}); err != nil {
+		t.Fatalf("expected alias bump implementation to succeed, got %v", err)
+	}
+}

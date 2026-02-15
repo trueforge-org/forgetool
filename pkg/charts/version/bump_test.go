@@ -17,6 +17,11 @@ func TestIncrementVersion_TableDriven(t *testing.T) {
 		{name: "major", args: args{version: "1.2.3", kind: Major}, want: "2.0.0", wantErr: false},
 		{name: "minor", args: args{version: "1.2.3", kind: Minor}, want: "1.3.0", wantErr: false},
 		{name: "patch", args: args{version: "1.2.3", kind: Patch}, want: "1.2.4", wantErr: false},
+		{name: "patch-alias-pindigest", args: args{version: "1.2.3", kind: "pinDigest"}, want: "1.2.4", wantErr: false},
+		{name: "patch-alias-digest", args: args{version: "1.2.3", kind: "digest"}, want: "1.2.4", wantErr: false},
+		{name: "patch-alias-pin", args: args{version: "1.2.3", kind: "pin"}, want: "1.2.4", wantErr: false},
+		{name: "patch-alias-lockfile", args: args{version: "1.2.3", kind: "lockfile"}, want: "1.2.4", wantErr: false},
+		{name: "patch-alias-uppercase", args: args{version: "1.2.3", kind: "PATCH"}, want: "1.2.4", wantErr: false},
 		{name: "invalid-kind", args: args{version: "1.2.3", kind: "invalid"}, want: "", wantErr: true},
 		{name: "invalid-format", args: args{version: "1.2", kind: Patch}, want: "", wantErr: true},
 	}

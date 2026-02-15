@@ -9,7 +9,16 @@ import (
 )
 
 var chartsBumpLongHelp = strings.TrimSpace(`
+Bump a semantic version.
 
+Kinds:
+	- major
+	- minor
+	- patch
+	- pinDigest (alias for patch)
+	- digest (alias for patch)
+	- pin (alias for patch)
+	- lockfile (alias for patch)
 `)
 
 var chartsBumpVersion = version.Bump
@@ -22,9 +31,9 @@ func runChartsBump(args []string) error {
 
 var bumper = &cobra.Command{
 	Use:     "bump",
-	Short:   "generate a bumped image version",
+	Short:   "generate a bumped semantic version",
 	Long:    chartsBumpLongHelp,
-	Example: "forgetool charts bump <version> <kind>",
+	Example: "forgetool charts bump 1.2.3 patch\nforgetool charts bump 1.2.3 pinDigest",
 	Args:    cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := chartsBumpRunner(args); err != nil {
