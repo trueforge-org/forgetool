@@ -1,0 +1,36 @@
+# Container test config schema for `forgetool container test`
+#
+# All fields are optional. Checks run only when provided.
+#
+# `externalStorage` is for mounts that must exist.
+# If this list is provided, `/config` is always included automatically.
+timeoutSeconds: 10
+
+# Paths that must exist
+paths:
+  - /app
+
+# External storage mount points that must exist
+externalStorage:
+  - /data
+  # /config is automatically checked too
+
+# File checks
+files:
+  - path: /app/example-binary
+    contains:
+      - sample
+    notContains:
+      - forbidden
+
+# HTTP(S) checks
+urls:
+  - url: http://127.0.0.1:8080
+    status: 200
+    contains:
+      - ok
+
+# TCP connectivity checks
+tcp:
+  - host: 127.0.0.1
+    port: 8080

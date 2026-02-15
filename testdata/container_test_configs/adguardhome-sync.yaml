@@ -1,0 +1,15 @@
+# Example checks for trueforge-org/containerforge app: adguardhome-sync
+# https://github.com/trueforge-org/containerforge/tree/main/apps/adguardhome-sync
+paths:
+  - /app
+  - /config
+externalStorage:
+  - /config
+files:
+  - path: /app/adguardhome-sync
+urls:
+  - url: http://127.0.0.1:8080
+    status: 200
+tcp:
+  - host: 127.0.0.1
+    port: 8080
