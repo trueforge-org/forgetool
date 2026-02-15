@@ -1,5 +1,6 @@
 # Example checks for trueforge-org/containerforge app: code-server
 # https://github.com/trueforge-org/containerforge/tree/main/apps/code-server
+image: ghcr.io/trueforge-org/code-server:latest
 paths:
   - /app
   - /config
@@ -13,3 +14,5 @@ urls:
 tcp:
   - host: 127.0.0.1
     port: 8443
+commands:
+  - test -x /app/code-server/bin/code-server

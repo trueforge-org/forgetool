@@ -6,6 +6,14 @@
 # If this list is provided, `/config` is always included automatically.
 timeoutSeconds: 10
 
+# Container image used for `commands` checks.
+# If omitted, TEST_IMAGE environment variable is used.
+image: docker.io/library/alpine:3.22
+
+# Optional environment variables injected into command-check containers.
+env:
+  SAMPLE_FLAG: "1"
+
 # Paths that must exist
 paths:
   - /app
@@ -34,3 +42,8 @@ urls:
 tcp:
   - host: 127.0.0.1
     port: 8080
+
+# Custom container commands to run with TEST_IMAGE (non-zero exit fails the test)
+commands:
+  - test -x /app/example-binary
+  - echo "custom checks passed"

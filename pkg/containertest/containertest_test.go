@@ -2,50 +2,39 @@ package containertest
 
 import (
 	"errors"
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRunFromConfigFileSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	targetDir := filepath.Join(tmpDir, "data")
-	if err := os.MkdirAll(targetDir, 0o755); err != nil {
-		t.Fatalf("failed to create dir: %v", err)
-	}
-
-	filePath := filepath.Join(targetDir, "check.txt")
-	if err := os.WriteFile(filePath, []byte("hello container"), 0o600); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	}))
-	t.Cleanup(server.Close)
-
 	configPath := filepath.Join(tmpDir, "container-test.yaml")
 	config := strings.Join([]string{
+		"image: docker.io/library/alpine:3.22",
 		"paths:",
-		"  - " + targetDir,
-		"files:",
-		"  - path: " + filePath,
-		"    contains:",
-		"      - hello",
-		"urls:",
-		"  - url: " + server.URL,
-		"    status: 200",
-		"    contains:",
-		"      - ok",
+		"  - /app",
+		"commands:",
+		"  - echo ok",
 	}, "\n")
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
+	}
+
+	oldRunPathCheckFn := runPathCheckFn
+	oldRunCommandFn := runCommandFn
+	t.Cleanup(func() {
+		runPathCheckFn = oldRunPathCheckFn
+		runCommandFn = oldRunCommandFn
+	})
+
+	runPathCheckFn = func(image, path string, cfg *ContainerConfig, timeout time.Duration) error {
+		return nil
+	}
+	runCommandFn = func(image string, env map[string]string, command string, timeout time.Duration) (string, error) {
+		return "", nil
 	}
 
 	if err := RunFromConfigFile(configPath); err != nil {
@@ -53,88 +42,116 @@ func TestRunFromConfigFileSuccess(t *testing.T) {
 	}
 }
 
-func TestRunFromConfigFileReturnsFailures(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	configPath := filepath.Join(tmpDir, "container-test.yaml")
-	config := strings.Join([]string{
-		"paths:",
-		"  - " + filepath.Join(tmpDir, "missing"),
-		"files:",
-		"  - path: " + filepath.Join(tmpDir, "missing.txt"),
-		"urls:",
-		"  - url: file:///tmp/test",
-	}, "\n")
-	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
-		t.Fatalf("failed to write config: %v", err)
-	}
-
-	err := RunFromConfigFile(configPath)
+func TestRunRequiresImageWhenChecksProvided(t *testing.T) {
+	t.Setenv("TEST_IMAGE", "")
+	err := Run(Config{Paths: []string{"/app"}})
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "container tests failed") {
-		t.Fatalf("expected failure summary, got %v", err)
+	if !strings.Contains(err.Error(), "image is required") {
+		t.Fatalf("expected image required error, got %v", err)
 	}
 }
 
 func TestRunExternalStorageIncludesConfig(t *testing.T) {
-	oldStat := statFn
+	oldRunPathCheckFn := runPathCheckFn
 	t.Cleanup(func() {
-		statFn = oldStat
+		runPathCheckFn = oldRunPathCheckFn
 	})
 
-	calls := make(map[string]int)
-	statFn = func(name string) (os.FileInfo, error) {
-		calls[name]++
-		if name == "/mnt/external" || name == "/config" {
-			return nil, nil
+	paths := make([]string, 0)
+	runPathCheckFn = func(image, path string, cfg *ContainerConfig, timeout time.Duration) error {
+		paths = append(paths, path)
+		return nil
+	}
+
+	err := Run(Config{Image: "docker.io/library/alpine:3.22", ExternalStorage: []string{"/mnt/external"}})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if len(paths) != 2 || paths[0] != "/mnt/external" || paths[1] != "/config" {
+		t.Fatalf("unexpected path checks: %#v", paths)
+	}
+}
+
+func TestRunCommandsSuccess(t *testing.T) {
+	oldRunCommandFn := runCommandFn
+	t.Cleanup(func() {
+		runCommandFn = oldRunCommandFn
+	})
+
+	calledCommands := make([]string, 0)
+	runCommandFn = func(image string, env map[string]string, command string, timeout time.Duration) (string, error) {
+		calledCommands = append(calledCommands, command)
+		if image != "docker.io/library/alpine:3.22" {
+			t.Fatalf("expected image %q, got %q", "docker.io/library/alpine:3.22", image)
 		}
-		return nil, errors.New("not found")
+		if env["TEST_VAR"] != "yes" {
+			t.Fatalf("expected env TEST_VAR=yes, got %#v", env)
+		}
+		if timeout != defaultTimeoutSeconds*time.Second {
+			t.Fatalf("expected default timeout %v, got %v", defaultTimeoutSeconds*time.Second, timeout)
+		}
+		return "", nil
 	}
 
-	if err := Run(Config{ExternalStorage: []string{"/mnt/external"}}); err != nil {
+	err := Run(Config{
+		Image:    "docker.io/library/alpine:3.22",
+		Env:      map[string]string{"TEST_VAR": "yes"},
+		Commands: []string{"echo ok", "test -d /tmp"},
+	})
+	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
 	}
-	if calls["/config"] == 0 {
-		t.Fatal("expected /config to be checked as external storage")
+
+	if len(calledCommands) != 2 {
+		t.Fatalf("expected 2 commands to run, got %d", len(calledCommands))
 	}
 }
 
-func TestRunTCPCheckSuccess(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to start tcp listener: %v", err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
+func TestRunCommandsFailure(t *testing.T) {
+	oldRunCommandFn := runCommandFn
+	t.Cleanup(func() {
+		runCommandFn = oldRunCommandFn
+	})
 
-	_, portString, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		t.Fatalf("failed to parse addr: %v", err)
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		t.Fatalf("failed to parse port: %v", err)
+	runCommandFn = func(image string, env map[string]string, command string, timeout time.Duration) (string, error) {
+		if command == "failing command" {
+			return "boom", errors.New("exit status 1")
+		}
+		return "", nil
 	}
 
-	if err := Run(Config{TCP: []TCPCheck{{Host: "127.0.0.1", Port: port}}}); err != nil {
-		t.Fatalf("Run returned error: %v", err)
-	}
-}
-
-func TestRunTCPCheckFailure(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to allocate tcp port: %v", err)
-	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	_ = listener.Close()
-
-	err = Run(Config{TCP: []TCPCheck{{Host: "127.0.0.1", Port: port}}})
+	err := Run(Config{Image: "docker.io/library/alpine:3.22", Commands: []string{"failing command"}})
 	if err == nil {
-		t.Fatal("expected tcp failure error")
+		t.Fatal("expected command failure")
 	}
-	if !strings.Contains(err.Error(), "tcp check failed") {
-		t.Fatalf("expected tcp failure message, got %v", err)
+	if !strings.Contains(err.Error(), "command check failed") {
+		t.Fatalf("expected command check failure, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "output: boom") {
+		t.Fatalf("expected command output in failure, got %v", err)
+	}
+}
+
+func TestRunCommandsRejectsEmptyCommand(t *testing.T) {
+	err := Run(Config{Image: "docker.io/library/alpine:3.22", Commands: []string{"  "}})
+	if err == nil {
+		t.Fatal("expected command validation failure")
+	}
+	if !strings.Contains(err.Error(), "command is required") {
+		t.Fatalf("expected empty command validation failure, got %v", err)
+	}
+}
+
+func TestGetTestImage(t *testing.T) {
+	t.Setenv("TEST_IMAGE", "")
+	if got := GetTestImage("docker.io/library/alpine:3.22"); got != "docker.io/library/alpine:3.22" {
+		t.Fatalf("expected default image, got %q", got)
+	}
+
+	t.Setenv("TEST_IMAGE", "ghcr.io/example/app:latest")
+	if got := GetTestImage("docker.io/library/alpine:3.22"); got != "ghcr.io/example/app:latest" {
+		t.Fatalf("expected env image override, got %q", got)
 	}
 }

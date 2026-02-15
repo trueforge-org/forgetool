@@ -1,5 +1,6 @@
 # Example checks for trueforge-org/containerforge app: adguardhome-sync
 # https://github.com/trueforge-org/containerforge/tree/main/apps/adguardhome-sync
+image: ghcr.io/trueforge-org/adguardhome-sync:latest
 paths:
   - /app
   - /config
@@ -13,3 +14,5 @@ urls:
 tcp:
   - host: 127.0.0.1
     port: 8080
+commands:
+  - test -x /app/adguardhome-sync
