@@ -8,7 +8,6 @@ import (
 
 var containerLongHelp = strings.TrimSpace(`
 These are all commands that can be used to test container images
-
 `)
 
 var containerCmd = &cobra.Command{

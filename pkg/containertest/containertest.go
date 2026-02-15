@@ -32,6 +32,8 @@ type URLCheck struct {
 	Contains []string `yaml:"contains"`
 }
 
+const defaultTimeoutSeconds = 10
+
 var (
 	readFileFn          = os.ReadFile
 	statFn              = os.Stat
@@ -54,7 +56,7 @@ func RunFromConfigFile(configPath string) error {
 }
 
 func Run(cfg Config) error {
-	timeout := 10 * time.Second
+	timeout := defaultTimeoutSeconds * time.Second
 	if cfg.TimeoutSeconds > 0 {
 		timeout = time.Duration(cfg.TimeoutSeconds) * time.Second
 	}
@@ -129,6 +131,7 @@ func Run(cfg Config) error {
 		}
 		if closeErr != nil {
 			failures = append(failures, fmt.Sprintf("url check failed for %q: %v", urlCheck.URL, closeErr))
+			continue
 		}
 
 		expectedStatus := http.StatusOK
