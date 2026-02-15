@@ -26,7 +26,7 @@ func TestExecuteReturnsNil(t *testing.T) {
 }
 
 func TestRootCmdHasExpectedSubcommands(t *testing.T) {
-	expected := []string{"cluster", "talos", "flux", "charts", "info", "encrypt", "decrypt", "checkcrypt", "adv", "helmrelease"}
+	expected := []string{"cluster", "talos", "flux", "charts", "info", "encrypt", "decrypt", "checkcrypt", "adv", "helmrelease", "container"}
 	cmds := RootCmd.Commands()
 	registered := make(map[string]bool)
 	for _, c := range cmds {
