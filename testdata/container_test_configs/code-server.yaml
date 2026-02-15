@@ -1,0 +1,10 @@
+# Example checks for trueforge-org/containerforge app: code-server
+# https://github.com/trueforge-org/containerforge/tree/main/apps/code-server
+paths:
+  - /app
+  - /config
+files:
+  - path: /app/code-server/bin/code-server
+urls:
+  - url: http://127.0.0.1:8443
+    status: 200

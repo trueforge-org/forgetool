@@ -1,0 +1,10 @@
+# Example checks for trueforge-org/containerforge app: caddy
+# https://github.com/trueforge-org/containerforge/tree/main/apps/caddy
+paths:
+  - /app
+  - /config
+files:
+  - path: /app/caddy
+urls:
+  - url: http://127.0.0.1:8080
+    status: 200

@@ -117,20 +117,22 @@ func Run(cfg Config) error {
 			continue
 		}
 
-		resp, err := httpDoFn(client, req)
+		bodyBytes, statusCode, err := func() ([]byte, int, error) {
+			resp, reqErr := httpDoFn(client, req)
+			if reqErr != nil {
+				return nil, 0, reqErr
+			}
+			defer resp.Body.Close()
+
+			body, readErr := io.ReadAll(resp.Body)
+			if readErr != nil {
+				return nil, 0, readErr
+			}
+
+			return body, resp.StatusCode, nil
+		}()
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("url check failed for %q: %v", urlCheck.URL, err))
-			continue
-		}
-
-		bodyBytes, readErr := io.ReadAll(resp.Body)
-		closeErr := resp.Body.Close()
-		if readErr != nil {
-			failures = append(failures, fmt.Sprintf("url check failed for %q: %v", urlCheck.URL, readErr))
-			continue
-		}
-		if closeErr != nil {
-			failures = append(failures, fmt.Sprintf("url check failed for %q: %v", urlCheck.URL, closeErr))
 			continue
 		}
 
@@ -138,8 +140,8 @@ func Run(cfg Config) error {
 		if urlCheck.Status > 0 {
 			expectedStatus = urlCheck.Status
 		}
-		if resp.StatusCode != expectedStatus {
-			failures = append(failures, fmt.Sprintf("url check failed for %q: expected status %d got %d", urlCheck.URL, expectedStatus, resp.StatusCode))
+		if statusCode != expectedStatus {
+			failures = append(failures, fmt.Sprintf("url check failed for %q: expected status %d got %d", urlCheck.URL, expectedStatus, statusCode))
 		}
 
 		bodyString := string(bodyBytes)
