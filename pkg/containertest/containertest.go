@@ -15,7 +15,7 @@ type Config struct {
 	Paths           []string          `yaml:"paths"`
 	ExternalStorage []string          `yaml:"externalStorage"`
 	Files           []FileCheck       `yaml:"files"`
-	URLs            []URLCheck        `yaml:"urls"`
+	HTTP            []HTTPCheck       `yaml:"http"`
 	TCP             []TCPCheck        `yaml:"tcp"`
 	Commands        []string          `yaml:"commands"`
 	TimeoutSeconds  int               `yaml:"timeoutSeconds"`
@@ -53,7 +53,7 @@ func Test(t *testing.T) {
 		t.Fatalf("failed to read config %q: %v", cfgPath, err)
 	}
 
-	var cfg config
+	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		t.Fatalf("failed to parse config %q: %v", cfgPath, err)
 	}
