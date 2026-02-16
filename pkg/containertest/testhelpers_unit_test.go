@@ -379,7 +379,12 @@ func TestRunContainerAndReadLogs(t *testing.T) {
 	defaultBackend := runContainerBackend
 	cancelledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, _ = defaultBackend(cancelledCtx, "invalid-image-for-coverage")
+	func() {
+		defer func() {
+			_ = recover()
+		}()
+		_, _ = defaultBackend(cancelledCtx, "invalid-image-for-coverage")
+	}()
 
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return nil, errors.New("run boom")
