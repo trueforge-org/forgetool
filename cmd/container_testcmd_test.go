@@ -53,10 +53,10 @@ func TestRunContainerTestReturnsErrorWhenImageMissing(t *testing.T) {
 	}
 }
 
-func TestRunContainerTestReturnsErrorWhenYAMLMissing(t *testing.T) {
+func TestRunContainerTestReturnsErrorWhenConfigMissing(t *testing.T) {
 	err := runContainerTest(context.Background(), "image", "", nil)
 	if err == nil {
-		t.Fatalf("expected error when --yaml is missing")
+		t.Fatalf("expected error when --config is missing")
 	}
 }
 
