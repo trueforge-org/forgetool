@@ -9,11 +9,33 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// A minimal config used only for running command entrypoints.
-type config struct {
-	Image    string            `yaml:"image"`
-	Env      map[string]string `yaml:"env"`
-	Commands []string          `yaml:"commands"`
+type Config struct {
+	Image           string            `yaml:"image"`
+	Env             map[string]string `yaml:"env"`
+	Paths           []string          `yaml:"paths"`
+	ExternalStorage []string          `yaml:"externalStorage"`
+	Files           []FileCheck       `yaml:"files"`
+	URLs            []URLCheck        `yaml:"urls"`
+	TCP             []TCPCheck        `yaml:"tcp"`
+	Commands        []string          `yaml:"commands"`
+	TimeoutSeconds  int               `yaml:"timeoutSeconds"`
+}
+
+type FileCheck struct {
+	Path        string   `yaml:"path"`
+	Contains    []string `yaml:"contains"`
+	NotContains []string `yaml:"notContains"`
+}
+
+type HTTPCheck struct {
+	Path   string `yaml:"path"`
+	Port   string `yaml:"port"`
+	Status int    `yaml:"status"`
+}
+
+type TCPCheck struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 // Test reads a YAML file (path from CONTAINER_TEST_CONFIG or containertest.yml)

@@ -31,12 +31,11 @@ files:
     notContains:
       - forbidden
 
-# HTTP(S) checks
-urls:
-  - url: http://127.0.0.1:8080
+# HTTP endpoint checks mapped to HTTPTestConfig (port/path/status)
+http:
+  - port: "6767"
+    path: /
     status: 200
-    contains:
-      - ok
 
 # TCP connectivity checks
 tcp:
