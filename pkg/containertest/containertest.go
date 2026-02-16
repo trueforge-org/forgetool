@@ -44,15 +44,7 @@ type TCPCheck struct {
 	Port int    `yaml:"port"`
 }
 
-type ContainerConfig struct {
-	Env map[string]string
-}
-
-type HTTPTestConfig struct {
-	Port       string
-	Path       string
-	StatusCode int
-}
+// ContainerConfig and HTTPTestConfig are provided by testhelpers.go
 
 const defaultTimeoutSeconds = 10
 
@@ -167,30 +159,13 @@ func Run(cfg Config) error {
 	return nil
 }
 
-func GetTestImage(defaultImage string) string {
-	image := os.Getenv("TEST_IMAGE")
-	if image == "" {
-		return defaultImage
-	}
-	return image
-}
+// GetTestImage is provided by testhelpers.go
 
-func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCustomizer {
-	var opts []testcontainers.ContainerCustomizer
-	if config == nil {
-		return opts
-	}
-	if len(config.Env) > 0 {
-		opts = append(opts, testcontainers.WithEnv(config.Env))
-	}
-	return opts
-}
+// applyContainerConfig is provided by testhelpers.go
 
-func runContainer(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
-	return runContainerFn(ctx, image, opts...)
-}
+// runtime container start uses runContainerFn directly (defined above)
 
-func assertExitZero(ctx context.Context, c testcontainers.Container, what string) error {
+func containerAssertExitZero(ctx context.Context, c testcontainers.Container, what string) error {
 	exitCode, err := containerExitCodeFn(ctx, c)
 	if err != nil {
 		return err
@@ -297,7 +272,7 @@ func testHTTPEndpoint(image string, httpConfig HTTPTestConfig, containerConfig *
 	}
 	opts = append(opts, applyContainerConfig(containerConfig)...)
 
-	c, err := runContainer(ctx, image, opts...)
+	c, err := runContainerFn(ctx, image, opts...)
 	if err != nil {
 		return err
 	}
@@ -319,7 +294,7 @@ func testListeningPort(image string, port string, containerConfig *ContainerConf
 	}
 	opts = append(opts, applyContainerConfig(containerConfig)...)
 
-	c, err := runContainer(ctx, image, opts...)
+	c, err := runContainerFn(ctx, image, opts...)
 	if err != nil {
 		return err
 	}
@@ -351,7 +326,7 @@ func runCommand(image string, env map[string]string, command string, timeout tim
 		opts = append(opts, testcontainers.WithEntrypointArgs(fields[1:]...))
 	}
 
-	c, err := runContainer(ctx, image, opts...)
+	c, err := runContainerFn(ctx, image, opts...)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return "", fmt.Errorf("timed out after %s", timeout)
@@ -360,7 +335,7 @@ func runCommand(image string, env map[string]string, command string, timeout tim
 	}
 	defer func() { _ = terminateContainerFn(ctx, c) }()
 
-	if err := assertExitZero(ctx, c, fmt.Sprintf("command %q should succeed", command)); err != nil {
+	if err := containerAssertExitZero(ctx, c, fmt.Sprintf("command %q should succeed", command)); err != nil {
 		return "", err
 	}
 
