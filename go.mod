@@ -7,6 +7,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/beevik/ntp v1.5.0
 	github.com/budimanjojo/talhelper/v3 v3.1.4
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/getsops/sops/v3 v3.11.0
 	github.com/go-git/go-git/v5 v5.16.5
@@ -22,7 +23,7 @@ require (
 	github.com/siderolabs/talos v1.13.0-alpha.1
 	github.com/siderolabs/talos/pkg/machinery v1.13.0-alpha.1
 	github.com/spf13/cobra v1.10.2
-	github.com/testcontainers/testcontainers-go v0.39.0
+	github.com/testcontainers/testcontainers-go v0.40.0
 	golang.org/x/crypto v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.20.0
@@ -133,7 +134,6 @@ require (
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/docker/cli v29.1.3+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
