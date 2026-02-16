@@ -1,4 +1,4 @@
-package main
+package containertest
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/trueforge-org/containerforge/testhelpers"
 )
 
 type stringSliceFlag []string
@@ -59,10 +57,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	config := &testhelpers.ContainerConfig{Env: env}
+	config := &ContainerConfig{Env: env}
 	ctx := context.Background()
 
-	if err := testhelpers.RunChecksFromYAML(ctx, *image, *yamlPath, config); err != nil {
+	if err := RunChecksFromYAML(ctx, *image, *yamlPath, config); err != nil {
 		fmt.Fprintf(os.Stderr, "check failed: %v\n", err)
 		os.Exit(1)
 	}
