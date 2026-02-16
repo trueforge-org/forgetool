@@ -7,6 +7,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/beevik/ntp v1.5.0
 	github.com/budimanjojo/talhelper/v3 v3.1.4
+	github.com/docker/go-connections v0.6.0
 	github.com/getsops/sops/v3 v3.11.0
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/go-logr/zerologr v1.2.3
@@ -21,6 +22,7 @@ require (
 	github.com/siderolabs/talos v1.13.0-alpha.1
 	github.com/siderolabs/talos/pkg/machinery v1.13.0-alpha.1
 	github.com/spf13/cobra v1.10.2
+	github.com/testcontainers/testcontainers-go v0.39.0
 	golang.org/x/crypto v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.20.0
@@ -133,7 +135,6 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
-	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.4 // indirect
@@ -342,7 +343,6 @@ require (
 	github.com/spyzhov/ajson v0.9.6 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/testcontainers/testcontainers-go v0.39.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/u-root/uio v0.0.0-20240224005618-d2acac8f3701 // indirect

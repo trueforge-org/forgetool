@@ -17,8 +17,20 @@ MODULE_PREFIX_PATTERN = re.compile(r"^github\.com/trueforge-org/forgetool/")
 
 
 def run_tests_for_coverage() -> None:
+    package_list_result = subprocess.run(
+        ["go", "list", "-f", "{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}", "./..."],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    packages = [line.strip() for line in package_list_result.stdout.splitlines() if line.strip()]
+    if not packages:
+        raise RuntimeError("No Go packages with tests were found.")
+
     subprocess.run(
-        ["go", "test", "-covermode=atomic", f"-coverprofile={COVERAGE_FILE.name}", "./..."],
+        ["go", "test", "-covermode=atomic", f"-coverprofile={COVERAGE_FILE.name}", *packages],
         cwd=ROOT,
         check=True,
     )
