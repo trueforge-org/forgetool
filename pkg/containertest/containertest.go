@@ -14,23 +14,11 @@ type Config struct {
 	Env             map[string]string `yaml:"env"`
 	Paths           []string          `yaml:"paths"`
 	ExternalStorage []string          `yaml:"externalStorage"`
-	Files           []FileCheck       `yaml:"files"`
-	HTTP            []HTTPCheck       `yaml:"http"`
+	Files           map[string]string `yaml:"files"`
+	HTTP            []HTTPTestConfig  `yaml:"http"`
 	TCP             []TCPCheck        `yaml:"tcp"`
 	Commands        []string          `yaml:"commands"`
 	TimeoutSeconds  int               `yaml:"timeoutSeconds"`
-}
-
-type FileCheck struct {
-	Path        string   `yaml:"path"`
-	Contains    []string `yaml:"contains"`
-	NotContains []string `yaml:"notContains"`
-}
-
-type HTTPCheck struct {
-	Path   string `yaml:"path"`
-	Port   string `yaml:"port"`
-	Status int    `yaml:"status"`
 }
 
 type TCPCheck struct {
@@ -81,6 +69,20 @@ func Test(t *testing.T) {
 			}
 
 			TestCommandSucceeds(t, ctx, image, &ContainerConfig{Env: cfg.Env}, entry, args...)
+		})
+	}
+
+	for _, http := range cfg.HTTP {
+		http := http
+		t.Run(http.Path, func(t *testing.T) {
+			TestHTTPEndpoint(t, ctx, image, http, &ContainerConfig{Env: cfg.Env})
+		})
+	}
+
+	for _, file := range cfg.Files {
+		file := file
+		t.Run(file, func(t *testing.T) {
+			TestFileExists(t, ctx, image, file, &ContainerConfig{Env: cfg.Env})
 		})
 	}
 }
