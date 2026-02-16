@@ -23,6 +23,10 @@ const (
 	colorRed    = "\033[31m"
 )
 
+var runContainerBackend = func(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+	return testcontainers.Run(ctx, image, opts...)
+}
+
 func envTruthy(name string) bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
 	switch value {
@@ -238,7 +242,7 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 func runContainer(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 	logInfo("🚀 Starting container: image=%s customizers=%d", image, len(opts))
 	logDebug("Invoking testcontainers.Run for image=%s", image)
-	container, err := testcontainers.Run(ctx, image, opts...)
+	container, err := runContainerBackend(ctx, image, opts...)
 	if err != nil {
 		logError("Container start failed for image=%s: %v", image, err)
 		return nil, err

@@ -12,6 +12,13 @@ import (
 
 const minYAMLTimeoutSeconds = 120
 
+var (
+	loadContainerTestYAMLFn = LoadContainerTestYAML
+	checkWaitsFn            = CheckWaits
+	checkFilesExistFn       = CheckFilesExist
+	checkCommandsFn         = CheckCommands
+)
+
 // ContainerTestYAML defines the struct-based container-test.yaml schema.
 //
 // Supported keys:
@@ -47,7 +54,7 @@ func LoadContainerTestYAML(filePath string) (ContainerTestYAML, error) {
 
 // RunChecksFromYAML runs container checks defined in a struct-based container-test YAML file.
 func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, containerConfig *ContainerConfig) error {
-	config, err := LoadContainerTestYAML(yamlPath)
+	config, err := loadContainerTestYAMLFn(yamlPath)
 	if err != nil {
 		return err
 	}
@@ -81,19 +88,19 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	}
 
 	if len(config.HTTP) > 0 || len(config.TCP) > 0 {
-		if err := CheckWaits(ctx, image, config.HTTP, config.TCP, containerConfig); err != nil {
+		if err := checkWaitsFn(ctx, image, config.HTTP, config.TCP, containerConfig); err != nil {
 			return err
 		}
 	}
 
 	if len(config.FilePaths) > 0 {
-		if err := CheckFilesExist(ctx, image, config.FilePaths, containerConfig); err != nil {
+		if err := checkFilesExistFn(ctx, image, config.FilePaths, containerConfig); err != nil {
 			return err
 		}
 	}
 
 	if len(config.Commands) > 0 {
-		if err := CheckCommands(ctx, image, containerConfig, config.Commands); err != nil {
+		if err := checkCommandsFn(ctx, image, containerConfig, config.Commands); err != nil {
 			return err
 		}
 	}

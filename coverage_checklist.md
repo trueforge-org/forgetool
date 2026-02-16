@@ -17,6 +17,8 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (1/1) - cmd/cluster.go
 - [ ] 100.00% (3/3) - cmd/cluster_genconfig.go
 - [ ] 100.00% (4/4) - cmd/cluster_init.go
+- [ ] 100.00% (1/1) - cmd/container.go
+- [ ] 100.00% (23/23) - cmd/container_testcmd.go
 - [ ] 100.00% (3/3) - cmd/decrypt.go
 - [ ] 100.00% (3/3) - cmd/encrypt.go
 - [ ] 100.00% (1/1) - cmd/flux.go
@@ -54,9 +56,11 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (12/12) - pkg/charts/readme/readme.go
 - [ ] 100.00% (20/20) - pkg/charts/valuesYaml/parse.go
 - [ ] 100.00% (18/18) - pkg/charts/valuesYaml/updater.go
-- [ ] 100.00% (16/16) - pkg/charts/version/bump.go
+- [ ] 100.00% (21/21) - pkg/charts/version/bump.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
 - [ ] 100.00% (76/76) - pkg/clustertemplate/clustertemplate.go
+- [ ] 100.00% (251/251) - pkg/containertest/testhelpers.go
+- [ ] 100.00% (36/36) - pkg/containertest/yaml_runner.go
 - [ ] 100.00% (78/78) - pkg/fluxhandler/bootstrap.go
 - [ ] 100.00% (175/175) - pkg/fluxhandler/helm.go
 - [ ] 100.00% (98/98) - pkg/fluxhandler/helm_pull.go
