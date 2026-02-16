@@ -156,7 +156,9 @@ func TestRunCommandsPrintsOutput(t *testing.T) {
 	os.Stdout = w
 	t.Cleanup(func() {
 		os.Stdout = oldStdout
-		_ = r.Close()
+		if closeErr := r.Close(); closeErr != nil {
+			t.Errorf("failed to close stdout reader: %v", closeErr)
+		}
 	})
 
 	err = Run(Config{Image: "docker.io/library/alpine:3.22", Commands: []string{"echo hello"}})

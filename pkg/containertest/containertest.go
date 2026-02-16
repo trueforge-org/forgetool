@@ -156,12 +156,13 @@ func Run(cfg Config) error {
 		}
 
 		output, err := runCommandFn(image, cfg.Env, trimmedCommand, timeout)
-		if trimmedOutput := strings.TrimSpace(output); trimmedOutput != "" {
+		trimmedOutput := strings.TrimSpace(output)
+		if trimmedOutput != "" {
 			fmt.Println(trimmedOutput)
 		}
 		if err != nil {
-			if strings.TrimSpace(output) != "" {
-				failures = append(failures, fmt.Sprintf("command check failed for %q: %v (output: %s)", trimmedCommand, err, strings.TrimSpace(output)))
+			if trimmedOutput != "" {
+				failures = append(failures, fmt.Sprintf("command check failed for %q: %v (output: %s)", trimmedCommand, err, trimmedOutput))
 				continue
 			}
 			failures = append(failures, fmt.Sprintf("command check failed for %q: %v", trimmedCommand, err))
@@ -354,6 +355,8 @@ func runCommand(image string, env map[string]string, command string, timeout tim
 	output := ""
 	if commandOutput, err := containerOutputFn(ctx, c); err == nil {
 		output = commandOutput
+	} else {
+		fmt.Fprintf(os.Stderr, "failed to read container output: %v\n", err)
 	}
 
 	if err := containerAssertExitZero(ctx, c, fmt.Sprintf("command %q should succeed", command)); err != nil {
