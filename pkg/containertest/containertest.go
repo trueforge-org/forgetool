@@ -3,6 +3,7 @@ package containertest
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strconv"
@@ -63,6 +64,18 @@ var (
 			return 0, err
 		}
 		return state.ExitCode, nil
+	}
+	containerOutputFn = func(ctx context.Context, c testcontainers.Container) (string, error) {
+		reader, err := c.Logs(ctx)
+		if err != nil {
+			return "", err
+		}
+		defer reader.Close()
+		output, err := io.ReadAll(reader)
+		if err != nil {
+			return "", err
+		}
+		return string(output), nil
 	}
 
 	runPathCheckFn = runPathCheck
@@ -143,6 +156,9 @@ func Run(cfg Config) error {
 		}
 
 		output, err := runCommandFn(image, cfg.Env, trimmedCommand, timeout)
+		if trimmedOutput := strings.TrimSpace(output); trimmedOutput != "" {
+			fmt.Println(trimmedOutput)
+		}
 		if err != nil {
 			if strings.TrimSpace(output) != "" {
 				failures = append(failures, fmt.Sprintf("command check failed for %q: %v (output: %s)", trimmedCommand, err, strings.TrimSpace(output)))
@@ -335,11 +351,16 @@ func runCommand(image string, env map[string]string, command string, timeout tim
 	}
 	defer func() { _ = terminateContainerFn(ctx, c) }()
 
-	if err := containerAssertExitZero(ctx, c, fmt.Sprintf("command %q should succeed", command)); err != nil {
-		return "", err
+	output := ""
+	if commandOutput, err := containerOutputFn(ctx, c); err == nil {
+		output = commandOutput
 	}
 
-	return "", nil
+	if err := containerAssertExitZero(ctx, c, fmt.Sprintf("command %q should succeed", command)); err != nil {
+		return output, err
+	}
+
+	return output, nil
 }
 
 func containsString(values []string, expected string) bool {

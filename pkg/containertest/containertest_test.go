@@ -1,12 +1,16 @@
 package containertest
 
 import (
+	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/testcontainers/testcontainers-go"
 )
 
 func TestRunFromConfigFileSuccess(t *testing.T) {
@@ -134,6 +138,42 @@ func TestRunCommandsFailure(t *testing.T) {
 	}
 }
 
+func TestRunCommandsPrintsOutput(t *testing.T) {
+	oldRunCommandFn := runCommandFn
+	t.Cleanup(func() {
+		runCommandFn = oldRunCommandFn
+	})
+
+	runCommandFn = func(image string, env map[string]string, command string, timeout time.Duration) (string, error) {
+		return "hello from command\n", nil
+	}
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+		_ = r.Close()
+	})
+
+	err = Run(Config{Image: "docker.io/library/alpine:3.22", Commands: []string{"echo hello"}})
+	_ = w.Close()
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	outputBytes, readErr := io.ReadAll(r)
+	if readErr != nil {
+		t.Fatalf("failed to read stdout: %v", readErr)
+	}
+	if got := string(outputBytes); !strings.Contains(got, "hello from command") {
+		t.Fatalf("expected command output to be printed, got %q", got)
+	}
+}
+
 func TestRunCommandsRejectsEmptyCommand(t *testing.T) {
 	err := Run(Config{Image: "docker.io/library/alpine:3.22", Commands: []string{"  "}})
 	if err == nil {
@@ -141,6 +181,36 @@ func TestRunCommandsRejectsEmptyCommand(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "command is required") {
 		t.Fatalf("expected empty command validation failure, got %v", err)
+	}
+}
+
+func TestRunCommandReturnsContainerOutput(t *testing.T) {
+	oldRunContainerFn := runContainerFn
+	oldTerminateContainerFn := terminateContainerFn
+	oldContainerExitCodeFn := containerExitCodeFn
+	oldContainerOutputFn := containerOutputFn
+	t.Cleanup(func() {
+		runContainerFn = oldRunContainerFn
+		terminateContainerFn = oldTerminateContainerFn
+		containerExitCodeFn = oldContainerExitCodeFn
+		containerOutputFn = oldContainerOutputFn
+	})
+
+	runContainerFn = func(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, nil
+	}
+	terminateContainerFn = func(ctx context.Context, c testcontainers.Container) error { return nil }
+	containerExitCodeFn = func(ctx context.Context, c testcontainers.Container) (int, error) { return 0, nil }
+	containerOutputFn = func(ctx context.Context, c testcontainers.Container) (string, error) {
+		return "container output\n", nil
+	}
+
+	output, err := runCommand("docker.io/library/alpine:3.22", nil, "echo hello", time.Second)
+	if err != nil {
+		t.Fatalf("runCommand returned error: %v", err)
+	}
+	if output != "container output\n" {
+		t.Fatalf("expected output %q, got %q", "container output\n", output)
 	}
 }
 
