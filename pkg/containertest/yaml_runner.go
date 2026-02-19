@@ -17,6 +17,7 @@ var (
 	checkWaitsFn            = CheckWaits
 	checkFilesExistFn       = CheckFilesExist
 	checkCommandsFn         = CheckCommands
+	checkStandardRunFn      = CheckStandardRun
 )
 
 // ContainerTestYAML defines the struct-based container-test.yaml schema.
@@ -27,6 +28,7 @@ var (
 // - tcp: []TCPTestConfig
 // - commands: []CommandTestConfig
 // - filePaths: []string
+// - standardRun: bool
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
 type ContainerTestYAML struct {
@@ -35,6 +37,7 @@ type ContainerTestYAML struct {
 	TCP            []TCPTestConfig     `yaml:"tcp"`
 	Commands       []CommandTestConfig `yaml:"commands"`
 	FilePaths      []string            `yaml:"filePaths"`
+	StandardRun    bool                `yaml:"standardRun"`
 }
 
 // LoadContainerTestYAML reads and parses a container-test YAML file.
@@ -71,7 +74,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		defer cancel()
 	}
 
-	if len(config.HTTP) == 0 && len(config.TCP) == 0 && len(config.FilePaths) == 0 && len(config.Commands) == 0 {
+	if len(config.HTTP) == 0 && len(config.TCP) == 0 && len(config.FilePaths) == 0 && len(config.Commands) == 0 && !config.StandardRun {
 		return fmt.Errorf("no checks configured in %s", yamlPath)
 	}
 
@@ -101,6 +104,12 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 
 	if len(config.Commands) > 0 {
 		if err := checkCommandsFn(ctx, image, containerConfig, config.Commands); err != nil {
+			return err
+		}
+	}
+
+	if config.StandardRun {
+		if err := checkStandardRunFn(ctx, image, containerConfig); err != nil {
 			return err
 		}
 	}

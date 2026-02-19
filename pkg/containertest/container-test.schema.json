@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://trueforge-org.github.io/containerforge/container-test.schema.json",
   "title": "Container test configuration",
-  "description": "Schema for apps/*/container-test.yaml consumed by testhelpers.RunChecksFromYAML. Define one or more check groups (http, tcp, commands, filePaths) for a container image.",
+  "description": "Schema for apps/*/container-test.yaml consumed by testhelpers.RunChecksFromYAML. Define one or more check groups (http, tcp, commands, filePaths, standardRun) for a container image.",
   "examples": [
     {
       "timeoutSeconds": 180,
@@ -118,6 +118,13 @@
           "/bin/sh"
         ]
       }
+    },
+    "standardRun": {
+      "type": "boolean",
+      "description": "Starts the container with its default entrypoint and arguments (no command overrides).",
+      "examples": [
+        true
+      ]
     }
   },
   "anyOf": [
@@ -139,6 +146,11 @@
     {
       "required": [
         "filePaths"
+      ]
+    },
+    {
+      "required": [
+        "standardRun"
       ]
     }
   ],

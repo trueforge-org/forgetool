@@ -46,3 +46,6 @@ tcp:
 commands:
   - test -x /app/example-binary
   - echo "custom checks passed"
+
+# Start the container with its default entrypoint and args (no overrides)
+standardRun: true
