@@ -227,7 +227,8 @@ type MountConfig struct {
 // ContainerConfig holds optional container configuration
 type ContainerConfig struct {
 	Env            map[string]string // Environment variables to set in the container
-	ReadOnlyRootfs bool              // Environment variables to set in the container
+	Command        []string          // Override the container CMD via WithCmd. When a runner uses expectedOutput, the runner's command string is instead run via "sh -c <command>" (not this field).
+	ReadOnlyRootfs bool              // Mount the container root filesystem as read-only
 	Mounts         []MountConfig     // Folders to mount from host tmp dirs into the container
 }
 
@@ -272,6 +273,12 @@ func applyContainerConfig(config *ContainerConfig) ([]testcontainers.ContainerCu
 		logInfo("Applying container environment: %s", envSummary(config.Env))
 	} else {
 		logDebug("Container config provided without env vars")
+	}
+
+	// Apply command override (CMD)
+	if len(config.Command) > 0 {
+		opts = append(opts, testcontainers.WithCmd(config.Command...))
+		logInfo("Applying container command: %s", strings.Join(config.Command, " "))
 	}
 
 	// Apply read-only root filesystem
@@ -732,4 +739,59 @@ func CheckCommands(ctx context.Context, image string, containerConfig *Container
 // CheckCommandSucceeds verifies that a command runs successfully in the container (exit code 0).
 func CheckCommandSucceeds(ctx context.Context, image string, config *ContainerConfig, entrypoint string, args ...string) error {
 	return CheckCommand(ctx, image, config, nil, entrypoint, args...)
+}
+
+// CheckRunnerOutput runs the container and verifies its output contains expectedOutput.
+// When command is non-empty, the container is started with "sh -c <command>" as entrypoint.
+// When command is empty, the container runs with its default entrypoint.
+// The container must exit for logs to be collected; wait.ForExit() is used as the wait strategy.
+func CheckRunnerOutput(ctx context.Context, image string, containerConfig *ContainerConfig, command string, expectedOutput string) (err error) {
+	logInfo("🧪 Runner output check: image=%s command=%q", image, command)
+	if containerConfig != nil {
+		logInfo("Runner output check container config: env=%s", envSummary(containerConfig.Env))
+	}
+
+	opts := []testcontainers.ContainerCustomizer{
+		testcontainers.WithWaitStrategy(wait.ForExit()),
+	}
+
+	if command != "" {
+		opts = append(opts, testcontainers.WithEntrypoint("sh"))
+		opts = append(opts, testcontainers.WithEntrypointArgs("-c", command))
+	}
+
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
+
+	c, err := runContainer(ctx, image, opts...)
+	if err != nil {
+		cleanupMounts()
+		return err
+	}
+	defer func() {
+		if shouldDumpContainerLogs(err != nil) {
+			dumpContainerLogs(ctx, c, "runner output check")
+		} else {
+			logDebug("Skipping container logs for runner output check (mode=%q, failed=%t)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))), err != nil)
+		}
+		termErr := terminateContainer(ctx, c, "runner output check")
+		if err == nil && termErr != nil {
+			err = fmt.Errorf("failed to terminate container: %w", termErr)
+		}
+		cleanupMounts()
+	}()
+
+	output, readErr := readContainerLogs(ctx, c)
+	if readErr != nil {
+		return fmt.Errorf("failed to read container output: %w", readErr)
+	}
+
+	actual := strings.TrimSpace(output)
+	expected := strings.TrimSpace(expectedOutput)
+	if !strings.Contains(actual, expected) {
+		return fmt.Errorf("runner output check: expected %q not found in output %q", expected, actual)
+	}
+
+	logOK("Runner output check passed")
+	return nil
 }
