@@ -41,7 +41,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 	}
 
 	goodPath := filepath.Join(dir, "good.yaml")
-	content := "timeoutSeconds: 130\nstandardRun: true\nhttp:\n  - port: \"8080\"\n    path: /health\n"
+	content := "timeoutSeconds: 130\nstandardRun: true\nreadOnlyRootfs: true\nhttp:\n  - port: \"8080\"\n    path: /health\n"
 	if err := os.WriteFile(goodPath, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed writing good yaml: %v", err)
 	}
@@ -51,6 +51,9 @@ func TestLoadContainerTestYAML(t *testing.T) {
 	}
 	if config.TimeoutSeconds != 130 || !config.StandardRun || len(config.HTTP) != 1 || config.HTTP[0].Port != "8080" {
 		t.Fatalf("unexpected config: %+v", config)
+	}
+	if !config.ReadOnlyRootfs {
+		t.Fatalf("expected ReadOnlyRootfs=true, got false")
 	}
 }
 
@@ -182,5 +185,59 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 
 	if calledWaits != 1 || calledFiles != 1 || calledCommands != 1 || calledStandardRun != 1 {
 		t.Fatalf("expected all checks once, got waits=%d files=%d commands=%d standardRun=%d", calledWaits, calledFiles, calledCommands, calledStandardRun)
+	}
+}
+
+func TestRunChecksFromYAMLReadOnlyRootfs(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	var gotConfig *ContainerConfig
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun:    true,
+			ReadOnlyRootfs: true,
+		}, nil
+	}
+	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		gotConfig = cfg
+		return nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotConfig == nil || !gotConfig.ReadOnlyRootfs {
+		t.Fatalf("expected ReadOnlyRootfs=true to be propagated to ContainerConfig, got %+v", gotConfig)
+	}
+}
+
+func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	var gotConfig *ContainerConfig
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun:    true,
+			ReadOnlyRootfs: true,
+		}, nil
+	}
+	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		gotConfig = cfg
+		return nil
+	}
+
+	existing := &ContainerConfig{Env: map[string]string{"FOO": "bar"}}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", existing); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotConfig == nil || !gotConfig.ReadOnlyRootfs {
+		t.Fatalf("expected ReadOnlyRootfs=true in merged config, got %+v", gotConfig)
+	}
+	if gotConfig.Env["FOO"] != "bar" {
+		t.Fatalf("expected existing env to be preserved, got %+v", gotConfig.Env)
 	}
 }

@@ -125,6 +125,13 @@
       "examples": [
         true
       ]
+    },
+    "readOnlyRootfs": {
+      "type": "boolean",
+      "description": "Mounts the container root filesystem as read-only for all checks in the test suite.",
+      "examples": [
+        true
+      ]
     }
   },
   "anyOf": [

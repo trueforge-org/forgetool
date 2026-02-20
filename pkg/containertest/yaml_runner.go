@@ -29,6 +29,7 @@ var (
 // - commands: []CommandTestConfig
 // - filePaths: []string
 // - standardRun: bool
+// - readOnlyRootfs: bool
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
 type ContainerTestYAML struct {
@@ -38,6 +39,7 @@ type ContainerTestYAML struct {
 	Commands       []CommandTestConfig `yaml:"commands"`
 	FilePaths      []string            `yaml:"filePaths"`
 	StandardRun    bool                `yaml:"standardRun"`
+	ReadOnlyRootfs bool                `yaml:"readOnlyRootfs"`
 }
 
 // LoadContainerTestYAML reads and parses a container-test YAML file.
@@ -88,6 +90,14 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		if strings.TrimSpace(filePath) == "" {
 			return fmt.Errorf("filePaths[%d] must not be empty", index)
 		}
+	}
+
+	// Merge YAML-level readOnlyRootfs into the container config.
+	if config.ReadOnlyRootfs {
+		if containerConfig == nil {
+			containerConfig = &ContainerConfig{}
+		}
+		containerConfig.ReadOnlyRootfs = true
 	}
 
 	if len(config.HTTP) > 0 || len(config.TCP) > 0 {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -215,7 +216,8 @@ func GetTestImage(defaultImage string) string {
 
 // ContainerConfig holds optional container configuration
 type ContainerConfig struct {
-	Env map[string]string // Environment variables to set in the container
+	Env            map[string]string // Environment variables to set in the container
+	ReadOnlyRootfs bool              // Mount the container's root filesystem as read only
 }
 
 // applyContainerConfig applies optional container configuration
@@ -233,6 +235,14 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 		logInfo("Applying container environment: %s", envSummary(config.Env))
 	} else {
 		logDebug("Container config provided without env vars")
+	}
+
+	// Apply read-only root filesystem
+	if config.ReadOnlyRootfs {
+		opts = append(opts, testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) {
+			hc.ReadonlyRootfs = true
+		}))
+		logInfo("Applying read-only root filesystem")
 	}
 
 	return opts
