@@ -272,6 +272,20 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	if got, _ := applyContainerConfig(&ContainerConfig{ReadOnlyRootfs: true}); len(got) != 1 {
 		t.Fatalf("expected one opt for ReadOnlyRootfs")
 	}
+	if got, _ := applyContainerConfig(&ContainerConfig{ReadOnlyRootfs: true}); len(got) == 1 {
+		req := testcontainers.GenericContainerRequest{}
+		if err := got[0].Customize(&req); err != nil {
+			t.Fatalf("unexpected customize error: %v", err)
+		}
+		if req.HostConfigModifier == nil {
+			t.Fatalf("expected HostConfigModifier to be set")
+		}
+		hc := &container.HostConfig{}
+		req.HostConfigModifier(hc)
+		if !hc.ReadonlyRootfs {
+			t.Fatalf("expected HostConfigModifier to set ReadonlyRootfs=true")
+		}
+	}
 	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
 		t.Fatalf("expected two opts for env+ReadOnlyRootfs")
 	}
@@ -372,6 +386,15 @@ func TestApplyContainerConfigMounts(t *testing.T) {
 	})
 	if len(opts) != 0 {
 		t.Fatalf("expected no opts for non-absolute mount path, got %d", len(opts))
+	}
+	cleanup()
+
+	// Empty mount path should be skipped.
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "   "}},
+	})
+	if len(opts) != 0 {
+		t.Fatalf("expected no opts for empty mount path, got %d", len(opts))
 	}
 	cleanup()
 
