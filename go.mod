@@ -6,7 +6,7 @@ require (
 	filippo.io/age v1.3.1
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/beevik/ntp v1.5.0
-	github.com/budimanjojo/talhelper/v3 v3.1.4
+	github.com/budimanjojo/talhelper/v3 v3.1.5
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/getsops/sops/v3 v3.12.0
@@ -20,8 +20,8 @@ require (
 	github.com/knadh/koanf/v2 v2.3.2
 	github.com/leaanthony/debme v1.2.1
 	github.com/rs/zerolog v1.34.0
-	github.com/siderolabs/talos v1.13.0-alpha.1
-	github.com/siderolabs/talos/pkg/machinery v1.13.0-alpha.1
+	github.com/siderolabs/talos v1.13.0-alpha.1.0.20260207193313-2628eb2ece05
+	github.com/siderolabs/talos/pkg/machinery v1.13.0-alpha.1.0.20260207193313-2628eb2ece05
 	github.com/spf13/cobra v1.10.2
 	github.com/testcontainers/testcontainers-go v0.40.0
 	golang.org/x/crypto v0.48.0
@@ -329,7 +329,7 @@ require (
 	github.com/siderolabs/go-procfs v0.1.2 // indirect
 	github.com/siderolabs/go-retry v0.3.3 // indirect
 	github.com/siderolabs/go-talos-support v0.1.4 // indirect
-	github.com/siderolabs/image-factory v1.0.2 // indirect
+	github.com/siderolabs/image-factory v1.0.3 // indirect
 	github.com/siderolabs/kms-client v0.1.0 // indirect
 	github.com/siderolabs/net v0.4.0 // indirect
 	github.com/siderolabs/proto-codec v0.1.3 // indirect
@@ -385,7 +385,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.3 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
-	golang.org/x/mod v0.32.0 // indirect
+	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/net v0.50.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
