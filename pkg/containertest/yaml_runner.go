@@ -30,6 +30,8 @@ var (
 // - commands: []CommandTestConfig
 // - filePaths: []string
 // - standardRun: bool
+// - readOnlyRootfs: bool
+
 // - mounts: []MountConfig
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
@@ -40,6 +42,7 @@ type ContainerTestYAML struct {
 	Commands       []CommandTestConfig `yaml:"commands"`
 	FilePaths      []string            `yaml:"filePaths"`
 	StandardRun    bool                `yaml:"standardRun"`
+	ReadOnlyRootfs bool                `yaml:"readOnlyRootfs"`
 	Mounts         []MountConfig       `yaml:"mounts"`
 }
 
@@ -93,6 +96,16 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 	}
 
+
+	// Merge YAML-level readOnlyRootfs into the container config.
+	if config.ReadOnlyRootfs {
+		if containerConfig == nil {
+			containerConfig = &ContainerConfig{}
+		}
+		containerConfig.ReadOnlyRootfs = true
+	}
+
+	if err := checkHealthFn(ctx, image, containerConfig); err != nil {
 	for index, mount := range config.Mounts {
 		trimmedPath := strings.TrimSpace(mount.Path)
 		if trimmedPath == "" {

@@ -126,6 +126,13 @@
         true
       ]
     },
+    "readOnlyRootfs": {
+      "type": "boolean",
+      "description": "Mounts the container root filesystem as read-only for all checks in the test suite.",
+      "examples": [
+        true
+      ]
+
     "mounts": {
       "type": "array",
       "description": "Folders to mount from host tmp dirs into the container. A fresh temporary directory is created on the host for each entry and bind-mounted at the specified container path. Applies to every check run (http, tcp, commands, filePaths, standardRun).",

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -225,7 +226,8 @@ type MountConfig struct {
 
 // ContainerConfig holds optional container configuration
 type ContainerConfig struct {
-	Env    map[string]string // Environment variables to set in the container
+	Env            map[string]string // Environment variables to set in the container
+	ReadOnlyRootfs bool      // Environment variables to set in the container
 	Mounts []MountConfig     // Folders to mount from host tmp dirs into the container
 }
 
@@ -250,6 +252,7 @@ func parseChown(chown string) (int, int, error) {
 		return 0, 0, fmt.Errorf("gid must be >= 0, got %d", gid)
 	}
 	return uid, gid, nil
+
 }
 
 // applyContainerConfig applies optional container configuration and returns a cleanup
@@ -271,6 +274,15 @@ func applyContainerConfig(config *ContainerConfig) ([]testcontainers.ContainerCu
 		logDebug("Container config provided without env vars")
 	}
 
+	// Apply read-only root filesystem
+	if config.ReadOnlyRootfs {
+		opts = append(opts, testcontainers.WithHostConfigModifier(func(hc *container.HostConfig) {
+			hc.ReadonlyRootfs = true
+		}))
+		logInfo("Applying read-only root filesystem")
+	}
+
+	return opts
 	// Apply mounts: create a tmp dir on the host for each mount entry
 	for _, mount := range config.Mounts {
 		mountPath := strings.TrimSpace(mount.Path)
