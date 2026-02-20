@@ -271,32 +271,42 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 
 	// Apply mounts: create a tmp dir on the host for each mount entry
 	for _, mount := range config.Mounts {
+		mountPath := strings.TrimSpace(mount.Path)
+		if mountPath == "" {
+			logWarn("Skipping mount with empty path")
+			continue
+		}
+		if !strings.HasPrefix(mountPath, "/") {
+			logWarn("Skipping mount with non-absolute path %q", mountPath)
+			continue
+		}
+
 		tmpDir, err := mkdirTempFn("", "containertest-mount-*")
 		if err != nil {
-			logWarn("Failed to create temp dir for mount %s: %v", mount.Path, err)
+			logWarn("Failed to create temp dir for mount %s: %v", mountPath, err)
 			continue
 		}
 
 		if mount.Chmod != "" {
 			mode, parseErr := strconv.ParseUint(mount.Chmod, 8, 32)
 			if parseErr != nil {
-				logWarn("Invalid chmod %q for mount %s: %v", mount.Chmod, mount.Path, parseErr)
+				logWarn("Invalid chmod %q for mount %s: %v", mount.Chmod, mountPath, parseErr)
 			} else if chmodErr := os.Chmod(tmpDir, os.FileMode(mode)); chmodErr != nil {
-				logWarn("Failed to chmod temp dir for mount %s: %v", mount.Path, chmodErr)
+				logWarn("Failed to chmod temp dir for mount %s: %v", mountPath, chmodErr)
 			}
 		}
 
 		if mount.Chown != "" {
 			uid, gid, chownParseErr := parseChown(mount.Chown)
 			if chownParseErr != nil {
-				logWarn("Invalid chown %q for mount %s: %v", mount.Chown, mount.Path, chownParseErr)
+				logWarn("Invalid chown %q for mount %s: %v", mount.Chown, mountPath, chownParseErr)
 			} else if lchownErr := os.Lchown(tmpDir, uid, gid); lchownErr != nil {
-				logWarn("Failed to chown temp dir for mount %s: %v", mount.Path, lchownErr)
+				logWarn("Failed to chown temp dir for mount %s: %v", mountPath, lchownErr)
 			}
 		}
 
-		logInfo("Mounting tmp dir %s -> %s (chmod=%q chown=%q)", tmpDir, mount.Path, mount.Chmod, mount.Chown)
-		opts = append(opts, testcontainers.WithMounts(testcontainers.BindMount(tmpDir, testcontainers.ContainerMountTarget(mount.Path))))
+		logInfo("Mounting tmp dir %s -> %s (chmod=%q chown=%q)", tmpDir, mountPath, mount.Chmod, mount.Chown)
+		opts = append(opts, testcontainers.WithMounts(testcontainers.BindMount(tmpDir, testcontainers.ContainerMountTarget(mountPath))))
 	}
 
 	return opts
