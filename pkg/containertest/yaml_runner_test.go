@@ -18,6 +18,7 @@ func setYAMLRunnerSeams(t *testing.T) {
 	oldFiles := checkFilesExistFn
 	oldCommands := checkCommandsFn
 	oldStandardRun := checkStandardRunFn
+	oldRunnerOutput := checkRunnerOutputFn
 	t.Cleanup(func() {
 		loadContainerTestYAMLFn = oldLoad
 		checkHealthFn = oldHealth
@@ -25,6 +26,7 @@ func setYAMLRunnerSeams(t *testing.T) {
 		checkFilesExistFn = oldFiles
 		checkCommandsFn = oldCommands
 		checkStandardRunFn = oldStandardRun
+		checkRunnerOutputFn = oldRunnerOutput
 	})
 }
 
@@ -76,6 +78,24 @@ func TestLoadContainerTestYAML(t *testing.T) {
 	}
 	if mountsConfig.Mounts[1].Path != "/data" {
 		t.Fatalf("unexpected second mount: %+v", mountsConfig.Mounts[1])
+	}
+
+	// Runners section
+	runnersPath := filepath.Join(dir, "runners.yaml")
+	runnersContent := "runners:\n  - env:\n      FOO: bar\n    command: myapp --version\n    readOnlyRoot: true\n    expectedOutput: \"v1.0\"\n  - {}\nfilePaths:\n  - /bin/sh\n"
+	if err := os.WriteFile(runnersPath, []byte(runnersContent), 0o600); err != nil {
+		t.Fatalf("failed writing runners yaml: %v", err)
+	}
+	runnersConfig, err := LoadContainerTestYAML(runnersPath)
+	if err != nil {
+		t.Fatalf("unexpected runners load error: %v", err)
+	}
+	if len(runnersConfig.Runners) != 2 {
+		t.Fatalf("expected 2 runners, got %d", len(runnersConfig.Runners))
+	}
+	r0 := runnersConfig.Runners[0]
+	if r0.Env["FOO"] != "bar" || r0.Command != "myapp --version" || !r0.ReadOnlyRoot || r0.ExpectedOutput != "v1.0" {
+		t.Fatalf("unexpected runner[0]: %+v", r0)
 	}
 }
 
@@ -290,8 +310,9 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		t.Fatalf("expected all checks once, got health=%d waits=%d files=%d commands=%d standardRun=%d", calledHealth, calledWaits, calledFiles, calledCommands, calledStandardRun)
 	}
 
-	if len(callOrder) < 2 || callOrder[0] != "health" || callOrder[1] != "waits" {
-		t.Fatalf("expected health before waits in call order, got %v", callOrder)
+	// New order: health → files → waits → commands
+	if len(callOrder) < 3 || callOrder[0] != "health" || callOrder[1] != "files" || callOrder[2] != "waits" {
+		t.Fatalf("expected health→files→waits call order, got %v", callOrder)
 	}
 }
 
@@ -348,5 +369,269 @@ func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
 	}
 	if gotConfig.Env["FOO"] != "bar" {
 		t.Fatalf("expected existing env to be preserved, got %+v", gotConfig.Env)
+	}
+}
+
+// --- runners feature tests ---
+
+func TestBuildRunnerContainerConfig(t *testing.T) {
+	// No base, no runner overrides
+	got := buildRunnerContainerConfig(RunnerConfig{}, nil, false, nil)
+	if got == nil {
+		t.Fatalf("expected non-nil config")
+	}
+	if got.ReadOnlyRootfs || len(got.Env) > 0 || len(got.Command) > 0 || len(got.Mounts) > 0 {
+		t.Fatalf("expected empty config, got %+v", got)
+	}
+
+	// YAML-level readOnlyRootfs propagates
+	got = buildRunnerContainerConfig(RunnerConfig{}, nil, true, nil)
+	if !got.ReadOnlyRootfs {
+		t.Fatalf("expected ReadOnlyRootfs from YAML level")
+	}
+
+	// Runner readOnlyRoot propagates
+	got = buildRunnerContainerConfig(RunnerConfig{ReadOnlyRoot: true}, nil, false, nil)
+	if !got.ReadOnlyRootfs {
+		t.Fatalf("expected ReadOnlyRootfs from runner")
+	}
+
+	// Runner env merged on top of base env; runner wins on conflict
+	base := &ContainerConfig{Env: map[string]string{"A": "1", "B": "2"}}
+	got = buildRunnerContainerConfig(RunnerConfig{Env: map[string]string{"B": "runner", "C": "3"}}, base, false, nil)
+	if got.Env["A"] != "1" || got.Env["B"] != "runner" || got.Env["C"] != "3" {
+		t.Fatalf("unexpected merged env: %+v", got.Env)
+	}
+	// base not mutated
+	if base.Env["B"] != "2" {
+		t.Fatalf("base env was mutated")
+	}
+
+	// Runner command becomes Command slice
+	got = buildRunnerContainerConfig(RunnerConfig{Command: "myapp --flag arg"}, nil, false, nil)
+	if len(got.Command) != 3 || got.Command[0] != "myapp" || got.Command[1] != "--flag" || got.Command[2] != "arg" {
+		t.Fatalf("unexpected command slice: %+v", got.Command)
+	}
+
+	// Empty runner command leaves base command intact
+	base = &ContainerConfig{Command: []string{"existing"}}
+	got = buildRunnerContainerConfig(RunnerConfig{}, base, false, nil)
+	if len(got.Command) != 1 || got.Command[0] != "existing" {
+		t.Fatalf("unexpected command: %+v", got.Command)
+	}
+
+	// YAML mounts appended after base mounts
+	base = &ContainerConfig{Mounts: []MountConfig{{Path: "/base"}}}
+	yamlMounts := []MountConfig{{Path: "/yaml"}}
+	got = buildRunnerContainerConfig(RunnerConfig{}, base, false, yamlMounts)
+	if len(got.Mounts) != 2 || got.Mounts[0].Path != "/base" || got.Mounts[1].Path != "/yaml" {
+		t.Fatalf("unexpected mounts: %+v", got.Mounts)
+	}
+	// base not mutated
+	if len(base.Mounts) != 1 {
+		t.Fatalf("base mounts were mutated")
+	}
+}
+
+func TestRunChecksFromYAMLDefaultRunnerUsesCallerConfig(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	var gotConfig *ContainerConfig
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		gotConfig = cfg
+		return nil
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{StandardRun: true}, nil
+	}
+
+	caller := &ContainerConfig{Env: map[string]string{"X": "1"}}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", caller); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotConfig == nil || gotConfig.Env["X"] != "1" {
+		t.Fatalf("expected caller env in default runner config, got %+v", gotConfig)
+	}
+	// Caller not mutated
+	if len(caller.Env) != 1 {
+		t.Fatalf("caller config was mutated")
+	}
+}
+
+func TestRunChecksFromYAMLMultipleRunnersEachRunChecks(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	healthCalls := 0
+	var receivedEnvs []string
+
+	checkHealthFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		healthCalls++
+		if cfg != nil {
+			receivedEnvs = append(receivedEnvs, cfg.Env["RUNNER"])
+		}
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun: true,
+			Runners: []RunnerConfig{
+				{Env: map[string]string{"RUNNER": "first"}},
+				{Env: map[string]string{"RUNNER": "second"}},
+			},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if healthCalls != 2 {
+		t.Fatalf("expected health called twice for two runners, got %d", healthCalls)
+	}
+	if len(receivedEnvs) != 2 || receivedEnvs[0] != "first" || receivedEnvs[1] != "second" {
+		t.Fatalf("unexpected runner envs: %v", receivedEnvs)
+	}
+}
+
+func TestRunChecksFromYAMLRunnerOutputCheckSkipsOtherChecks(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	healthCalled := false
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+
+	var gotCommand, gotExpected string
+	var gotCfg *ContainerConfig
+	checkRunnerOutputFn = func(_ context.Context, _ string, cfg *ContainerConfig, cmd, expected string) error {
+		gotCfg = cfg
+		gotCommand = cmd
+		gotExpected = expected
+		return nil
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{
+				{
+					Command:        "myapp --version",
+					ExpectedOutput: "v1.2.3",
+					Env:            map[string]string{"FOO": "bar"},
+					ReadOnlyRoot:   true,
+				},
+			},
+			// These checks should be skipped because expectedOutput is set.
+			FilePaths: []string{"/bin/sh"},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if healthCalled {
+		t.Fatalf("health check should be skipped when expectedOutput is set")
+	}
+	if gotCommand != "myapp --version" {
+		t.Fatalf("expected command=%q, got %q", "myapp --version", gotCommand)
+	}
+	if gotExpected != "v1.2.3" {
+		t.Fatalf("expected expectedOutput=%q, got %q", "v1.2.3", gotExpected)
+	}
+	if gotCfg == nil || gotCfg.Env["FOO"] != "bar" || !gotCfg.ReadOnlyRootfs {
+		t.Fatalf("unexpected runner config: %+v", gotCfg)
+	}
+}
+
+func TestRunChecksFromYAMLRunnerOutputCheckError(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	checkRunnerOutputFn = func(context.Context, string, *ContainerConfig, string, string) error {
+		return errors.New("output mismatch")
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{
+				{Command: "myapp --version", ExpectedOutput: "v9.9.9"},
+			},
+		}, nil
+	}
+
+	err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil)
+	if err == nil {
+		t.Fatalf("expected error from output check")
+	}
+	if !strings.Contains(err.Error(), "runner[0] output check failed") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
+func TestRunChecksFromYAMLMixedRunners(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	outputCalled := false
+	healthCalled := false
+
+	checkRunnerOutputFn = func(context.Context, string, *ContainerConfig, string, string) error {
+		outputCalled = true
+		return nil
+	}
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun: true,
+			Runners: []RunnerConfig{
+				{Command: "myapp --version", ExpectedOutput: "v1"},
+				{Env: map[string]string{"MODE": "normal"}},
+			},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !outputCalled {
+		t.Fatalf("expected output check to be called for first runner")
+	}
+	if !healthCalled {
+		t.Fatalf("expected health check to be called for second runner")
+	}
+}
+
+func TestRunChecksFromYAMLOutputOnlyRunnerCountsAsCheck(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	checkRunnerOutputFn = func(context.Context, string, *ContainerConfig, string, string) error {
+		return nil
+	}
+
+	// No http/tcp/filePaths/commands/standardRun — only a runner with expectedOutput.
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{
+				{Command: "myapp --version", ExpectedOutput: "v1"},
+			},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("runner with expectedOutput should count as a configured check, got: %v", err)
 	}
 }

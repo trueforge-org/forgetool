@@ -275,6 +275,12 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
 		t.Fatalf("expected two opts for env+ReadOnlyRootfs")
 	}
+	if got, _ := applyContainerConfig(&ContainerConfig{Command: []string{"myapp", "--version"}}); len(got) != 1 {
+		t.Fatalf("expected one opt for Command")
+	}
+	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, Command: []string{"cmd"}, ReadOnlyRootfs: true}); len(got) != 3 {
+		t.Fatalf("expected three opts for env+command+ReadOnlyRootfs, got %d", len(got))
+	}
 
 	normalized := normalizeHTTPConfig(HTTPTestConfig{Port: "8080"})
 	if normalized.Path != "/" || normalized.StatusCode != 200 || normalized.StatusCodeMatcher == nil {
@@ -727,5 +733,71 @@ func TestCheckHealthExecutionPaths(t *testing.T) {
 	})
 	if err := CheckHealth(ctx, "img", nil); err == nil {
 		t.Fatalf("expected terminate failure")
+	}
+}
+
+func TestCheckRunnerOutput(t *testing.T) {
+	ctx := context.Background()
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+
+	// Run backend fails
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, errors.New("start failed")
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1"); err == nil {
+		t.Fatalf("expected run failure")
+	}
+
+	// Log read fails
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsErr: errors.New("logs boom")}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1"); err == nil {
+		t.Fatalf("expected log read failure")
+	}
+
+	// Output does not contain expected string
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("v2.0"))}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1"); err == nil {
+		t.Fatalf("expected content mismatch")
+	}
+
+	// Output contains expected string
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("myapp v1.2.3"))}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1.2.3"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// No command (default entrypoint)
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("started"))}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "started"); err != nil {
+		t.Fatalf("unexpected error with no command: %v", err)
+	}
+
+	// Terminate failure
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{
+			logsReader:   io.NopCloser(strings.NewReader("v1")),
+			terminateErr: errors.New("terminate failed"),
+		}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1"); err == nil {
+		t.Fatalf("expected terminate failure")
+	}
+
+	// Logs dumped on success when TESTHELPERS_CONTAINER_LOGS=always
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("v1"))}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}, "cmd", "v1"); err != nil {
+		t.Fatalf("unexpected error with env config: %v", err)
 	}
 }
