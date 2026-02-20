@@ -197,12 +197,22 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 				effectiveTimeoutSeconds = minYAMLTimeoutSeconds
 			}
 
+			timeoutBaseCtx := ctx
+			configuredTimeout := time.Duration(effectiveTimeoutSeconds) * time.Second
+			if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+				remaining := time.Until(deadline)
+				if remaining > 0 && remaining < configuredTimeout {
+					logWarn("runner[%d]: parent context deadline (%s) is shorter than configured timeout (%s); honoring configured timeout", i, remaining.Round(time.Second), configuredTimeout.Round(time.Second))
+					timeoutBaseCtx = context.WithoutCancel(ctx)
+				}
+			}
+
 			var cancel context.CancelFunc
-			runnerCtx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeoutSeconds)*time.Second)
+			runnerCtx, cancel = context.WithTimeout(timeoutBaseCtx, configuredTimeout)
 			defer cancel()
 
 			var healthCancel context.CancelFunc
-			healthCtx, healthCancel = context.WithTimeout(ctx, time.Duration(effectiveTimeoutSeconds+healthTimeoutExtraSeconds)*time.Second)
+			healthCtx, healthCancel = context.WithTimeout(timeoutBaseCtx, time.Duration(effectiveTimeoutSeconds+healthTimeoutExtraSeconds)*time.Second)
 			defer healthCancel()
 		}
 

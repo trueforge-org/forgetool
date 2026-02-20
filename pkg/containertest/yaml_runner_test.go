@@ -382,6 +382,43 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 	}
 }
 
+func TestRunChecksFromYAMLRunnerTimeoutIgnoresShorterParentDeadline(t *testing.T) {
+	parentCtx, parentCancel := context.WithTimeout(context.Background(), time.Minute)
+	defer parentCancel()
+	setYAMLRunnerSeams(t)
+
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		t.Fatalf("did not expect health check for filePaths-only config")
+		return nil
+	}
+
+	checkFilesExistFn = func(waitCtx context.Context, _ string, _ []string, _ *ContainerConfig) error {
+		deadline, ok := waitCtx.Deadline()
+		if !ok {
+			t.Fatalf("expected timeout deadline")
+		}
+		remaining := time.Until(deadline)
+		if remaining < 179*time.Second {
+			t.Fatalf("expected runner timeout to override shorter parent deadline, got remaining=%v", remaining)
+		}
+		return nil
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{{
+				TimeoutSeconds: 180,
+				FilePath:       "/etc/hosts",
+			}},
+		}, nil
+	}
+
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	if err := RunChecksFromYAML(parentCtx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+}
+
 func TestRunChecksFromYAMLHealthTimeoutHasExtraBuffer(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
