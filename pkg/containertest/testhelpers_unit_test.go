@@ -301,8 +301,8 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
 		t.Fatalf("expected two opts for env+ReadOnlyRootfs")
 	}
-	if got, _ := applyContainerConfig(&ContainerConfig{Command: []string{"myapp", "--version"}}); len(got) != 1 {
-		t.Fatalf("expected one opt for Command")
+	if got, _ := applyContainerConfig(&ContainerConfig{Command: []string{"myapp", "--version"}}); len(got) != 2 {
+		t.Fatalf("expected two opts for Command entrypoint+args")
 	}
 	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, Command: []string{"cmd"}, ReadOnlyRootfs: true}); len(got) != 3 {
 		t.Fatalf("expected three opts for env+command+ReadOnlyRootfs, got %d", len(got))
@@ -976,7 +976,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return nil, errors.New("start failed")
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1"); err == nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1", nil); err == nil {
 		t.Fatalf("expected run failure")
 	}
 
@@ -984,7 +984,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{logsErr: errors.New("logs boom")}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1"); err == nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1", nil); err == nil {
 		t.Fatalf("expected log read failure")
 	}
 
@@ -992,7 +992,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("v2.0"))}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1"); err == nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1", nil); err == nil {
 		t.Fatalf("expected content mismatch")
 	}
 
@@ -1000,7 +1000,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("myapp v1.2.3"))}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1.2.3"); err != nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "myapp --version", "v1.2.3", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -1008,8 +1008,31 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("started"))}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "", "started"); err != nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "started", nil); err != nil {
 		t.Fatalf("unexpected error with no command: %v", err)
+	}
+
+	// Exit code matches expected
+	expectedExitCode := 7
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{
+			logsReader: io.NopCloser(strings.NewReader("started")),
+			state:      &container.State{ExitCode: 7},
+		}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "started", &expectedExitCode); err != nil {
+		t.Fatalf("unexpected error with matching exit code: %v", err)
+	}
+
+	// Exit code mismatch
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{
+			logsReader: io.NopCloser(strings.NewReader("started")),
+			state:      &container.State{ExitCode: 1},
+		}, nil
+	})
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "started", &expectedExitCode); err == nil {
+		t.Fatalf("expected exit code mismatch")
 	}
 
 	// Terminate failure
@@ -1020,7 +1043,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 			terminateErr: errors.New("terminate failed"),
 		}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1"); err == nil {
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "v1", nil); err == nil {
 		t.Fatalf("expected terminate failure")
 	}
 
@@ -1029,7 +1052,7 @@ func TestCheckRunnerOutput(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("v1"))}, nil
 	})
-	if err := CheckRunnerOutput(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}, "cmd", "v1"); err != nil {
+	if err := CheckRunnerOutput(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}, "cmd", "v1", nil); err != nil {
 		t.Fatalf("unexpected error with env config: %v", err)
 	}
 }

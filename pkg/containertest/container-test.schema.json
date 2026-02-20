@@ -165,11 +165,12 @@
   "$defs": {
     "runnerConfig": {
       "title": "Runner config",
-      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. When expectedOutput is set, an output check runs first. Other checks still run unless runTests is explicitly false.",
+      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. Use entrypoint/cmd to override startup for this runner. command is a legacy alias for entrypoint. When expectedOutput is set, an output check runs first. Other checks still run unless runTests is explicitly false.",
       "examples": [
         {
           "env": { "MY_VAR": "value" },
-          "command": "myapp --version",
+          "entrypoint": "myapp",
+          "cmd": "--version",
           "timeoutSeconds": 180,
           "readOnlyRoot": true,
           "expectedOutput": "v1.0"
@@ -192,13 +193,31 @@
             { "MY_VAR": "value", "OTHER": "thing" }
           ]
         },
+        "entrypoint": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Override the container entrypoint for this runner.",
+          "examples": [
+            "myapp",
+            "/bin/sh"
+          ]
+        },
+        "cmd": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Override container args/CMD for this runner.",
+          "examples": [
+            "--version",
+            "-c \"echo hello\""
+          ]
+        },
         "command": {
           "type": "string",
           "pattern": "\\S",
-          "description": "Override the container command. When expectedOutput is set this command is executed as `sh -c <command>`; otherwise it overrides the container CMD.",
+          "description": "Legacy alias for entrypoint (backward compatible).",
           "examples": [
-            "myapp --version",
-            "echo hello"
+            "myapp",
+            "/bin/sh"
           ]
         },
         "timeoutSeconds": {
@@ -223,7 +242,7 @@
         "expectedOutput": {
           "type": "string",
           "pattern": "\\S",
-          "description": "When non-empty, run the container (with command if set) and assert this string appears in the output.",
+          "description": "When non-empty, run the container (with entrypoint/cmd if set) and assert this string appears in the output.",
           "examples": [
             "v1.2.3",
             "Started successfully"

@@ -27,20 +27,26 @@ var (
 //
 // Supported keys:
 //   - env: map[string]string        environment variables to set in the container
-//   - command: string               override the container CMD; used as "sh -c <command>"
-//     when expectedOutput is set, otherwise applied as CMD
+//   - entrypoint: string            override the container entrypoint for this runner
+//   - cmd: string                   override container args/CMD for this runner
+//   - command: string               legacy alias for entrypoint (backward compatible, DO NOT USE)
 //   - readOnlyRoot: bool            mount the container root filesystem as read-only
 //   - timeoutSeconds: int            optional per-runner timeout in seconds (min 120 enforced)
-//   - expectedOutput: string        when non-empty, run the container (with command if set)
+//   - expectedOutput: string        when non-empty, run the container (with entrypoint/cmd if set)
 //     and assert this string is present in the output
+//   - exitCode: int                 optional expected container exit code; when set,
+//     the runner output check verifies the container exits with this exact code
 //   - runTests: bool                whether to run the other checks (health, file, tcp, http,
 //     standard run) for this runner; defaults to true when omitted
 type RunnerConfig struct {
 	Env            map[string]string `yaml:"env"`
+	Entrypoint     string            `yaml:"entrypoint"`
+	Cmd            string            `yaml:"cmd"`
 	Command        string            `yaml:"command"`
 	ReadOnlyRoot   bool              `yaml:"readOnlyRoot"`
 	TimeoutSeconds int               `yaml:"timeoutSeconds"`
 	ExpectedOutput string            `yaml:"expectedOutput"`
+	ExitCode       *int              `yaml:"exitCode"`
 	RunTests       *bool             `yaml:"runTests"`
 }
 
@@ -114,8 +120,19 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 			merged.Env[k] = v
 		}
 	}
-	if runner.Command != "" {
-		merged.Command = strings.Fields(runner.Command)
+	runnerEntrypoint := strings.TrimSpace(runner.Entrypoint)
+	if runnerEntrypoint == "" {
+		runnerEntrypoint = strings.TrimSpace(runner.Command)
+	}
+	runnerCmd := strings.TrimSpace(runner.Cmd)
+	if runnerEntrypoint != "" || runnerCmd != "" {
+		merged.Command = nil
+		if runnerEntrypoint != "" {
+			merged.Command = append(merged.Command, strings.Fields(runnerEntrypoint)...)
+		}
+		if runnerCmd != "" {
+			merged.Command = append(merged.Command, strings.Fields(runnerCmd)...)
+		}
 	}
 	if runner.ReadOnlyRoot {
 		merged.ReadOnlyRootfs = true
@@ -177,7 +194,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	hasHealthCheckPreconditions := len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.HealthCommands) > 0
 
 	for i, runner := range runners {
-		logInfo("Runner[%d]: starting (expectedOutput=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
+		logInfo("Runner[%d]: starting (expectedOutput=%t exitCodeSet=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.ExitCode != nil, runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
 		runnerCtx := ctx
 		if runner.TimeoutSeconds > 0 {
 			effectiveTimeoutSeconds := runner.TimeoutSeconds
@@ -196,7 +213,19 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		// Run output check if expectedOutput is set.
 		if strings.TrimSpace(runner.ExpectedOutput) != "" {
 			logInfo("Runner[%d]: running output check", i)
-			if err := checkRunnerOutputFn(runnerCtx, image, runnerCfg, runner.Command, runner.ExpectedOutput); err != nil {
+			runnerCommand := strings.TrimSpace(runner.Entrypoint)
+			if runnerCommand == "" {
+				runnerCommand = strings.TrimSpace(runner.Command)
+			}
+			runnerCmd := strings.TrimSpace(runner.Cmd)
+			if runnerCmd != "" {
+				if runnerCommand != "" {
+					runnerCommand += " " + runnerCmd
+				} else {
+					runnerCommand = runnerCmd
+				}
+			}
+			if err := checkRunnerOutputFn(runnerCtx, image, runnerCfg, runnerCommand, runner.ExpectedOutput, runner.ExitCode); err != nil {
 				return fmt.Errorf("runner[%d] output check failed: %w", i, err)
 			}
 		}
