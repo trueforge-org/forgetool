@@ -20,7 +20,6 @@ func setYAMLRunnerSeams(t *testing.T) {
 	oldHealth := checkHealthFn
 	oldWaits := checkWaitsFn
 	oldFiles := checkFilesExistFn
-	oldHealthCommands := checkHealthCommandsFn
 	oldStandardRun := checkStandardRunFn
 	oldRunnerOutput := checkRunnerOutputFn
 	t.Cleanup(func() {
@@ -28,7 +27,6 @@ func setYAMLRunnerSeams(t *testing.T) {
 		checkHealthFn = oldHealth
 		checkWaitsFn = oldWaits
 		checkFilesExistFn = oldFiles
-		checkHealthCommandsFn = oldHealthCommands
 		checkStandardRunFn = oldStandardRun
 		checkRunnerOutputFn = oldRunnerOutput
 	})
@@ -158,13 +156,6 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{HealthCommands: []HealthCommandTestConfig{{Command: " "}}}, nil
-	}
-	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "healthCommands[0].command") {
-		t.Fatalf("expected health command validation error, got %v", err)
-	}
-
-	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{Runners: []RunnerConfig{{FilePath: " "}}}, nil
 	}
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "runner[0].filePath") {
@@ -205,14 +196,23 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{HealthCommands: []HealthCommandTestConfig{{Command: "mycommand"}}}, nil
+		return ContainerTestYAML{HealthCommands: []HealthCommandTestConfig{{Command: " "}}}, nil
 	}
-	checkFilesExistFn = CheckFilesExist
-	checkHealthCommandsFn = func(context.Context, string, *ContainerConfig, []HealthCommandTestConfig) error {
-		return errors.New("health commands boom")
+	checkFilesExistFn = func(context.Context, string, []string, *ContainerConfig) error {
+		t.Fatalf("did not expect file checks")
+		return nil
 	}
-	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
-		t.Fatalf("expected health commands error")
+	checkWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
+		t.Fatalf("did not expect wait checks")
+		return nil
+	}
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		t.Fatalf("did not expect health check")
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("expected healthCommands to be ignored, got %v", err)
 	}
 }
 
@@ -289,7 +289,6 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 	calledHealth := 0
 	calledWaits := 0
 	calledFiles := 0
-	calledHealthCommands := 0
 	calledStandardRun := 0
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
@@ -300,7 +299,6 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 				TimeoutSeconds: 1,
 				FilePath:       "/etc/hosts",
 			}},
-			HealthCommands: []HealthCommandTestConfig{{Command: "mycommand", ExpectedExitCode: intPtr(7), ExpectedContent: "ok", MatchContent: true}},
 		}, nil
 	}
 
@@ -329,11 +327,6 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		callOrder = append(callOrder, "files")
 		return nil
 	}
-	checkHealthCommandsFn = func(context.Context, string, *ContainerConfig, []HealthCommandTestConfig) error {
-		calledHealthCommands++
-		callOrder = append(callOrder, "healthCommands")
-		return nil
-	}
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
 		calledStandardRun++
 		return nil
@@ -343,13 +336,13 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		t.Fatalf("unexpected run error: %v", err)
 	}
 
-	if calledHealth != 1 || calledWaits != 1 || calledFiles != 1 || calledHealthCommands != 1 || calledStandardRun != 1 {
-		t.Fatalf("expected all checks once, got health=%d waits=%d files=%d healthCommands=%d standardRun=%d", calledHealth, calledWaits, calledFiles, calledHealthCommands, calledStandardRun)
+	if calledHealth != 1 || calledWaits != 1 || calledFiles != 1 || calledStandardRun != 1 {
+		t.Fatalf("expected all checks once, got health=%d waits=%d files=%d standardRun=%d", calledHealth, calledWaits, calledFiles, calledStandardRun)
 	}
 
-	// New order: health → files → waits → healthCommands
-	if len(callOrder) < 4 || callOrder[0] != "health" || callOrder[1] != "files" || callOrder[2] != "waits" || callOrder[3] != "healthCommands" {
-		t.Fatalf("expected health→files→waits→healthCommands call order, got %v", callOrder)
+	// New order: health → files → waits
+	if len(callOrder) < 3 || callOrder[0] != "health" || callOrder[1] != "files" || callOrder[2] != "waits" {
+		t.Fatalf("expected health→files→waits call order, got %v", callOrder)
 	}
 }
 

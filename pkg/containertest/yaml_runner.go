@@ -18,7 +18,6 @@ var (
 	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkFilesExistFn       = CheckFilesExist
-	checkHealthCommandsFn   = CheckHealthCommands
 	checkStandardRunFn      = CheckStandardRun
 	checkRunnerOutputFn     = CheckRunnerOutput
 )
@@ -149,7 +148,7 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 // For each runner:
 //   - If expectedOutput is non-empty, an output check is performed first.
 //   - If runTests is true (the default when omitted), the normal check sequence follows:
-//     health (when tcp/http/healthCommands are configured) → file → tcp/http waits → healthCommands → standardRun.
+//     health (when tcp/http are configured) → file → tcp/http waits → standardRun.
 //   - If runTests is explicitly false, health/file/wait/health-command checks are skipped,
 //     but a standard container run is still performed for that runner.
 //
@@ -161,13 +160,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		return err
 	}
 
-	logInfo("Loaded container test YAML: path=%s runners=%d http=%d tcp=%d healthCommands=%d", yamlPath, len(config.Runners), len(config.HTTP), len(config.TCP), len(config.HealthCommands))
-
-	for index, command := range config.HealthCommands {
-		if strings.TrimSpace(command.Command) == "" {
-			return fmt.Errorf("healthCommands[%d].command must not be empty", index)
-		}
-	}
+	logInfo("Loaded container test YAML: path=%s runners=%d http=%d tcp=%d", yamlPath, len(config.Runners), len(config.HTTP), len(config.TCP))
 
 	for index, mount := range config.Mounts {
 		trimmedPath := strings.TrimSpace(mount.Path)
@@ -186,7 +179,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		runners = []RunnerConfig{{}}
 	}
 
-	hasHealthCheckPreconditions := len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.HealthCommands) > 0
+	hasHealthCheckPreconditions := len(config.HTTP) > 0 || len(config.TCP) > 0
 
 	for i, runner := range runners {
 		runnerFilePath := strings.TrimSpace(runner.FilePath)
@@ -244,14 +237,14 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			continue
 		}
 
-		// Normal check sequence: health (when tcp/http/healthCommands are configured) → file → tcp/http waits → healthCommands → standardRun.
+		// Normal check sequence: health (when tcp/http are configured) → file → tcp/http waits → standardRun.
 		if hasHealthCheckPreconditions {
 			logInfo("Runner[%d]: running health check", i)
 			if err := checkHealthFn(healthCtx, image, runnerCfg); err != nil {
 				return err
 			}
 		} else {
-			logInfo("Runner[%d]: skipping health check (no tcp/http/healthCommands configured)", i)
+			logInfo("Runner[%d]: skipping health check (no tcp/http configured)", i)
 		}
 
 		if runnerFilePath != "" {
@@ -264,13 +257,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		if len(config.HTTP) > 0 || len(config.TCP) > 0 {
 			logInfo("Runner[%d]: running wait checks (http=%d tcp=%d)", i, len(config.HTTP), len(config.TCP))
 			if err := checkWaitsFn(runnerCtx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
-				return err
-			}
-		}
-
-		if len(config.HealthCommands) > 0 {
-			logInfo("Runner[%d]: running health commands (%d)", i, len(config.HealthCommands))
-			if err := checkHealthCommandsFn(runnerCtx, image, runnerCfg, config.HealthCommands); err != nil {
 				return err
 			}
 		}
