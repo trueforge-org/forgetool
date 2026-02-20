@@ -346,11 +346,74 @@ func applyContainerConfig(config *ContainerConfig) ([]testcontainers.ContainerCu
 
 // runContainer is a tiny helper to start a container with common patterns centralized.
 func runContainer(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
-	logInfo("🚀 Starting container: image=%s customizers=%d", image, len(opts))
+	runStart := time.Now()
+	logInfo("🚀 Starting container workflow: image=%s customizers=%d", image, len(opts))
+	logInfo("Container workflow step: resolving image locally / pulling if needed")
+
+	phaseStart := runStart
+	shortContainerID := func(c testcontainers.Container) string {
+		if c == nil {
+			return "unknown"
+		}
+
+		id := c.GetContainerID()
+		if len(id) == 0 {
+			return "unknown"
+		}
+		if len(id) > 12 {
+			return id[:12]
+		}
+
+		return id
+	}
+
+	lifecycleLogs := testcontainers.WithAdditionalLifecycleHooks(testcontainers.ContainerLifecycleHooks{
+		PostCreates: []testcontainers.ContainerHook{
+			func(_ context.Context, c testcontainers.Container) error {
+				elapsed := time.Since(phaseStart).Round(time.Millisecond)
+				total := time.Since(runStart).Round(time.Millisecond)
+				logInfo("Container created: id=%s elapsed=%s total=%s", shortContainerID(c), elapsed, total)
+				phaseStart = time.Now()
+				return nil
+			},
+		},
+		PreStarts: []testcontainers.ContainerHook{
+			func(_ context.Context, c testcontainers.Container) error {
+				elapsed := time.Since(phaseStart).Round(time.Millisecond)
+				total := time.Since(runStart).Round(time.Millisecond)
+				logInfo("Container starting: id=%s pull/createElapsed=%s total=%s", shortContainerID(c), elapsed, total)
+				phaseStart = time.Now()
+				return nil
+			},
+		},
+		PostStarts: []testcontainers.ContainerHook{
+			func(_ context.Context, c testcontainers.Container) error {
+				elapsed := time.Since(phaseStart).Round(time.Millisecond)
+				total := time.Since(runStart).Round(time.Millisecond)
+				logInfo("Container started: id=%s startElapsed=%s total=%s", shortContainerID(c), elapsed, total)
+				logInfo("Container readiness phase starting: executing configured wait strategies (if any)")
+				phaseStart = time.Now()
+				return nil
+			},
+		},
+		PostReadies: []testcontainers.ContainerHook{
+			func(_ context.Context, c testcontainers.Container) error {
+				elapsed := time.Since(phaseStart).Round(time.Millisecond)
+				total := time.Since(runStart).Round(time.Millisecond)
+				logInfo("Container ready: id=%s waitElapsed=%s total=%s", shortContainerID(c), elapsed, total)
+				return nil
+			},
+		},
+	})
+
+	allOpts := make([]testcontainers.ContainerCustomizer, 0, len(opts)+1)
+	allOpts = append(allOpts, lifecycleLogs)
+	allOpts = append(allOpts, opts...)
+
 	logDebug("Invoking testcontainers.Run for image=%s", image)
-	container, err := runContainerBackend(ctx, image, opts...)
+	container, err := runContainerBackend(ctx, image, allOpts...)
 	if err != nil {
-		logError("Container start failed for image=%s: %v", image, err)
+		logError("Container startup workflow failed for image=%s after %s: %v", image, time.Since(runStart).Round(time.Millisecond), err)
 		if container != nil {
 			failureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -367,7 +430,7 @@ func runContainer(ctx context.Context, image string, opts ...testcontainers.Cont
 		}
 		return nil, err
 	}
-	logOK("Container is up: image=%s", image)
+	logOK("Container is up: image=%s totalElapsed=%s", image, time.Since(runStart).Round(time.Millisecond))
 	return container, nil
 }
 
@@ -437,6 +500,37 @@ type HealthCommandTestConfig struct {
 	MatchContent     bool   `yaml:"matchContent"`
 }
 
+func describeWaitStrategies(strategies []wait.Strategy) []string {
+	descriptions := make([]string, 0, len(strategies))
+	for _, strategy := range strategies {
+		if strategy == nil {
+			descriptions = append(descriptions, "<nil>")
+			continue
+		}
+
+		if stringer, ok := strategy.(fmt.Stringer); ok {
+			descriptions = append(descriptions, stringer.String())
+			continue
+		}
+
+		descriptions = append(descriptions, fmt.Sprintf("%T", strategy))
+	}
+
+	return descriptions
+}
+
+func logWaitStrategiesStart(label string, strategies []wait.Strategy) {
+	descriptions := describeWaitStrategies(strategies)
+	if len(descriptions) == 0 {
+		logInfo("%s: no explicit wait strategies configured", label)
+		return
+	}
+
+	for index, description := range descriptions {
+		logInfo("%s: wait[%d/%d] starting: %s", label, index+1, len(descriptions), description)
+	}
+}
+
 func normalizeHTTPConfig(httpConfig HTTPTestConfig) HTTPTestConfig {
 	if httpConfig.Path == "" {
 		httpConfig.Path = "/"
@@ -503,8 +597,11 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 		logInfo("Health check container config: env=%s", envSummary(containerConfig.Env))
 	}
 
+	waits := []wait.Strategy{wait.ForHealthCheck()}
+	logWaitStrategiesStart("health check", waits)
+
 	opts := []testcontainers.ContainerCustomizer{
-		testcontainers.WithWaitStrategy(wait.ForHealthCheck()),
+		testcontainers.WithWaitStrategy(waits...),
 	}
 
 	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
@@ -571,6 +668,7 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 
 	// Global invariant: run all TCP waits before any HTTP waits.
 	waitStrategies := append(tcpWaitStrategies, httpWaitStrategies...)
+	logWaitStrategiesStart("wait checks", waitStrategies)
 
 	exposedPorts := make([]string, 0, len(portsSet))
 	for port := range portsSet {
@@ -696,10 +794,12 @@ func CheckCommand(ctx context.Context, image string, containerConfig *ContainerC
 	if commandConfig != nil && commandConfig.MatchContent {
 		logInfo("Command check output match enabled")
 	}
+	waits := []wait.Strategy{wait.ForExit()}
+	logWaitStrategiesStart("command check", waits)
 
 	opts := []testcontainers.ContainerCustomizer{
 		testcontainers.WithEntrypoint(entrypoint),
-		testcontainers.WithWaitStrategy(wait.ForExit()),
+		testcontainers.WithWaitStrategy(waits...),
 	}
 
 	if len(args) > 0 {
@@ -804,6 +904,7 @@ func CheckHealthCommands(ctx context.Context, image string, containerConfig *Con
 
 		waits = append(waits, waitStrategy)
 	}
+	logWaitStrategiesStart("healthCommand checks", waits)
 
 	opts := []testcontainers.ContainerCustomizer{
 		testcontainers.WithWaitStrategy(waits...),
@@ -849,9 +950,11 @@ func CheckRunnerOutput(ctx context.Context, image string, containerConfig *Conta
 	if containerConfig != nil {
 		logInfo("Runner output check container config: env=%s", envSummary(containerConfig.Env))
 	}
+	waits := []wait.Strategy{wait.ForExit()}
+	logWaitStrategiesStart("runner output check", waits)
 
 	opts := []testcontainers.ContainerCustomizer{
-		testcontainers.WithWaitStrategy(wait.ForExit()),
+		testcontainers.WithWaitStrategy(waits...),
 	}
 
 	if command != "" {
