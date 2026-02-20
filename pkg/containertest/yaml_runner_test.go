@@ -347,7 +347,12 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
 
-	checkHealthFn = func(waitCtx context.Context, _ string, _ *ContainerConfig) error {
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		t.Fatalf("did not expect health check for filePaths-only config")
+		return nil
+	}
+
+	checkFilesExistFn = func(waitCtx context.Context, _ string, _ []string, _ *ContainerConfig) error {
 		deadline, ok := waitCtx.Deadline()
 		if !ok {
 			t.Fatalf("expected timeout deadline")
@@ -368,7 +373,6 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 		}, nil
 	}
 
-	checkFilesExistFn = func(context.Context, string, []string, *ContainerConfig) error { return nil }
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
 		t.Fatalf("unexpected run error: %v", err)
@@ -523,16 +527,20 @@ func TestRunChecksFromYAMLMultipleRunnersEachRunChecks(t *testing.T) {
 	setYAMLRunnerSeams(t)
 
 	healthCalls := 0
+	standardRunCalls := 0
 	var receivedEnvs []string
 
 	checkHealthFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
 		healthCalls++
+		return nil
+	}
+	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		standardRunCalls++
 		if cfg != nil {
 			receivedEnvs = append(receivedEnvs, cfg.Env["RUNNER"])
 		}
 		return nil
 	}
-	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
@@ -547,8 +555,11 @@ func TestRunChecksFromYAMLMultipleRunnersEachRunChecks(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if healthCalls != 2 {
-		t.Fatalf("expected health called twice for two runners, got %d", healthCalls)
+	if healthCalls != 0 {
+		t.Fatalf("expected health not to run without tcp/http/healthCommands, got %d", healthCalls)
+	}
+	if standardRunCalls != 2 {
+		t.Fatalf("expected standard run called twice for two runners, got %d", standardRunCalls)
 	}
 	if len(receivedEnvs) != 2 || receivedEnvs[0] != "first" || receivedEnvs[1] != "second" {
 		t.Fatalf("unexpected runner envs: %v", receivedEnvs)
@@ -733,9 +744,9 @@ func TestRunChecksFromYAMLMixedRunners(t *testing.T) {
 	if !outputCalled {
 		t.Fatalf("expected output check to be called for first runner")
 	}
-	// Health should only be called for the second runner (runTests=false on first).
-	if healthCallCount != 1 {
-		t.Fatalf("expected health called once (second runner only), got %d", healthCallCount)
+	// No tcp/http/healthCommands are configured, so health should not run for either runner.
+	if healthCallCount != 0 {
+		t.Fatalf("expected health not to run when no tcp/http/healthCommands are configured, got %d", healthCallCount)
 	}
 }
 
