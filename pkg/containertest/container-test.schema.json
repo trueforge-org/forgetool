@@ -132,6 +132,22 @@
       "examples": [
         true
       ]
+
+    "mounts": {
+      "type": "array",
+      "description": "Folders to mount from host tmp dirs into the container. A fresh temporary directory is created on the host for each entry and bind-mounted at the specified container path. Applies to every check run (http, tcp, commands, filePaths, standardRun).",
+      "examples": [
+        [
+          {
+            "path": "/config",
+            "chmod": "755",
+            "chown": "568:568"
+          }
+        ]
+      ],
+      "items": {
+        "$ref": "#/$defs/mountConfig"
+      }
     }
   },
   "anyOf": [
@@ -293,6 +309,48 @@
         "8123",
         "/"
       ]
+    },
+    "mountConfig": {
+      "title": "Mount config",
+      "description": "Configuration for mounting a host tmp dir into the container at a specified path.",
+      "examples": [
+        {
+          "path": "/config",
+          "chmod": "755",
+          "chown": "568:568"
+        }
+      ],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "Absolute path inside the container where the tmp dir is mounted.",
+          "examples": [
+            "/config",
+            "/data"
+          ]
+        },
+        "chmod": {
+          "type": "string",
+          "description": "Optional permissions for the tmp dir in octal notation (e.g. \"755\").",
+          "examples": [
+            "755",
+            "700"
+          ]
+        },
+        "chown": {
+          "type": "string",
+          "description": "Optional ownership for the tmp dir in \"uid:gid\" notation (e.g. \"568:568\").",
+          "examples": [
+            "568:568",
+            "1000:1000"
+          ]
+        }
+      }
     }
   }
 }
