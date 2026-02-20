@@ -776,3 +776,29 @@ func TestRunChecksFromYAMLRunnerRunTestsFalseStillRunsStandardRun(t *testing.T) 
 		t.Fatalf("standard run should still execute when runTests=false")
 	}
 }
+
+func TestRunChecksFromYAMLRunnerRunTestsFalseStandardRunError(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	runTestsFalse := false
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{{
+				RunTests: &runTestsFalse,
+			}},
+		}, nil
+	}
+
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
+		return errors.New("standard run failed")
+	}
+
+	err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil)
+	if err == nil {
+		t.Fatalf("expected standard run error when runTests=false")
+	}
+	if !strings.Contains(err.Error(), "standard run failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

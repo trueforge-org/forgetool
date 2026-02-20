@@ -59,8 +59,8 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (21/21) - pkg/charts/version/bump.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
 - [ ] 100.00% (76/76) - pkg/clustertemplate/clustertemplate.go
-- [ ] 100.00% (377/377) - pkg/containertest/testhelpers.go
-- [ ] 100.00% (88/88) - pkg/containertest/yaml_runner.go
+- [ ] 100.00% (413/413) - pkg/containertest/testhelpers.go
+- [ ] 100.00% (82/82) - pkg/containertest/yaml_runner.go
 - [ ] 100.00% (78/78) - pkg/fluxhandler/bootstrap.go
 - [ ] 100.00% (175/175) - pkg/fluxhandler/helm.go
 - [ ] 100.00% (98/98) - pkg/fluxhandler/helm_pull.go

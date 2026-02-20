@@ -22,6 +22,10 @@ import (
 type fakeStrategyTarget struct {
 	host string
 	port nat.Port
+
+	execExitCode int
+	execReader   io.Reader
+	execErr      error
 }
 
 func (f *fakeStrategyTarget) Host(context.Context) (string, error) { return f.host, nil }
@@ -38,10 +42,16 @@ func (f *fakeStrategyTarget) Logs(context.Context) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
 }
 func (f *fakeStrategyTarget) Exec(context.Context, []string, ...tcexec.ProcessOption) (int, io.Reader, error) {
-	return 0, strings.NewReader(""), nil
+	if f.execErr != nil {
+		return 0, nil, f.execErr
+	}
+	if f.execReader != nil {
+		return f.execExitCode, f.execReader, nil
+	}
+	return f.execExitCode, strings.NewReader(""), nil
 }
 func (f *fakeStrategyTarget) State(context.Context) (*container.State, error) {
-	return &container.State{Running: true}, nil
+	return &container.State{Running: true, Health: &container.Health{Status: "healthy"}}, nil
 }
 func (f *fakeStrategyTarget) CopyFileFromContainer(context.Context, string) (io.ReadCloser, error) {
 	return io.NopCloser(strings.NewReader("")), nil
@@ -617,6 +627,77 @@ func TestRunContainerAndReadLogs(t *testing.T) {
 	output, err := readContainerLogs(ctx, &fakeContainer{logsReader: io.NopCloser(bytes.NewBufferString("abc"))})
 	if err != nil || output != "abc" {
 		t.Fatalf("expected successful log read, got %q err=%v", output, err)
+	}
+}
+
+func TestCheckHealthCommandsResponseMatcherExecution(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(waitCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+		if req.WaitingFor == nil {
+			return nil, errors.New("missing waiting strategy")
+		}
+
+		target := &fakeStrategyTarget{
+			execExitCode: 0,
+			execReader:   strings.NewReader("service is healthy: ok"),
+		}
+		if err := req.WaitingFor.WaitUntilReady(waitCtx, target); err != nil {
+			return nil, err
+		}
+
+		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
+	})
+
+	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{
+		Command:          "echo ok",
+		ExpectedExitCode: 0,
+		ExpectedContent:  "ok",
+		MatchContent:     true,
+	}}); err != nil {
+		t.Fatalf("expected successful health command response match, got %v", err)
+	}
+}
+
+func TestCheckHealthCommandsResponseMatcherReadError(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(waitCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+		if req.WaitingFor == nil {
+			return nil, errors.New("missing waiting strategy")
+		}
+
+		target := &fakeStrategyTarget{
+			execExitCode: 0,
+			execReader:   &errReadCloser{},
+		}
+		if err := req.WaitingFor.WaitUntilReady(waitCtx, target); err != nil {
+			return nil, err
+		}
+
+		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
+	})
+
+	err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{
+		Command:          "echo ok",
+		ExpectedExitCode: 0,
+		ExpectedContent:  "ok",
+		MatchContent:     true,
+	}})
+	if err == nil {
+		t.Fatalf("expected health command response matcher read error to fail")
 	}
 }
 
