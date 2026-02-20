@@ -11,6 +11,9 @@ import (
 
 var containerTestLongHelp = strings.TrimSpace(`
 Run container checks from a YAML file.
+
+Before any configured checks are executed, the container must report healthy
+via Docker HEALTHCHECK.
 `)
 
 var (
