@@ -252,10 +252,18 @@
         },
         "expectedOutput": {
           "type": "string",
-          "description": "When non-empty, run the container (with command if set) and assert this string appears in the output. All other checks (health, file, tcp, http) are skipped for this runner.",
+          "description": "When non-empty, run the container (with command if set) and assert this string appears in the output.",
           "examples": [
             "v1.2.3",
             "Started successfully"
+          ]
+        },
+        "runTests": {
+          "type": "boolean",
+          "description": "Whether to run the other checks (health, file, tcp, http, commands, standardRun) for this runner. Defaults to true when omitted. Set to false to skip all normal checks and run only the output check (if expectedOutput is set).",
+          "examples": [
+            true,
+            false
           ]
         }
       }

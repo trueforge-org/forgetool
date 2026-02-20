@@ -31,13 +31,15 @@ var (
 //     when expectedOutput is set, otherwise applied as CMD
 //   - readOnlyRoot: bool            mount the container root filesystem as read-only
 //   - expectedOutput: string        when non-empty, run the container (with command if set)
-//     and assert this string is present in the output;
-//     all other checks are skipped for this runner
+//     and assert this string is present in the output
+//   - runTests: bool                whether to run the other checks (health, file, tcp, http,
+//     commands, standardRun) for this runner; defaults to true when omitted
 type RunnerConfig struct {
 	Env            map[string]string `yaml:"env"`
 	Command        string            `yaml:"command"`
 	ReadOnlyRoot   bool              `yaml:"readOnlyRoot"`
 	ExpectedOutput string            `yaml:"expectedOutput"`
+	RunTests       *bool             `yaml:"runTests"`
 }
 
 // ContainerTestYAML defines the struct-based container-test.yaml schema.
@@ -127,10 +129,12 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 // RunChecksFromYAML runs container checks defined in a struct-based container-test YAML file.
 //
 // When the YAML defines one or more runners, each runner spawns its own container
-// configuration (env, command, readOnlyRoot) and all configured checks execute
-// under that configuration in order: health → file → tcp/http waits → commands → standardRun.
-// When a runner sets expectedOutput, only an output check is performed for that runner
-// and all other check types are skipped for it.
+// configuration (env, command, readOnlyRoot) and checks execute per runner.
+// For each runner:
+//   - If expectedOutput is non-empty, an output check is performed first.
+//   - If runTests is true (the default when omitted), the normal check sequence follows:
+//     health → file → tcp/http waits → commands → standardRun.
+//   - If runTests is explicitly false, the normal check sequence is skipped for that runner.
 //
 // When no runners are defined a single default runner is used, which is equivalent
 // to the previous single-pass behaviour.
@@ -198,12 +202,17 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	for i, runner := range runners {
 		runnerCfg := buildRunnerContainerConfig(runner, containerConfig, config.ReadOnlyRootfs, config.Mounts)
 
-		// If expectedOutput is set, run only the output check and skip all other checks.
+		// Run output check if expectedOutput is set.
 		if strings.TrimSpace(runner.ExpectedOutput) != "" {
-			logInfo("Runner[%d]: output-check mode (skipping health/file/tcp/http checks)", i)
+			logInfo("Runner[%d]: running output check", i)
 			if err := checkRunnerOutputFn(ctx, image, runnerCfg, runner.Command, runner.ExpectedOutput); err != nil {
 				return fmt.Errorf("runner[%d] output check failed: %w", i, err)
 			}
+		}
+
+		// Skip normal checks when runTests is explicitly false; default is true.
+		if runner.RunTests != nil && !*runner.RunTests {
+			logInfo("Runner[%d]: skipping other checks (runTests=false)", i)
 			continue
 		}
 
