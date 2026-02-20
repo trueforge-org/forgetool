@@ -86,7 +86,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 
 	// Runners section
 	runnersPath := filepath.Join(dir, "runners.yaml")
-	runnersContent := "runners:\n  - env:\n      FOO: bar\n    entrypoint: myapp\n    cmd: --version\n    timeoutSeconds: 180\n    readOnlyRoot: true\n    expectedOutput: \"v1.0\"\n    exitCode: 7\n    runTests: false\n  - {}\nfilePaths:\n  - /bin/sh\nhealthCommands:\n  - command: mycommand\n    expectedExitCode: 7\n    expectedContent: ok\n    matchContent: true\n"
+	runnersContent := "runners:\n  - env:\n      FOO: bar\n    entrypoint: myapp\n    cmd: --version\n    filePath: /bin/sh\n    timeoutSeconds: 180\n    readOnlyRoot: true\n    expectedOutput: \"v1.0\"\n    exitCode: 7\n    runTests: false\n  - {}\nhealthCommands:\n  - command: mycommand\n    expectedExitCode: 7\n    expectedContent: ok\n    matchContent: true\n"
 	if err := os.WriteFile(runnersPath, []byte(runnersContent), 0o600); err != nil {
 		t.Fatalf("failed writing runners yaml: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 		t.Fatalf("expected 2 runners, got %d", len(runnersConfig.Runners))
 	}
 	r0 := runnersConfig.Runners[0]
-	if r0.Env["FOO"] != "bar" || r0.Entrypoint != "myapp" || r0.Cmd != "--version" || !r0.ReadOnlyRoot || r0.ExpectedOutput != "v1.0" {
+	if r0.Env["FOO"] != "bar" || r0.Entrypoint != "myapp" || r0.Cmd != "--version" || r0.FilePath != "/bin/sh" || !r0.ReadOnlyRoot || r0.ExpectedOutput != "v1.0" {
 		t.Fatalf("unexpected runner[0]: %+v", r0)
 	}
 	if r0.TimeoutSeconds != 180 {
@@ -165,10 +165,10 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{FilePaths: []string{" "}}, nil
+		return ContainerTestYAML{Runners: []RunnerConfig{{FilePath: " "}}}, nil
 	}
-	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "filePaths[0]") {
-		t.Fatalf("expected file path validation error, got %v", err)
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "runner[0].filePath") {
+		t.Fatalf("expected runner file path validation error, got %v", err)
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
@@ -194,7 +194,7 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{FilePaths: []string{"/x"}}, nil
+		return ContainerTestYAML{Runners: []RunnerConfig{{FilePath: "/x"}}}, nil
 	}
 	checkWaitsFn = CheckWaits
 	checkFilesExistFn = func(context.Context, string, []string, *ContainerConfig) error {
@@ -298,8 +298,8 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 			TCP:  []TCPTestConfig{{Port: "9090"}},
 			Runners: []RunnerConfig{{
 				TimeoutSeconds: 1,
+				FilePath:       "/etc/hosts",
 			}},
-			FilePaths:      []string{"/etc/hosts"},
 			HealthCommands: []HealthCommandTestConfig{{Command: "mycommand", ExpectedExitCode: intPtr(7), ExpectedContent: "ok", MatchContent: true}},
 		}, nil
 	}
@@ -378,8 +378,8 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 		return ContainerTestYAML{
 			Runners: []RunnerConfig{{
 				TimeoutSeconds: 180,
+				FilePath:       "/etc/hosts",
 			}},
-			FilePaths: []string{"/etc/hosts"},
 		}, nil
 	}
 
@@ -662,7 +662,6 @@ func TestRunChecksFromYAMLRunnerRunTestsFalseSkipsOtherChecks(t *testing.T) {
 				},
 			},
 			// These checks are skipped because runTests=false.
-			FilePaths: []string{"/bin/sh"},
 		}, nil
 	}
 

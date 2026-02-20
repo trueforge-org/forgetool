@@ -30,6 +30,7 @@ var (
 //   - env: map[string]string        environment variables to set in the container
 //   - entrypoint: string            override the container entrypoint for this runner
 //   - cmd: string                   override container args/CMD for this runner
+//   - filePath: string              file path to verify in-container for this runner
 //   - command: string               legacy alias for entrypoint (backward compatible, DO NOT USE)
 //   - readOnlyRoot: bool            mount the container root filesystem as read-only
 //   - timeoutSeconds: int            optional per-runner timeout in seconds (min 120 enforced)
@@ -43,6 +44,7 @@ type RunnerConfig struct {
 	Env            map[string]string `yaml:"env"`
 	Entrypoint     string            `yaml:"entrypoint"`
 	Cmd            string            `yaml:"cmd"`
+	FilePath       string            `yaml:"filePath"`
 	Command        string            `yaml:"command"`
 	ReadOnlyRoot   bool              `yaml:"readOnlyRoot"`
 	TimeoutSeconds int               `yaml:"timeoutSeconds"`
@@ -58,7 +60,6 @@ type RunnerConfig struct {
 // - http: []HTTPTestConfig
 // - tcp: []TCPTestConfig
 // - healthCommands: []HealthCommandTestConfig
-// - filePaths: []string
 // - readOnlyRootfs: bool
 // - mounts: []MountConfig
 //
@@ -68,7 +69,6 @@ type ContainerTestYAML struct {
 	HTTP           []HTTPTestConfig          `yaml:"http"`
 	TCP            []TCPTestConfig           `yaml:"tcp"`
 	HealthCommands []HealthCommandTestConfig `yaml:"healthCommands"`
-	FilePaths      []string                  `yaml:"filePaths"`
 	ReadOnlyRootfs bool                      `yaml:"readOnlyRootfs"`
 	Mounts         []MountConfig             `yaml:"mounts"`
 }
@@ -161,17 +161,11 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		return err
 	}
 
-	logInfo("Loaded container test YAML: path=%s runners=%d http=%d tcp=%d fileChecks=%d healthCommands=%d", yamlPath, len(config.Runners), len(config.HTTP), len(config.TCP), len(config.FilePaths), len(config.HealthCommands))
+	logInfo("Loaded container test YAML: path=%s runners=%d http=%d tcp=%d healthCommands=%d", yamlPath, len(config.Runners), len(config.HTTP), len(config.TCP), len(config.HealthCommands))
 
 	for index, command := range config.HealthCommands {
 		if strings.TrimSpace(command.Command) == "" {
 			return fmt.Errorf("healthCommands[%d].command must not be empty", index)
-		}
-	}
-
-	for index, filePath := range config.FilePaths {
-		if strings.TrimSpace(filePath) == "" {
-			return fmt.Errorf("filePaths[%d] must not be empty", index)
 		}
 	}
 
@@ -195,6 +189,11 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	hasHealthCheckPreconditions := len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.HealthCommands) > 0
 
 	for i, runner := range runners {
+		runnerFilePath := strings.TrimSpace(runner.FilePath)
+		if runner.FilePath != "" && runnerFilePath == "" {
+			return fmt.Errorf("runner[%d].filePath must not be empty", i)
+		}
+
 		logInfo("Runner[%d]: starting (expectedOutput=%t exitCodeSet=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.ExitCode != nil, runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
 		runnerCtx := ctx
 		healthCtx := runnerCtx
@@ -255,9 +254,9 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			logInfo("Runner[%d]: skipping health check (no tcp/http/healthCommands configured)", i)
 		}
 
-		if len(config.FilePaths) > 0 {
-			logInfo("Runner[%d]: running file checks (%d)", i, len(config.FilePaths))
-			if err := checkFilesExistFn(runnerCtx, image, config.FilePaths, runnerCfg); err != nil {
+		if runnerFilePath != "" {
+			logInfo("Runner[%d]: running file checks (1)", i)
+			if err := checkFilesExistFn(runnerCtx, image, []string{runnerFilePath}, runnerCfg); err != nil {
 				return err
 			}
 		}
