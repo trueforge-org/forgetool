@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ const (
 var runContainerBackend = func(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 	return testcontainers.Run(ctx, image, opts...)
 }
+
+var mkdirTempFn = os.MkdirTemp
 
 func envTruthy(name string) bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv(name)))
@@ -213,9 +216,34 @@ func GetTestImage(defaultImage string) string {
 	return image
 }
 
+// MountConfig defines a folder to be mounted from a host tmp dir into the container.
+type MountConfig struct {
+	Path  string `yaml:"path"`  // target path inside the container (required)
+	Chmod string `yaml:"chmod"` // optional permissions in octal notation (e.g. "755")
+	Chown string `yaml:"chown"` // optional ownership in "uid:gid" notation (e.g. "568:568")
+}
+
 // ContainerConfig holds optional container configuration
 type ContainerConfig struct {
-	Env map[string]string // Environment variables to set in the container
+	Env    map[string]string // Environment variables to set in the container
+	Mounts []MountConfig     // Folders to mount from host tmp dirs into the container
+}
+
+// parseChown splits a "uid:gid" string into integer uid and gid values.
+func parseChown(chown string) (int, int, error) {
+	parts := strings.SplitN(chown, ":", 2)
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid chown format %q (expected uid:gid)", chown)
+	}
+	uid, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid uid %q: %w", parts[0], err)
+	}
+	gid, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid gid %q: %w", parts[1], err)
+	}
+	return uid, gid, nil
 }
 
 // applyContainerConfig applies optional container configuration
@@ -233,6 +261,36 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 		logInfo("Applying container environment: %s", envSummary(config.Env))
 	} else {
 		logDebug("Container config provided without env vars")
+	}
+
+	// Apply mounts: create a tmp dir on the host for each mount entry
+	for _, mount := range config.Mounts {
+		tmpDir, err := mkdirTempFn("", "containertest-mount-*")
+		if err != nil {
+			logWarn("Failed to create temp dir for mount %s: %v", mount.Path, err)
+			continue
+		}
+
+		if mount.Chmod != "" {
+			mode, parseErr := strconv.ParseUint(mount.Chmod, 8, 32)
+			if parseErr != nil {
+				logWarn("Invalid chmod %q for mount %s: %v", mount.Chmod, mount.Path, parseErr)
+			} else if chmodErr := os.Chmod(tmpDir, os.FileMode(mode)); chmodErr != nil {
+				logWarn("Failed to chmod temp dir for mount %s: %v", mount.Path, chmodErr)
+			}
+		}
+
+		if mount.Chown != "" {
+			uid, gid, chownParseErr := parseChown(mount.Chown)
+			if chownParseErr != nil {
+				logWarn("Invalid chown %q for mount %s: %v", mount.Chown, mount.Path, chownParseErr)
+			} else if lchownErr := os.Lchown(tmpDir, uid, gid); lchownErr != nil {
+				logWarn("Failed to chown temp dir for mount %s: %v", mount.Path, lchownErr)
+			}
+		}
+
+		logInfo("Mounting tmp dir %s -> %s (chmod=%q chown=%q)", tmpDir, mount.Path, mount.Chmod, mount.Chown)
+		opts = append(opts, testcontainers.WithMounts(testcontainers.BindMount(tmpDir, testcontainers.ContainerMountTarget(mount.Path))))
 	}
 
 	return opts

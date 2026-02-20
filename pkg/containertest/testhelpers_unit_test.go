@@ -285,6 +285,83 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	}
 }
 
+func TestApplyContainerConfigMounts(t *testing.T) {
+	old := mkdirTempFn
+	t.Cleanup(func() { mkdirTempFn = old })
+
+	// Seam: mkdirTempFn fails
+	mkdirTempFn = func(string, string) (string, error) {
+		return "", errors.New("mkdir boom")
+	}
+	opts := applyContainerConfig(&ContainerConfig{Mounts: []MountConfig{{Path: "/config"}}})
+	if len(opts) != 0 {
+		t.Fatalf("expected no opts when mkdir fails, got %d", len(opts))
+	}
+
+	// Seam: mkdirTempFn succeeds; verify one mount customizer per mount entry
+	tmpDir := t.TempDir()
+	mkdirTempFn = func(string, string) (string, error) {
+		return tmpDir, nil
+	}
+	opts = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{
+			{Path: "/config", Chmod: "755", Chown: "0:0"},
+		},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt, got %d", len(opts))
+	}
+
+	// Invalid chmod should warn and skip but not fail; mount is still added
+	opts = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "/data", Chmod: "invalid"}},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt even with invalid chmod, got %d", len(opts))
+	}
+
+	// Invalid chown should warn and skip but not fail; mount is still added
+	opts = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "/data", Chown: "notanumber:0"}},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt even with invalid chown, got %d", len(opts))
+	}
+
+	// Multiple mounts produce multiple opts (one per mount)
+	opts = applyContainerConfig(&ContainerConfig{
+		Env:    map[string]string{"K": "V"},
+		Mounts: []MountConfig{{Path: "/a"}, {Path: "/b"}},
+	})
+	if len(opts) != 3 { // 1 env + 2 mounts
+		t.Fatalf("expected 3 opts (1 env + 2 mounts), got %d", len(opts))
+	}
+}
+
+func TestParseChown(t *testing.T) {
+	uid, gid, err := parseChown("568:568")
+	if err != nil || uid != 568 || gid != 568 {
+		t.Fatalf("unexpected parseChown result: uid=%d gid=%d err=%v", uid, gid, err)
+	}
+
+	uid, gid, err = parseChown("0:0")
+	if err != nil || uid != 0 || gid != 0 {
+		t.Fatalf("unexpected parseChown zero result: uid=%d gid=%d err=%v", uid, gid, err)
+	}
+
+	if _, _, err := parseChown("nocolon"); err == nil {
+		t.Fatalf("expected error for missing colon")
+	}
+
+	if _, _, err := parseChown("abc:0"); err == nil {
+		t.Fatalf("expected error for non-numeric uid")
+	}
+
+	if _, _, err := parseChown("0:xyz"); err == nil {
+		t.Fatalf("expected error for non-numeric gid")
+	}
+}
+
 func TestWaitStrategyBuilders(t *testing.T) {
 	if _, _, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Path: "/"}}, map[string]struct{}{}, nil, nil); err == nil {
 		t.Fatalf("expected error for missing http port")
