@@ -463,13 +463,16 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 		testcontainers.WithWaitStrategy(wait.ForHealthCheck()),
 	}
 
-	// Apply optional container config
 	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
 	opts = append(opts, configOpts...)
 
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
 		cleanupMounts()
+	opts = append(opts, applyContainerConfig(containerConfig)...)
+
+	container, err := runContainer(ctx, image, opts...)
+	if err != nil {
 		return err
 	}
 	defer func() {
@@ -483,6 +486,7 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 			err = fmt.Errorf("failed to terminate container: %w", termErr)
 		}
 		cleanupMounts()
+
 	}()
 
 	logInfo("Health check completed successfully for image=%s", image)
