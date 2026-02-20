@@ -603,7 +603,17 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 		logInfo("Health check container config: env=%s", envSummary(containerConfig.Env))
 	}
 
-	waits := []wait.Strategy{wait.ForHealthCheck()}
+	waitStartupTimeout := defaultWaitStartupTimeout
+	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return context.DeadlineExceeded
+		}
+		waitStartupTimeout = remaining
+	}
+
+	waits := []wait.Strategy{wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)}
+	logInfo("Health check details: startupTimeout=%s", waitStartupTimeout.Round(time.Second))
 	logWaitStrategiesStart("health check", waits)
 
 	opts := []testcontainers.ContainerCustomizer{
