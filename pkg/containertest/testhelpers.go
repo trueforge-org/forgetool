@@ -1036,7 +1036,16 @@ func CheckRunnerOutput(ctx context.Context, image string, containerConfig *Conta
 
 	actual := strings.TrimSpace(output)
 	expected := strings.TrimSpace(expectedOutput)
-	if !strings.Contains(actual, expected) {
+	matched := strings.Contains(actual, expected)
+	logInfo("Runner output check details: expectedLen=%d actualLen=%d matched=%t", len(expected), len(actual), matched)
+	preview := actual
+	const previewLimit = 512
+	if len(preview) > previewLimit {
+		preview = preview[:previewLimit] + "… (truncated)"
+	}
+	logInfo("Runner output preview: %q", preview)
+
+	if !matched {
 		return fmt.Errorf("runner output check: expected %q not found in output %q", expected, actual)
 	}
 
