@@ -260,13 +260,13 @@ func TestShouldDumpContainerLogsModes(t *testing.T) {
 }
 
 func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
-	if got := applyContainerConfig(nil); len(got) != 0 {
+	if got, _ := applyContainerConfig(nil); len(got) != 0 {
 		t.Fatalf("expected no opts for nil config")
 	}
-	if got := applyContainerConfig(&ContainerConfig{}); len(got) != 0 {
+	if got, _ := applyContainerConfig(&ContainerConfig{}); len(got) != 0 {
 		t.Fatalf("expected no opts for empty env")
 	}
-	if got := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}}); len(got) != 1 {
+	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}}); len(got) != 1 {
 		t.Fatalf("expected one env opt")
 	}
 
@@ -293,17 +293,20 @@ func TestApplyContainerConfigMounts(t *testing.T) {
 	mkdirTempFn = func(string, string) (string, error) {
 		return "", errors.New("mkdir boom")
 	}
-	opts := applyContainerConfig(&ContainerConfig{Mounts: []MountConfig{{Path: "/config"}}})
+	opts, cleanup := applyContainerConfig(&ContainerConfig{Mounts: []MountConfig{{Path: "/config"}}})
 	if len(opts) != 0 {
 		t.Fatalf("expected no opts when mkdir fails, got %d", len(opts))
 	}
+	cleanup() // should be a no-op
 
-	// Seam: mkdirTempFn succeeds; verify one mount customizer per mount entry
-	tmpDir := t.TempDir()
+	// Seam: mkdirTempFn succeeds; verify one mount customizer per mount entry and cleanup removes the dir
+	realTmpDir := t.TempDir()
+	createdDir := ""
 	mkdirTempFn = func(string, string) (string, error) {
-		return tmpDir, nil
+		createdDir = realTmpDir
+		return realTmpDir, nil
 	}
-	opts = applyContainerConfig(&ContainerConfig{
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
 		Mounts: []MountConfig{
 			{Path: "/config", Chmod: "755", Chown: "0:0"},
 		},
@@ -311,31 +314,45 @@ func TestApplyContainerConfigMounts(t *testing.T) {
 	if len(opts) != 1 {
 		t.Fatalf("expected one mount opt, got %d", len(opts))
 	}
+	// Verify cleanup removes the dir
+	if _, statErr := os.Stat(createdDir); statErr != nil {
+		t.Fatalf("expected tmp dir to exist before cleanup: %v", statErr)
+	}
+	cleanup()
+	if _, statErr := os.Stat(createdDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected tmp dir to be removed after cleanup")
+	}
 
 	// Invalid chmod should warn and skip but not fail; mount is still added
-	opts = applyContainerConfig(&ContainerConfig{
+	mkdirTempFn = func(string, string) (string, error) {
+		return realTmpDir, nil
+	}
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
 		Mounts: []MountConfig{{Path: "/data", Chmod: "invalid"}},
 	})
 	if len(opts) != 1 {
 		t.Fatalf("expected one mount opt even with invalid chmod, got %d", len(opts))
 	}
+	cleanup()
 
 	// Invalid chown should warn and skip but not fail; mount is still added
-	opts = applyContainerConfig(&ContainerConfig{
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
 		Mounts: []MountConfig{{Path: "/data", Chown: "notanumber:0"}},
 	})
 	if len(opts) != 1 {
 		t.Fatalf("expected one mount opt even with invalid chown, got %d", len(opts))
 	}
+	cleanup()
 
 	// Multiple mounts produce multiple opts (one per mount)
-	opts = applyContainerConfig(&ContainerConfig{
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
 		Env:    map[string]string{"K": "V"},
 		Mounts: []MountConfig{{Path: "/a"}, {Path: "/b"}},
 	})
 	if len(opts) != 3 { // 1 env + 2 mounts
 		t.Fatalf("expected 3 opts (1 env + 2 mounts), got %d", len(opts))
 	}
+	cleanup()
 }
 
 func TestParseChown(t *testing.T) {

@@ -252,13 +252,15 @@ func parseChown(chown string) (int, int, error) {
 	return uid, gid, nil
 }
 
-// applyContainerConfig applies optional container configuration
-func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCustomizer {
+// applyContainerConfig applies optional container configuration and returns a cleanup
+// function that removes any host temp directories created for mounts.
+func applyContainerConfig(config *ContainerConfig) ([]testcontainers.ContainerCustomizer, func()) {
 	var opts []testcontainers.ContainerCustomizer
+	var tmpDirs []string
 
 	if config == nil {
 		logDebug("No extra container config provided")
-		return opts
+		return opts, func() {}
 	}
 
 	// Apply environment variables
@@ -286,6 +288,7 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 			logWarn("Failed to create temp dir for mount %s: %v", mountPath, err)
 			continue
 		}
+		tmpDirs = append(tmpDirs, tmpDir)
 
 		if mount.Chmod != "" {
 			mode, parseErr := strconv.ParseUint(mount.Chmod, 8, 32)
@@ -309,7 +312,16 @@ func applyContainerConfig(config *ContainerConfig) []testcontainers.ContainerCus
 		opts = append(opts, testcontainers.WithMounts(testcontainers.BindMount(tmpDir, testcontainers.ContainerMountTarget(mountPath))))
 	}
 
-	return opts
+	cleanup := func() {
+		for _, dir := range tmpDirs {
+			logDebug("Removing mount tmp dir %s", dir)
+			if removeErr := os.RemoveAll(dir); removeErr != nil {
+				logWarn("Failed to remove mount tmp dir %s: %v", dir, removeErr)
+			}
+		}
+	}
+
+	return opts, cleanup
 }
 
 // runContainer is a tiny helper to start a container with common patterns centralized.
@@ -452,10 +464,12 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 	}
 
 	// Apply optional container config
-	opts = append(opts, applyContainerConfig(containerConfig)...)
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
 
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
+		cleanupMounts()
 		return err
 	}
 	defer func() {
@@ -468,6 +482,7 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 		if err == nil && termErr != nil {
 			err = fmt.Errorf("failed to terminate container: %w", termErr)
 		}
+		cleanupMounts()
 	}()
 
 	logInfo("Health check completed successfully for image=%s", image)
@@ -516,10 +531,12 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 	}
 
 	// Apply optional container config
-	opts = append(opts, applyContainerConfig(containerConfig)...)
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
 
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
+		cleanupMounts()
 		return err
 	}
 	defer func() {
@@ -532,6 +549,7 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 		if err == nil && termErr != nil {
 			err = fmt.Errorf("failed to terminate container: %w", termErr)
 		}
+		cleanupMounts()
 	}()
 
 	logInfo("Wait checks completed successfully for image=%s", image)
@@ -585,10 +603,11 @@ func CheckFilesExist(ctx context.Context, image string, filePaths []string, conf
 // CheckStandardRun verifies the container can be started without altering entrypoint or args.
 func CheckStandardRun(ctx context.Context, image string, config *ContainerConfig) (err error) {
 	logInfo("🧪 Standard run check: image=%s", image)
-	opts := applyContainerConfig(config)
+	opts, cleanupMounts := applyContainerConfig(config)
 
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
+		cleanupMounts()
 		return err
 	}
 	defer func() {
@@ -601,6 +620,7 @@ func CheckStandardRun(ctx context.Context, image string, config *ContainerConfig
 		if err == nil && termErr != nil {
 			err = fmt.Errorf("failed to terminate container: %w", termErr)
 		}
+		cleanupMounts()
 	}()
 
 	logInfo("Standard run check completed successfully for image=%s", image)
@@ -633,10 +653,12 @@ func CheckCommand(ctx context.Context, image string, containerConfig *ContainerC
 	}
 
 	// Apply optional container config
-	opts = append(opts, applyContainerConfig(containerConfig)...)
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
 
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
+		cleanupMounts()
 		return err
 	}
 	defer func() {
@@ -649,6 +671,7 @@ func CheckCommand(ctx context.Context, image string, containerConfig *ContainerC
 		if err == nil && termErr != nil {
 			err = fmt.Errorf("failed to terminate container: %w", termErr)
 		}
+		cleanupMounts()
 	}()
 
 	if err := assertExitCode(ctx, container, fmt.Sprintf("command %q", fullCommand), expectedExitCode); err != nil {
