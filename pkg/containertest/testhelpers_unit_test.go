@@ -260,14 +260,20 @@ func TestShouldDumpContainerLogsModes(t *testing.T) {
 }
 
 func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
-	if got := applyContainerConfig(nil); len(got) != 0 {
+	if got, _ := applyContainerConfig(nil); len(got) != 0 {
 		t.Fatalf("expected no opts for nil config")
 	}
-	if got := applyContainerConfig(&ContainerConfig{}); len(got) != 0 {
+	if got, _ := applyContainerConfig(&ContainerConfig{}); len(got) != 0 {
 		t.Fatalf("expected no opts for empty env")
 	}
-	if got := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}}); len(got) != 1 {
+	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}}); len(got) != 1 {
 		t.Fatalf("expected one env opt")
+	}
+	if got := applyContainerConfig(&ContainerConfig{ReadOnlyRootfs: true}); len(got) != 1 {
+		t.Fatalf("expected one opt for ReadOnlyRootfs")
+	}
+	if got := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
+		t.Fatalf("expected two opts for env+ReadOnlyRootfs")
 	}
 
 	normalized := normalizeHTTPConfig(HTTPTestConfig{Port: "8080"})
@@ -282,6 +288,100 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	custom := normalizeHTTPConfig(HTTPTestConfig{Port: "8080", Path: "/health", StatusCode: 204, StatusCodeMatcher: matcher})
 	if custom.Path != "/health" || custom.StatusCode != 204 || !custom.StatusCodeMatcher(201) {
 		t.Fatalf("expected custom matcher and values to be preserved")
+	}
+}
+
+func TestApplyContainerConfigMounts(t *testing.T) {
+	old := mkdirTempFn
+	t.Cleanup(func() { mkdirTempFn = old })
+
+	// Seam: mkdirTempFn fails
+	mkdirTempFn = func(string, string) (string, error) {
+		return "", errors.New("mkdir boom")
+	}
+	opts, cleanup := applyContainerConfig(&ContainerConfig{Mounts: []MountConfig{{Path: "/config"}}})
+	if len(opts) != 0 {
+		t.Fatalf("expected no opts when mkdir fails, got %d", len(opts))
+	}
+	cleanup() // should be a no-op
+
+	// Seam: mkdirTempFn succeeds; verify one mount customizer per mount entry and cleanup removes the dir
+	realTmpDir := t.TempDir()
+	createdDir := ""
+	mkdirTempFn = func(string, string) (string, error) {
+		createdDir = realTmpDir
+		return realTmpDir, nil
+	}
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{
+			{Path: "/config", Chmod: "755", Chown: "0:0"},
+		},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt, got %d", len(opts))
+	}
+	// Verify cleanup removes the dir
+	if _, statErr := os.Stat(createdDir); statErr != nil {
+		t.Fatalf("expected tmp dir to exist before cleanup: %v", statErr)
+	}
+	cleanup()
+	if _, statErr := os.Stat(createdDir); !os.IsNotExist(statErr) {
+		t.Fatalf("expected tmp dir to be removed after cleanup")
+	}
+
+	// Invalid chmod should warn and skip but not fail; mount is still added
+	mkdirTempFn = func(string, string) (string, error) {
+		return realTmpDir, nil
+	}
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "/data", Chmod: "invalid"}},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt even with invalid chmod, got %d", len(opts))
+	}
+	cleanup()
+
+	// Invalid chown should warn and skip but not fail; mount is still added
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "/data", Chown: "notanumber:0"}},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt even with invalid chown, got %d", len(opts))
+	}
+	cleanup()
+
+	// Multiple mounts produce multiple opts (one per mount)
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Env:    map[string]string{"K": "V"},
+		Mounts: []MountConfig{{Path: "/a"}, {Path: "/b"}},
+	})
+	if len(opts) != 3 { // 1 env + 2 mounts
+		t.Fatalf("expected 3 opts (1 env + 2 mounts), got %d", len(opts))
+	}
+	cleanup()
+}
+
+func TestParseChown(t *testing.T) {
+	uid, gid, err := parseChown("568:568")
+	if err != nil || uid != 568 || gid != 568 {
+		t.Fatalf("unexpected parseChown result: uid=%d gid=%d err=%v", uid, gid, err)
+	}
+
+	uid, gid, err = parseChown("0:0")
+	if err != nil || uid != 0 || gid != 0 {
+		t.Fatalf("unexpected parseChown zero result: uid=%d gid=%d err=%v", uid, gid, err)
+	}
+
+	if _, _, err := parseChown("nocolon"); err == nil {
+		t.Fatalf("expected error for missing colon")
+	}
+
+	if _, _, err := parseChown("abc:0"); err == nil {
+		t.Fatalf("expected error for non-numeric uid")
+	}
+
+	if _, _, err := parseChown("0:xyz"); err == nil {
+		t.Fatalf("expected error for non-numeric gid")
 	}
 }
 
@@ -599,6 +699,33 @@ func TestCheckWaitsExecutionPaths(t *testing.T) {
 		return &fakeContainer{terminateErr: errors.New("terminate failed")}, nil
 	})
 	if err := CheckWaits(ctx, "img", []HTTPTestConfig{{Port: "8080"}}, nil, nil); err == nil {
+		t.Fatalf("expected terminate failure")
+	}
+}
+
+func TestCheckHealthExecutionPaths(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, errors.New("start failed")
+	})
+	if err := CheckHealth(ctx, "img", nil); err == nil {
+		t.Fatalf("expected run backend failure")
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 0}, logsReader: io.NopCloser(strings.NewReader("logs"))}, nil
+	})
+	if err := CheckHealth(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}); err != nil {
+		t.Fatalf("unexpected health success error: %v", err)
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{terminateErr: errors.New("terminate failed")}, nil
+	})
+	if err := CheckHealth(ctx, "img", nil); err == nil {
 		t.Fatalf("expected terminate failure")
 	}
 }
