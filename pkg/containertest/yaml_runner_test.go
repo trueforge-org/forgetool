@@ -643,8 +643,32 @@ func TestRunChecksFromYAMLRunnerExpectedOutputRunsTestsByDefault(t *testing.T) {
 	if !outputCalled {
 		t.Fatalf("expected output check to be called")
 	}
-	if !healthCalled {
-		t.Fatalf("expected health check to be called (runTests defaults to true)")
+	if healthCalled {
+		t.Fatalf("did not expect health check when no file/http/tcp/healthCommands are configured")
+	}
+}
+
+func TestRunChecksFromYAMLSkipsHealthWhenNoDeclarativeChecks(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	healthCalled := false
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if healthCalled {
+		t.Fatalf("did not expect health check when no file/http/tcp/healthCommands are configured")
 	}
 }
 

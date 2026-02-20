@@ -174,6 +174,8 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		runners = []RunnerConfig{{}}
 	}
 
+	hasDeclarativeChecks := len(config.FilePaths) > 0 || len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.HealthCommands) > 0
+
 	for i, runner := range runners {
 		logInfo("Runner[%d]: starting (expectedOutput=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
 		runnerCtx := ctx
@@ -208,10 +210,14 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			continue
 		}
 
-		// Normal check sequence: health → file → tcp/http waits → healthCommands → standardRun.
-		logInfo("Runner[%d]: running health check", i)
-		if err := checkHealthFn(runnerCtx, image, runnerCfg); err != nil {
-			return err
+		// Normal check sequence: health (when declarative checks are configured) → file → tcp/http waits → healthCommands → standardRun.
+		if hasDeclarativeChecks {
+			logInfo("Runner[%d]: running health check", i)
+			if err := checkHealthFn(runnerCtx, image, runnerCfg); err != nil {
+				return err
+			}
+		} else {
+			logInfo("Runner[%d]: skipping health check (no file/http/tcp/healthCommands configured)", i)
 		}
 
 		if len(config.FilePaths) > 0 {
