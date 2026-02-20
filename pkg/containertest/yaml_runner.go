@@ -143,6 +143,8 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		return err
 	}
 
+	logInfo("Loaded container test YAML: path=%s runners=%d http=%d tcp=%d fileChecks=%d healthCommands=%d", yamlPath, len(config.Runners), len(config.HTTP), len(config.TCP), len(config.FilePaths), len(config.HealthCommands))
+
 	for index, command := range config.HealthCommands {
 		if strings.TrimSpace(command.Command) == "" {
 			return fmt.Errorf("healthCommands[%d].command must not be empty", index)
@@ -173,6 +175,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	}
 
 	for i, runner := range runners {
+		logInfo("Runner[%d]: starting (expectedOutput=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
 		runnerCtx := ctx
 		if runner.TimeoutSeconds > 0 {
 			effectiveTimeoutSeconds := runner.TimeoutSeconds
@@ -206,31 +209,37 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 
 		// Normal check sequence: health → file → tcp/http waits → healthCommands → standardRun.
+		logInfo("Runner[%d]: running health check", i)
 		if err := checkHealthFn(runnerCtx, image, runnerCfg); err != nil {
 			return err
 		}
 
 		if len(config.FilePaths) > 0 {
+			logInfo("Runner[%d]: running file checks (%d)", i, len(config.FilePaths))
 			if err := checkFilesExistFn(runnerCtx, image, config.FilePaths, runnerCfg); err != nil {
 				return err
 			}
 		}
 
 		if len(config.HTTP) > 0 || len(config.TCP) > 0 {
+			logInfo("Runner[%d]: running wait checks (http=%d tcp=%d)", i, len(config.HTTP), len(config.TCP))
 			if err := checkWaitsFn(runnerCtx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
 				return err
 			}
 		}
 
 		if len(config.HealthCommands) > 0 {
+			logInfo("Runner[%d]: running health commands (%d)", i, len(config.HealthCommands))
 			if err := checkHealthCommandsFn(runnerCtx, image, runnerCfg, config.HealthCommands); err != nil {
 				return err
 			}
 		}
 
+		logInfo("Runner[%d]: running standard run check", i)
 		if err := checkStandardRunFn(runnerCtx, image, runnerCfg); err != nil {
 			return err
 		}
+		logInfo("Runner[%d]: completed", i)
 	}
 
 	return nil

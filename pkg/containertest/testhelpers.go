@@ -23,6 +23,8 @@ const (
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
 	colorRed    = "\033[31m"
+
+	defaultWaitStartupTimeout = 2 * time.Minute
 )
 
 var runContainerBackend = func(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
@@ -349,6 +351,20 @@ func runContainer(ctx context.Context, image string, opts ...testcontainers.Cont
 	container, err := runContainerBackend(ctx, image, opts...)
 	if err != nil {
 		logError("Container start failed for image=%s: %v", image, err)
+		if container != nil {
+			failureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if shouldDumpContainerLogs(true) {
+				dumpContainerLogs(failureCtx, container, "startup failure")
+			} else {
+				logDebug("Skipping container logs for startup failure (mode=%q)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))))
+			}
+
+			if termErr := terminateContainer(failureCtx, container, "startup failure"); termErr != nil {
+				logWarn("Failed to terminate container after startup failure: %v", termErr)
+			}
+		}
 		return nil, err
 	}
 	logOK("Container is up: image=%s", image)
@@ -437,7 +453,7 @@ func normalizeHTTPConfig(httpConfig HTTPTestConfig) HTTPTestConfig {
 	return httpConfig
 }
 
-func appendHTTPWaitStrategies(httpConfigs []HTTPTestConfig, portsSet map[string]struct{}, tcpWaitStrategies []wait.Strategy, httpWaitStrategies []wait.Strategy) ([]wait.Strategy, []wait.Strategy, error) {
+func appendHTTPWaitStrategies(httpConfigs []HTTPTestConfig, portsSet map[string]struct{}, tcpWaitStrategies []wait.Strategy, httpWaitStrategies []wait.Strategy, waitStartupTimeout time.Duration) ([]wait.Strategy, []wait.Strategy, error) {
 	for index, httpConfig := range httpConfigs {
 		httpConfig = normalizeHTTPConfig(httpConfig)
 		if strings.TrimSpace(httpConfig.Port) == "" {
@@ -449,20 +465,21 @@ func appendHTTPWaitStrategies(httpConfigs []HTTPTestConfig, portsSet map[string]
 		portsSet[portStr] = struct{}{}
 
 		statusCodeMatcher := httpConfig.StatusCodeMatcher
+		logInfo("Adding HTTP wait #%d: port=%s path=%s expectedStatus=%d startupTimeout=%s", index+1, portStr, httpConfig.Path, httpConfig.StatusCode, waitStartupTimeout.Round(time.Second))
 		tcpWaitStrategies = append(tcpWaitStrategies,
-			wait.ForListeningPort(portTCP),
+			wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout),
 		)
 		httpWaitStrategies = append(httpWaitStrategies,
 			wait.ForHTTP(httpConfig.Path).WithPort(portTCP).WithStatusCodeMatcher(func(status int) bool {
 				return statusCodeMatcher(status)
-			}),
+			}).WithStartupTimeout(waitStartupTimeout),
 		)
 	}
 
 	return tcpWaitStrategies, httpWaitStrategies, nil
 }
 
-func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]struct{}, tcpWaitStrategies []wait.Strategy) ([]wait.Strategy, error) {
+func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]struct{}, tcpWaitStrategies []wait.Strategy, waitStartupTimeout time.Duration) ([]wait.Strategy, error) {
 	for index, tcpConfig := range tcpConfigs {
 		if strings.TrimSpace(tcpConfig.Port) == "" {
 			return nil, fmt.Errorf("tcp wait #%d missing port", index+1)
@@ -471,8 +488,9 @@ func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]str
 		portStr := strings.TrimSpace(tcpConfig.Port) + "/tcp"
 		portTCP := nat.Port(portStr)
 		portsSet[portStr] = struct{}{}
+		logInfo("Adding TCP wait #%d: port=%s startupTimeout=%s", index+1, portStr, waitStartupTimeout.Round(time.Second))
 
-		tcpWaitStrategies = append(tcpWaitStrategies, wait.ForListeningPort(portTCP))
+		tcpWaitStrategies = append(tcpWaitStrategies, wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout))
 	}
 
 	return tcpWaitStrategies, nil
@@ -531,13 +549,22 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 	var tcpWaitStrategies []wait.Strategy
 	var httpWaitStrategies []wait.Strategy
 
+	waitStartupTimeout := defaultWaitStartupTimeout
+	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return context.DeadlineExceeded
+		}
+		waitStartupTimeout = remaining
+	}
+
 	var errBuild error
-	tcpWaitStrategies, httpWaitStrategies, errBuild = appendHTTPWaitStrategies(httpConfigs, portsSet, tcpWaitStrategies, httpWaitStrategies)
+	tcpWaitStrategies, httpWaitStrategies, errBuild = appendHTTPWaitStrategies(httpConfigs, portsSet, tcpWaitStrategies, httpWaitStrategies, waitStartupTimeout)
 	if errBuild != nil {
 		return errBuild
 	}
 
-	tcpWaitStrategies, errBuild = appendTCPWaitStrategies(tcpConfigs, portsSet, tcpWaitStrategies)
+	tcpWaitStrategies, errBuild = appendTCPWaitStrategies(tcpConfigs, portsSet, tcpWaitStrategies, waitStartupTimeout)
 	if errBuild != nil {
 		return errBuild
 	}
@@ -550,6 +577,7 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 		exposedPorts = append(exposedPorts, port)
 	}
 	sort.Strings(exposedPorts)
+	logInfo("Wait checks details: startupTimeout=%s exposedPorts=%s", waitStartupTimeout.Round(time.Second), strings.Join(exposedPorts, ", "))
 
 	opts := []testcontainers.ContainerCustomizer{
 		testcontainers.WithExposedPorts(exposedPorts...),
@@ -563,7 +591,7 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
 		cleanupMounts()
-		return err
+		return fmt.Errorf("wait checks failed (startupTimeout=%s, exposedPorts=%s): %w", waitStartupTimeout.Round(time.Second), strings.Join(exposedPorts, ", "), err)
 	}
 	defer func() {
 		if shouldDumpContainerLogs(err != nil) {

@@ -59,6 +59,7 @@ func (f *fakeStrategyTarget) CopyFileFromContainer(context.Context, string) (io.
 
 type fakeContainer struct {
 	terminateErr error
+	terminated   bool
 	logsErr      error
 	logsReader   io.ReadCloser
 	state        *container.State
@@ -81,6 +82,7 @@ func (f *fakeContainer) IsRunning() bool                                        
 func (f *fakeContainer) Start(context.Context) error                            { return nil }
 func (f *fakeContainer) Stop(context.Context, *time.Duration) error             { return nil }
 func (f *fakeContainer) Terminate(context.Context, ...testcontainers.TerminateOption) error {
+	f.terminated = true
 	return f.terminateErr
 }
 func (f *fakeContainer) Logs(context.Context) (io.ReadCloser, error) {
@@ -504,11 +506,11 @@ func TestCheckStandardRun(t *testing.T) {
 }
 
 func TestWaitStrategyBuilders(t *testing.T) {
-	if _, _, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Path: "/"}}, map[string]struct{}{}, nil, nil); err == nil {
+	if _, _, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Path: "/"}}, map[string]struct{}{}, nil, nil, 5*time.Second); err == nil {
 		t.Fatalf("expected error for missing http port")
 	}
 
-	tcpWaits, httpWaits, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Port: "8080", Path: "/ready"}}, map[string]struct{}{}, nil, nil)
+	tcpWaits, httpWaits, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Port: "8080", Path: "/ready"}}, map[string]struct{}{}, nil, nil, 5*time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -524,7 +526,7 @@ func TestWaitStrategyBuilders(t *testing.T) {
 			matcherCalled = true
 			return status == http.StatusNoContent
 		},
-	}}, map[string]struct{}{}, nil, nil)
+	}}, map[string]struct{}{}, nil, nil, 5*time.Second)
 	if err != nil {
 		t.Fatalf("unexpected custom matcher append error: %v", err)
 	}
@@ -553,11 +555,11 @@ func TestWaitStrategyBuilders(t *testing.T) {
 		t.Fatalf("expected status matcher to be invoked")
 	}
 
-	if _, err := appendTCPWaitStrategies([]TCPTestConfig{{Port: ""}}, map[string]struct{}{}, nil); err == nil {
+	if _, err := appendTCPWaitStrategies([]TCPTestConfig{{Port: ""}}, map[string]struct{}{}, nil, 5*time.Second); err == nil {
 		t.Fatalf("expected error for missing tcp port")
 	}
 
-	tcpOnly, err := appendTCPWaitStrategies([]TCPTestConfig{{Port: "9090"}}, map[string]struct{}{}, nil)
+	tcpOnly, err := appendTCPWaitStrategies([]TCPTestConfig{{Port: "9090"}}, map[string]struct{}{}, nil, 5*time.Second)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -609,6 +611,18 @@ func TestRunContainerAndReadLogs(t *testing.T) {
 	})
 	if _, err := runContainer(ctx, "img"); err == nil {
 		t.Fatalf("expected runContainer error")
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+	failedContainer := &fakeContainer{logsReader: io.NopCloser(strings.NewReader("startup logs"))}
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return failedContainer, errors.New("run boom with container")
+	})
+	if _, err := runContainer(ctx, "img"); err == nil {
+		t.Fatalf("expected runContainer error when backend returns container + error")
+	}
+	if !failedContainer.terminated {
+		t.Fatalf("expected failed-start container to be terminated")
 	}
 
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
