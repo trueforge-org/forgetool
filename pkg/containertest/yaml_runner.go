@@ -10,7 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const minYAMLTimeoutSeconds = 120
+const minYAMLTimeoutSeconds = 180
+const healthTimeoutExtraSeconds = 60
 
 var (
 	loadContainerTestYAMLFn = LoadContainerTestYAML
@@ -196,6 +197,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	for i, runner := range runners {
 		logInfo("Runner[%d]: starting (expectedOutput=%t exitCodeSet=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.ExitCode != nil, runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
 		runnerCtx := ctx
+		healthCtx := runnerCtx
 		if runner.TimeoutSeconds > 0 {
 			effectiveTimeoutSeconds := runner.TimeoutSeconds
 			if effectiveTimeoutSeconds < minYAMLTimeoutSeconds {
@@ -206,6 +208,10 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			var cancel context.CancelFunc
 			runnerCtx, cancel = context.WithTimeout(ctx, time.Duration(effectiveTimeoutSeconds)*time.Second)
 			defer cancel()
+
+			var healthCancel context.CancelFunc
+			healthCtx, healthCancel = context.WithTimeout(ctx, time.Duration(effectiveTimeoutSeconds+healthTimeoutExtraSeconds)*time.Second)
+			defer healthCancel()
 		}
 
 		runnerCfg := buildRunnerContainerConfig(runner, containerConfig, config.ReadOnlyRootfs, config.Mounts)
@@ -242,7 +248,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		// Normal check sequence: health (when tcp/http/healthCommands are configured) → file → tcp/http waits → healthCommands → standardRun.
 		if hasHealthCheckPreconditions {
 			logInfo("Runner[%d]: running health check", i)
-			if err := checkHealthFn(runnerCtx, image, runnerCfg); err != nil {
+			if err := checkHealthFn(healthCtx, image, runnerCfg); err != nil {
 				return err
 			}
 		} else {

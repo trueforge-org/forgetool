@@ -389,6 +389,49 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 	}
 }
 
+func TestRunChecksFromYAMLHealthTimeoutHasExtraBuffer(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{{
+				TimeoutSeconds: 180,
+			}},
+			HTTP: []HTTPTestConfig{{Port: "8080"}},
+		}, nil
+	}
+
+	checkHealthFn = func(waitCtx context.Context, _ string, _ *ContainerConfig) error {
+		deadline, ok := waitCtx.Deadline()
+		if !ok {
+			t.Fatalf("expected timeout deadline for health check")
+		}
+		remaining := time.Until(deadline)
+		if remaining < 239*time.Second {
+			t.Fatalf("expected health timeout to include +60s buffer, got remaining=%v", remaining)
+		}
+		return nil
+	}
+
+	checkWaitsFn = func(waitCtx context.Context, _ string, _ []HTTPTestConfig, _ []TCPTestConfig, _ *ContainerConfig) error {
+		deadline, ok := waitCtx.Deadline()
+		if !ok {
+			t.Fatalf("expected timeout deadline for wait checks")
+		}
+		remaining := time.Until(deadline)
+		if remaining < 179*time.Second || remaining >= 239*time.Second {
+			t.Fatalf("expected wait timeout to use runner timeout only, got remaining=%v", remaining)
+		}
+		return nil
+	}
+
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected run error: %v", err)
+	}
+}
+
 func TestRunChecksFromYAMLReadOnlyRootfs(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
