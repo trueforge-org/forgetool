@@ -239,9 +239,15 @@ func parseChown(chown string) (int, int, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid uid %q: %w", parts[0], err)
 	}
+	if uid < 0 {
+		return 0, 0, fmt.Errorf("uid must be >= 0, got %d", uid)
+	}
 	gid, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid gid %q: %w", parts[1], err)
+	}
+	if gid < 0 {
+		return 0, 0, fmt.Errorf("gid must be >= 0, got %d", gid)
 	}
 	return uid, gid, nil
 }
