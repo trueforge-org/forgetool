@@ -38,9 +38,11 @@
         {
           "env": { "MY_VAR": "value" },
           "command": "myapp --version",
+          "filePath": "/bin/sh",
           "timeoutSeconds": 180,
           "readOnlyRoot": true,
-          "expectedOutput": "v1.0"
+          "expectedOutput": "v1.0",
+          "exitCode": 0
         }
       ]
     }
@@ -57,9 +59,11 @@
           {
             "env": { "MY_VAR": "value" },
             "command": "myapp --version",
+            "filePath": "/bin/sh",
             "timeoutSeconds": 180,
             "readOnlyRoot": true,
             "expectedOutput": "v1.0",
+            "exitCode": 0,
             "runTests": false
           }
         ]
@@ -165,15 +169,17 @@
   "$defs": {
     "runnerConfig": {
       "title": "Runner config",
-      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. Use entrypoint/cmd to override startup for this runner. command is a legacy alias for entrypoint. When expectedOutput is set, an output check runs first. Other checks still run unless runTests is explicitly false.",
+      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. Use entrypoint/cmd to override startup for this runner. command is a legacy alias for entrypoint. filePath performs a per-runner in-container file existence check. When expectedOutput is set, an output check runs first and can optionally validate exitCode. Other checks still run unless runTests is explicitly false.",
       "examples": [
         {
           "env": { "MY_VAR": "value" },
           "entrypoint": "myapp",
           "cmd": "--version",
+          "filePath": "/bin/sh",
           "timeoutSeconds": 180,
           "readOnlyRoot": true,
-          "expectedOutput": "v1.0"
+          "expectedOutput": "v1.0",
+          "exitCode": 0
         },
         {}
       ],
@@ -220,13 +226,21 @@
             "/bin/sh"
           ]
         },
+        "filePath": {
+          "type": "string",
+          "pattern": "\\S",
+          "description": "Optional absolute file path expected to exist in the container for this runner.",
+          "examples": [
+            "/bin/sh",
+            "/usr/local/bin/yq"
+          ]
+        },
         "timeoutSeconds": {
           "type": "integer",
           "minimum": 1,
           "default": 180,
-          "description": "Optional timeout for this runner in seconds. Values below 120 are accepted in YAML, but runtime enforces a 120-second minimum.",
+          "description": "Optional timeout for this runner in seconds. Values below 180 are accepted in YAML, but runtime enforces a 180-second minimum.",
           "examples": [
-            120,
             180,
             300
           ]
@@ -246,6 +260,14 @@
           "examples": [
             "v1.2.3",
             "Started successfully"
+          ]
+        },
+        "exitCode": {
+          "type": "integer",
+          "description": "Optional expected container exit code for the runner output check. When omitted, output checks default to exit code 0.",
+          "examples": [
+            0,
+            7
           ]
         },
         "runTests": {
