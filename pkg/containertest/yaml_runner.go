@@ -96,7 +96,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 	}
 
-
 	// Merge YAML-level readOnlyRootfs into the container config.
 	if config.ReadOnlyRootfs {
 		if containerConfig == nil {
@@ -105,7 +104,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		containerConfig.ReadOnlyRootfs = true
 	}
 
-	if err := checkHealthFn(ctx, image, containerConfig); err != nil {
 	for index, mount := range config.Mounts {
 		trimmedPath := strings.TrimSpace(mount.Path)
 		if trimmedPath == "" {

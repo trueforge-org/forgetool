@@ -227,8 +227,8 @@ type MountConfig struct {
 // ContainerConfig holds optional container configuration
 type ContainerConfig struct {
 	Env            map[string]string // Environment variables to set in the container
-	ReadOnlyRootfs bool      // Environment variables to set in the container
-	Mounts []MountConfig     // Folders to mount from host tmp dirs into the container
+	ReadOnlyRootfs bool              // Environment variables to set in the container
+	Mounts         []MountConfig     // Folders to mount from host tmp dirs into the container
 }
 
 // parseChown splits a "uid:gid" string into integer uid and gid values.
@@ -282,7 +282,6 @@ func applyContainerConfig(config *ContainerConfig) ([]testcontainers.ContainerCu
 		logInfo("Applying read-only root filesystem")
 	}
 
-	return opts
 	// Apply mounts: create a tmp dir on the host for each mount entry
 	for _, mount := range config.Mounts {
 		mountPath := strings.TrimSpace(mount.Path)
@@ -481,10 +480,6 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 	container, err := runContainer(ctx, image, opts...)
 	if err != nil {
 		cleanupMounts()
-	opts = append(opts, applyContainerConfig(containerConfig)...)
-
-	container, err := runContainer(ctx, image, opts...)
-	if err != nil {
 		return err
 	}
 	defer func() {

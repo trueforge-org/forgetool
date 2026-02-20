@@ -57,6 +57,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 
 	if !config.ReadOnlyRootfs {
 		t.Fatalf("expected ReadOnlyRootfs=true, got false")
+	}
 
 	mountsPath := filepath.Join(dir, "mounts.yaml")
 	mountsContent := "standardRun: true\nmounts:\n  - path: /config\n    chmod: \"755\"\n    chown: \"568:568\"\n  - path: /data\n"
@@ -347,9 +348,5 @@ func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
 	}
 	if gotConfig.Env["FOO"] != "bar" {
 		t.Fatalf("expected existing env to be preserved, got %+v", gotConfig.Env)
-
-	if strings.Join(callOrder, ",") != "health,waits,files,commands" {
-		t.Fatalf("expected health first and stable check order, got %q", strings.Join(callOrder, ","))
-
 	}
 }

@@ -269,10 +269,10 @@ func TestApplyAndNormalizeConfigHelpers(t *testing.T) {
 	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}}); len(got) != 1 {
 		t.Fatalf("expected one env opt")
 	}
-	if got := applyContainerConfig(&ContainerConfig{ReadOnlyRootfs: true}); len(got) != 1 {
+	if got, _ := applyContainerConfig(&ContainerConfig{ReadOnlyRootfs: true}); len(got) != 1 {
 		t.Fatalf("expected one opt for ReadOnlyRootfs")
 	}
-	if got := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
+	if got, _ := applyContainerConfig(&ContainerConfig{Env: map[string]string{"A": "1"}, ReadOnlyRootfs: true}); len(got) != 2 {
 		t.Fatalf("expected two opts for env+ReadOnlyRootfs")
 	}
 
