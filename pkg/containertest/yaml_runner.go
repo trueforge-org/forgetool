@@ -94,9 +94,14 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	}
 
 	for index, mount := range config.Mounts {
-		if strings.TrimSpace(mount.Path) == "" {
+		trimmedPath := strings.TrimSpace(mount.Path)
+		if trimmedPath == "" {
 			return fmt.Errorf("mounts[%d].path must not be empty", index)
 		}
+		if !strings.HasPrefix(trimmedPath, "/") {
+			return fmt.Errorf("mounts[%d].path must be an absolute path starting with '/'", index)
+		}
+		config.Mounts[index].Path = trimmedPath
 	}
 
 	// Merge YAML mounts into the effective container config so every check run picks them up.
