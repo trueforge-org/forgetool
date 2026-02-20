@@ -14,6 +14,7 @@ const minYAMLTimeoutSeconds = 120
 
 var (
 	loadContainerTestYAMLFn = LoadContainerTestYAML
+	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkFilesExistFn       = CheckFilesExist
 	checkCommandsFn         = CheckCommands
@@ -88,6 +89,10 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		if strings.TrimSpace(filePath) == "" {
 			return fmt.Errorf("filePaths[%d] must not be empty", index)
 		}
+	}
+
+	if err := checkHealthFn(ctx, image, containerConfig); err != nil {
+		return err
 	}
 
 	if len(config.HTTP) > 0 || len(config.TCP) > 0 {
