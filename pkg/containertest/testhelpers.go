@@ -424,6 +424,41 @@ func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]str
 	return tcpWaitStrategies, nil
 }
 
+// CheckHealth waits for the container's Docker HEALTHCHECK to report healthy.
+func CheckHealth(ctx context.Context, image string, containerConfig *ContainerConfig) (err error) {
+	logInfo("🧪 Health check: image=%s", image)
+	if containerConfig != nil {
+		logInfo("Health check container config: env=%s", envSummary(containerConfig.Env))
+	}
+
+	opts := []testcontainers.ContainerCustomizer{
+		testcontainers.WithWaitStrategy(wait.ForHealthCheck()),
+	}
+
+	// Apply optional container config
+	opts = append(opts, applyContainerConfig(containerConfig)...)
+
+	container, err := runContainer(ctx, image, opts...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if shouldDumpContainerLogs(err != nil) {
+			dumpContainerLogs(ctx, container, "health check")
+		} else {
+			logDebug("Skipping container logs for health check (mode=%q, failed=%t)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))), err != nil)
+		}
+		termErr := terminateContainer(ctx, container, "health check")
+		if err == nil && termErr != nil {
+			err = fmt.Errorf("failed to terminate container: %w", termErr)
+		}
+	}()
+
+	logInfo("Health check completed successfully for image=%s", image)
+
+	return nil
+}
+
 // CheckWaits verifies HTTP and TCP waits within one container start/stop lifecycle.
 func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig, tcpConfigs []TCPTestConfig, containerConfig *ContainerConfig) (err error) {
 	if len(httpConfigs) == 0 && len(tcpConfigs) == 0 {

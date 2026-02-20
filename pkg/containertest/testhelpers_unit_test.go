@@ -679,3 +679,30 @@ func TestCheckWaitsExecutionPaths(t *testing.T) {
 		t.Fatalf("expected terminate failure")
 	}
 }
+
+func TestCheckHealthExecutionPaths(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, errors.New("start failed")
+	})
+	if err := CheckHealth(ctx, "img", nil); err == nil {
+		t.Fatalf("expected run backend failure")
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 0}, logsReader: io.NopCloser(strings.NewReader("logs"))}, nil
+	})
+	if err := CheckHealth(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}); err != nil {
+		t.Fatalf("unexpected health success error: %v", err)
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{terminateErr: errors.New("terminate failed")}, nil
+	})
+	if err := CheckHealth(ctx, "img", nil); err == nil {
+		t.Fatalf("expected terminate failure")
+	}
+}

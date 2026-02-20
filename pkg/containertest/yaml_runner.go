@@ -14,6 +14,7 @@ const minYAMLTimeoutSeconds = 120
 
 var (
 	loadContainerTestYAMLFn = LoadContainerTestYAML
+	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkFilesExistFn       = CheckFilesExist
 	checkCommandsFn         = CheckCommands
@@ -107,6 +108,10 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 		merged.Mounts = append(append([]MountConfig{}, merged.Mounts...), config.Mounts...)
 		effectiveConfig = merged
+	}
+
+	if err := checkHealthFn(ctx, image, effectiveConfig); err != nil {
+		return err
 	}
 
 	if len(config.HTTP) > 0 || len(config.TCP) > 0 {
