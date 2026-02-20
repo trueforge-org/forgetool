@@ -209,6 +209,16 @@ func TestRunChecksFromYAMLMountValidation(t *testing.T) {
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "mounts[0].path") {
 		t.Fatalf("expected mount path validation error, got %v", err)
 	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun: true,
+			Mounts:      []MountConfig{{Path: "relative/path"}},
+		}, nil
+	}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "must be an absolute path") {
+		t.Fatalf("expected mount absolute-path validation error, got %v", err)
+	}
 }
 
 func TestRunChecksFromYAMLMergesMountsIntoConfig(t *testing.T) {

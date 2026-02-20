@@ -365,6 +365,27 @@ func TestApplyContainerConfigMounts(t *testing.T) {
 		t.Fatalf("expected 3 opts (1 env + 2 mounts), got %d", len(opts))
 	}
 	cleanup()
+
+	// Non-absolute mount path should be skipped.
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "relative/path"}},
+	})
+	if len(opts) != 0 {
+		t.Fatalf("expected no opts for non-absolute mount path, got %d", len(opts))
+	}
+	cleanup()
+
+	// Invalid tmp path exercises chmod/remove cleanup warning paths.
+	mkdirTempFn = func(string, string) (string, error) {
+		return "bad\x00path", nil
+	}
+	opts, cleanup = applyContainerConfig(&ContainerConfig{
+		Mounts: []MountConfig{{Path: "/bad", Chmod: "755"}},
+	})
+	if len(opts) != 1 {
+		t.Fatalf("expected one mount opt for invalid tmp path case, got %d", len(opts))
+	}
+	cleanup()
 }
 
 func TestParseChown(t *testing.T) {
@@ -389,6 +410,64 @@ func TestParseChown(t *testing.T) {
 	if _, _, err := parseChown("0:xyz"); err == nil {
 		t.Fatalf("expected error for non-numeric gid")
 	}
+
+	if _, _, err := parseChown("-1:0"); err == nil {
+		t.Fatalf("expected error for negative uid")
+	}
+
+	if _, _, err := parseChown("0:-1"); err == nil {
+		t.Fatalf("expected error for negative gid")
+	}
+}
+
+func TestCheckStandardRun(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success with logs", func(t *testing.T) {
+		setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+			return &fakeContainer{logsReader: io.NopCloser(strings.NewReader("container log line"))}, nil
+		})
+		withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+
+		if err := CheckStandardRun(ctx, "img", nil); err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("terminate error returned", func(t *testing.T) {
+		setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+			return &fakeContainer{terminateErr: errors.New("terminate boom")}, nil
+		})
+		withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+
+		err := CheckStandardRun(ctx, "img", nil)
+		if err == nil || !strings.Contains(err.Error(), "failed to terminate container") {
+			t.Fatalf("expected termination error, got %v", err)
+		}
+	})
+
+	t.Run("startup error cleans up mounts", func(t *testing.T) {
+		oldMkdirTempFn := mkdirTempFn
+		t.Cleanup(func() { mkdirTempFn = oldMkdirTempFn })
+
+		tmpDir := t.TempDir()
+		mkdirTempFn = func(string, string) (string, error) {
+			return tmpDir, nil
+		}
+
+		setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+			return nil, errors.New("start boom")
+		})
+
+		err := CheckStandardRun(ctx, "img", &ContainerConfig{Mounts: []MountConfig{{Path: "/config"}}})
+		if err == nil {
+			t.Fatalf("expected startup error")
+		}
+
+		if _, statErr := os.Stat(tmpDir); !os.IsNotExist(statErr) {
+			t.Fatalf("expected mount temp dir to be removed after startup failure")
+		}
+	})
 }
 
 func TestWaitStrategyBuilders(t *testing.T) {
