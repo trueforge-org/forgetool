@@ -19,6 +19,7 @@ func setYAMLRunnerSeams(t *testing.T) {
 	oldLoad := loadContainerTestYAMLFn
 	oldHealth := checkHealthFn
 	oldWaits := checkWaitsFn
+	oldHealthAndWaits := checkHealthAndWaitsFn
 	oldFiles := checkFilesExistFn
 	oldStandardRun := checkStandardRunFn
 	oldRunnerOutput := checkRunnerOutputFn
@@ -26,6 +27,7 @@ func setYAMLRunnerSeams(t *testing.T) {
 		loadContainerTestYAMLFn = oldLoad
 		checkHealthFn = oldHealth
 		checkWaitsFn = oldWaits
+		checkHealthAndWaitsFn = oldHealthAndWaits
 		checkFilesExistFn = oldFiles
 		checkStandardRunFn = oldStandardRun
 		checkRunnerOutputFn = oldRunnerOutput
@@ -128,7 +130,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{}, errors.New("load boom")
@@ -165,7 +167,7 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{HTTP: []HTTPTestConfig{{Port: "8080"}}}, nil
 	}
-	checkWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		return errors.New("wait boom")
 	}
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
@@ -175,19 +177,17 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{HTTP: []HTTPTestConfig{{Port: "8080"}}}, nil
 	}
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		return errors.New("health boom")
 	}
-	checkWaitsFn = CheckWaits
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
 		t.Fatalf("expected health error")
 	}
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{Runners: []RunnerConfig{{FilePath: "/x"}}}, nil
 	}
-	checkWaitsFn = CheckWaits
 	checkFilesExistFn = func(context.Context, string, []string, *ContainerConfig) error {
 		return errors.New("files boom")
 	}
@@ -202,12 +202,8 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 		t.Fatalf("did not expect file checks")
 		return nil
 	}
-	checkWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		t.Fatalf("did not expect wait checks")
-		return nil
-	}
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
-		t.Fatalf("did not expect health check")
 		return nil
 	}
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
@@ -219,7 +215,7 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 func TestRunChecksFromYAMLMountValidation(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
@@ -243,7 +239,7 @@ func TestRunChecksFromYAMLMountValidation(t *testing.T) {
 func TestRunChecksFromYAMLMergesMountsIntoConfig(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	yamlMounts := []MountConfig{{Path: "/config", Chmod: "755"}}
 	callerMounts := []MountConfig{{Path: "/data"}}
@@ -286,8 +282,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 	setYAMLRunnerSeams(t)
 
 	callOrder := []string{}
-	calledHealth := 0
-	calledWaits := 0
+	calledHealthAndWaits := 0
 	calledFiles := 0
 	calledStandardRun := 0
 
@@ -302,14 +297,9 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		}, nil
 	}
 
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
-		calledHealth++
-		callOrder = append(callOrder, "health")
-		return nil
-	}
-	checkWaitsFn = func(waitCtx context.Context, image string, http []HTTPTestConfig, tcp []TCPTestConfig, cfg *ContainerConfig) error {
-		calledWaits++
-		callOrder = append(callOrder, "waits")
+	checkHealthAndWaitsFn = func(waitCtx context.Context, image string, http []HTTPTestConfig, tcp []TCPTestConfig, cfg *ContainerConfig) error {
+		calledHealthAndWaits++
+		callOrder = append(callOrder, "health+waits")
 		if image != "img" || len(http) != 1 || len(tcp) != 1 {
 			t.Fatalf("unexpected waits args")
 		}
@@ -336,13 +326,13 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		t.Fatalf("unexpected run error: %v", err)
 	}
 
-	if calledHealth != 1 || calledWaits != 1 || calledFiles != 1 || calledStandardRun != 1 {
-		t.Fatalf("expected all checks once, got health=%d waits=%d files=%d standardRun=%d", calledHealth, calledWaits, calledFiles, calledStandardRun)
+	if calledHealthAndWaits != 1 || calledFiles != 1 || calledStandardRun != 1 {
+		t.Fatalf("expected all checks once, got health+waits=%d files=%d standardRun=%d", calledHealthAndWaits, calledFiles, calledStandardRun)
 	}
 
-	// New order: health → files → waits
-	if len(callOrder) < 3 || callOrder[0] != "health" || callOrder[1] != "files" || callOrder[2] != "waits" {
-		t.Fatalf("expected health→files→waits call order, got %v", callOrder)
+	// New order: health+waits → files
+	if len(callOrder) < 2 || callOrder[0] != "health+waits" || callOrder[1] != "files" {
+		t.Fatalf("expected health+waits→files call order, got %v", callOrder)
 	}
 }
 
@@ -350,8 +340,8 @@ func TestRunChecksFromYAMLRunnerTimeoutApplies(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
 
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
-		t.Fatalf("did not expect health check for filePaths-only config")
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
+		t.Fatalf("did not expect health+wait checks for filePaths-only config")
 		return nil
 	}
 
@@ -387,8 +377,8 @@ func TestRunChecksFromYAMLRunnerTimeoutIgnoresShorterParentDeadline(t *testing.T
 	defer parentCancel()
 	setYAMLRunnerSeams(t)
 
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
-		t.Fatalf("did not expect health check for filePaths-only config")
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
+		t.Fatalf("did not expect health+wait checks for filePaths-only config")
 		return nil
 	}
 
@@ -432,26 +422,14 @@ func TestRunChecksFromYAMLHealthTimeoutHasExtraBuffer(t *testing.T) {
 		}, nil
 	}
 
-	checkHealthFn = func(waitCtx context.Context, _ string, _ *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(waitCtx context.Context, _ string, _ []HTTPTestConfig, _ []TCPTestConfig, _ *ContainerConfig) error {
 		deadline, ok := waitCtx.Deadline()
 		if !ok {
-			t.Fatalf("expected timeout deadline for health check")
+			t.Fatalf("expected timeout deadline for combined health+wait checks")
 		}
 		remaining := time.Until(deadline)
 		if remaining < 239*time.Second {
-			t.Fatalf("expected health timeout to include +60s buffer, got remaining=%v", remaining)
-		}
-		return nil
-	}
-
-	checkWaitsFn = func(waitCtx context.Context, _ string, _ []HTTPTestConfig, _ []TCPTestConfig, _ *ContainerConfig) error {
-		deadline, ok := waitCtx.Deadline()
-		if !ok {
-			t.Fatalf("expected timeout deadline for wait checks")
-		}
-		remaining := time.Until(deadline)
-		if remaining < 179*time.Second || remaining >= 239*time.Second {
-			t.Fatalf("expected wait timeout to use runner timeout only, got remaining=%v", remaining)
+			t.Fatalf("expected combined timeout to include +60s buffer, got remaining=%v", remaining)
 		}
 		return nil
 	}
@@ -465,7 +443,7 @@ func TestRunChecksFromYAMLHealthTimeoutHasExtraBuffer(t *testing.T) {
 func TestRunChecksFromYAMLReadOnlyRootfs(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	var gotConfig *ContainerConfig
 
@@ -490,7 +468,7 @@ func TestRunChecksFromYAMLReadOnlyRootfs(t *testing.T) {
 func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 
 	var gotConfig *ContainerConfig
 
@@ -588,7 +566,7 @@ func TestRunChecksFromYAMLDefaultRunnerUsesCallerConfig(t *testing.T) {
 	setYAMLRunnerSeams(t)
 
 	var gotConfig *ContainerConfig
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
 		gotConfig = cfg
 		return nil
@@ -619,7 +597,7 @@ func TestRunChecksFromYAMLMultipleRunnersEachRunChecks(t *testing.T) {
 	standardRunCalls := 0
 	var receivedEnvs []string
 
-	checkHealthFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(_ context.Context, _ string, _ []HTTPTestConfig, _ []TCPTestConfig, cfg *ContainerConfig) error {
 		healthCalls++
 		return nil
 	}
@@ -660,7 +638,7 @@ func TestRunChecksFromYAMLRunnerRunTestsFalseSkipsOtherChecks(t *testing.T) {
 	setYAMLRunnerSeams(t)
 
 	healthCalled := false
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		healthCalled = true
 		return nil
 	}
@@ -727,7 +705,7 @@ func TestRunChecksFromYAMLRunnerExpectedOutputRunsTestsByDefault(t *testing.T) {
 		outputCalled = true
 		return nil
 	}
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		healthCalled = true
 		return nil
 	}
@@ -815,7 +793,7 @@ func TestRunChecksFromYAMLMixedRunners(t *testing.T) {
 		outputCalled = true
 		return nil
 	}
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		healthCallCount++
 		return nil
 	}
@@ -853,7 +831,7 @@ func TestRunChecksFromYAMLOutputOnlyRunnerCountsAsCheck(t *testing.T) {
 		return nil
 	}
 	// Health runs by default (runTests=true); mock it to avoid Docker calls.
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error { return nil }
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
 
 	// No http/tcp/filePaths/healthCommands — only a runner with expectedOutput.
@@ -877,7 +855,7 @@ func TestRunChecksFromYAMLRunnerRunTestsFalseStillRunsStandardRun(t *testing.T) 
 	healthCalled := false
 	standardRunCalled := false
 
-	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, *ContainerConfig) error {
 		healthCalled = true
 		return nil
 	}

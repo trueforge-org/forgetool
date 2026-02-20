@@ -17,6 +17,7 @@ var (
 	loadContainerTestYAMLFn = LoadContainerTestYAML
 	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
+	checkHealthAndWaitsFn   = CheckHealthAndWaits
 	checkFilesExistFn       = CheckFilesExist
 	checkStandardRunFn      = CheckStandardRun
 	checkRunnerOutputFn     = CheckRunnerOutput
@@ -247,10 +248,10 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			continue
 		}
 
-		// Normal check sequence: health (when tcp/http are configured) → file → tcp/http waits → standardRun.
+		// Normal check sequence: combined health+tcp/http waits (when configured) → file → standardRun.
 		if hasHealthCheckPreconditions {
-			logInfo("Runner[%d]: running health check", i)
-			if err := checkHealthFn(healthCtx, image, runnerCfg); err != nil {
+			logInfo("Runner[%d]: running combined health+wait checks (http=%d tcp=%d)", i, len(config.HTTP), len(config.TCP))
+			if err := checkHealthAndWaitsFn(healthCtx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
 				return err
 			}
 		} else {
@@ -260,13 +261,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		if runnerFilePath != "" {
 			logInfo("Runner[%d]: running file checks (1)", i)
 			if err := checkFilesExistFn(runnerCtx, image, []string{runnerFilePath}, runnerCfg); err != nil {
-				return err
-			}
-		}
-
-		if len(config.HTTP) > 0 || len(config.TCP) > 0 {
-			logInfo("Runner[%d]: running wait checks (http=%d tcp=%d)", i, len(config.HTTP), len(config.TCP))
-			if err := checkWaitsFn(runnerCtx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
 				return err
 			}
 		}

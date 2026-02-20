@@ -725,6 +725,86 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 	return nil
 }
 
+// CheckHealthAndWaits verifies health, TCP, and HTTP waits within one container start/stop lifecycle.
+func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig, tcpConfigs []TCPTestConfig, containerConfig *ContainerConfig) (err error) {
+	if len(httpConfigs) == 0 && len(tcpConfigs) == 0 {
+		return fmt.Errorf("at least one HTTP or TCP wait must be provided")
+	}
+
+	logInfo("🧪 Combined health+wait checks: image=%s http=%d tcp=%d", image, len(httpConfigs), len(tcpConfigs))
+	if containerConfig != nil {
+		logInfo("Combined health+wait checks container config: env=%s", envSummary(containerConfig.Env))
+	}
+
+	portsSet := map[string]struct{}{}
+	var tcpWaitStrategies []wait.Strategy
+	var httpWaitStrategies []wait.Strategy
+
+	waitStartupTimeout := defaultWaitStartupTimeout
+	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return context.DeadlineExceeded
+		}
+		waitStartupTimeout = remaining
+	}
+
+	var errBuild error
+	tcpWaitStrategies, httpWaitStrategies, errBuild = appendHTTPWaitStrategies(httpConfigs, portsSet, tcpWaitStrategies, httpWaitStrategies, waitStartupTimeout)
+	if errBuild != nil {
+		return errBuild
+	}
+
+	tcpWaitStrategies, errBuild = appendTCPWaitStrategies(tcpConfigs, portsSet, tcpWaitStrategies, waitStartupTimeout)
+	if errBuild != nil {
+		return errBuild
+	}
+
+	healthWaitStrategy := wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)
+	waitStrategies := []wait.Strategy{healthWaitStrategy}
+	// Global invariant: health first, then all TCP waits, then all HTTP waits.
+	waitStrategies = append(waitStrategies, tcpWaitStrategies...)
+	waitStrategies = append(waitStrategies, httpWaitStrategies...)
+	logWaitStrategiesStart("combined health+wait checks", waitStrategies)
+
+	exposedPorts := make([]string, 0, len(portsSet))
+	for port := range portsSet {
+		exposedPorts = append(exposedPorts, port)
+	}
+	sort.Strings(exposedPorts)
+	logInfo("Combined health+wait checks details: startupTimeout=%s exposedPorts=%s", waitStartupTimeout.Round(time.Second), strings.Join(exposedPorts, ", "))
+
+	opts := []testcontainers.ContainerCustomizer{
+		testcontainers.WithExposedPorts(exposedPorts...),
+		testcontainers.WithWaitStrategy(waitStrategies...),
+	}
+
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
+
+	container, err := runContainer(ctx, image, opts...)
+	if err != nil {
+		cleanupMounts()
+		return fmt.Errorf("combined health+wait checks failed (startupTimeout=%s, exposedPorts=%s): %w", waitStartupTimeout.Round(time.Second), strings.Join(exposedPorts, ", "), err)
+	}
+	defer func() {
+		if shouldDumpContainerLogs(err != nil) {
+			dumpContainerLogs(ctx, container, "combined health+wait checks")
+		} else {
+			logDebug("Skipping container logs for combined health+wait checks (mode=%q, failed=%t)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))), err != nil)
+		}
+		termErr := terminateContainer(ctx, container, "combined health+wait checks")
+		if err == nil && termErr != nil {
+			err = fmt.Errorf("failed to terminate container: %w", termErr)
+		}
+		cleanupMounts()
+	}()
+
+	logInfo("Combined health+wait checks completed successfully for image=%s", image)
+
+	return nil
+}
+
 // CheckHTTPEndpoint verifies that an HTTP endpoint is accessible and returns the expected status code.
 func CheckHTTPEndpoint(ctx context.Context, image string, httpConfig HTTPTestConfig, containerConfig *ContainerConfig) (err error) {
 	httpConfig = normalizeHTTPConfig(httpConfig)
