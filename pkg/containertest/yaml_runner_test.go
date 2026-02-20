@@ -191,10 +191,12 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 	}
 	checkFilesExistFn = func(context.Context, string, []string, *ContainerConfig) error {
 		calledFiles++
+		callOrder = append(callOrder, "files")
 		return nil
 	}
 	checkCommandsFn = func(context.Context, string, *ContainerConfig, []CommandTestConfig) error {
 		calledCommands++
+		callOrder = append(callOrder, "commands")
 		return nil
 	}
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
@@ -209,6 +211,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 	if calledHealth != 1 || calledWaits != 1 || calledFiles != 1 || calledCommands != 1 || calledStandardRun != 1 {
 		t.Fatalf("expected all checks once, got health=%d waits=%d files=%d commands=%d standardRun=%d", calledHealth, calledWaits, calledFiles, calledCommands, calledStandardRun)
 	}
+
 	if len(callOrder) < 2 || callOrder[0] != "health" || callOrder[1] != "waits" {
 		t.Fatalf("expected health before waits in call order, got %v", callOrder)
 	}
@@ -267,5 +270,9 @@ func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
 	}
 	if gotConfig.Env["FOO"] != "bar" {
 		t.Fatalf("expected existing env to be preserved, got %+v", gotConfig.Env)
+
+	if strings.Join(callOrder, ",") != "health,waits,files,commands" {
+		t.Fatalf("expected health first and stable check order, got %q", strings.Join(callOrder, ","))
+
 	}
 }
