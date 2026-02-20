@@ -100,6 +100,21 @@
         "$ref": "#/$defs/commandTestConfig"
       }
     },
+    "testCommands": {
+      "type": "array",
+      "description": "Additional command checks executed as `sh -c <command>`, treated identically to commands. Useful for separating test-only commands from regular command checks.",
+      "examples": [
+        [
+          {
+            "command": "test -x /usr/local/bin/imaginary",
+            "expectedExitCode": 0
+          }
+        ]
+      ],
+      "items": {
+        "$ref": "#/$defs/commandTestConfig"
+      }
+    },
     "filePaths": {
       "type": "array",
       "description": "File existence checks. Each string is verified with `test -f` inside the container.",
@@ -141,6 +156,11 @@
     {
       "required": [
         "commands"
+      ]
+    },
+    {
+      "required": [
+        "testCommands"
       ]
     },
     {

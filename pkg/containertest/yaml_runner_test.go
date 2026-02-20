@@ -127,6 +127,24 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
 		t.Fatalf("expected commands error")
 	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{TestCommands: []CommandTestConfig{{Command: " "}}}, nil
+	}
+	checkCommandsFn = CheckCommands
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "testCommands[0].command") {
+		t.Fatalf("expected testCommands validation error, got %v", err)
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{TestCommands: []CommandTestConfig{{Command: "echo ok"}}}, nil
+	}
+	checkCommandsFn = func(context.Context, string, *ContainerConfig, []CommandTestConfig) error {
+		return errors.New("testCommands boom")
+	}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
+		t.Fatalf("expected testCommands error")
+	}
 }
 
 func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
@@ -136,6 +154,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 	calledWaits := 0
 	calledFiles := 0
 	calledCommands := 0
+	calledTestCommands := 0
 	calledStandardRun := 0
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
@@ -145,6 +164,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 			TCP:            []TCPTestConfig{{Port: "9090"}},
 			FilePaths:      []string{"/etc/hosts"},
 			Commands:       []CommandTestConfig{{Command: "echo ok"}},
+			TestCommands:   []CommandTestConfig{{Command: "echo test"}},
 			StandardRun:    true,
 		}, nil
 	}
@@ -167,8 +187,12 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		calledFiles++
 		return nil
 	}
-	checkCommandsFn = func(context.Context, string, *ContainerConfig, []CommandTestConfig) error {
-		calledCommands++
+	checkCommandsFn = func(_ context.Context, _ string, _ *ContainerConfig, cmds []CommandTestConfig) error {
+		if len(cmds) == 1 && cmds[0].Command == "echo test" {
+			calledTestCommands++
+		} else {
+			calledCommands++
+		}
 		return nil
 	}
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
@@ -180,7 +204,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		t.Fatalf("unexpected run error: %v", err)
 	}
 
-	if calledWaits != 1 || calledFiles != 1 || calledCommands != 1 || calledStandardRun != 1 {
-		t.Fatalf("expected all checks once, got waits=%d files=%d commands=%d standardRun=%d", calledWaits, calledFiles, calledCommands, calledStandardRun)
+	if calledWaits != 1 || calledFiles != 1 || calledCommands != 1 || calledTestCommands != 1 || calledStandardRun != 1 {
+		t.Fatalf("expected all checks once, got waits=%d files=%d commands=%d testCommands=%d standardRun=%d", calledWaits, calledFiles, calledCommands, calledTestCommands, calledStandardRun)
 	}
 }

@@ -27,6 +27,7 @@ var (
 // - http: []HTTPTestConfig
 // - tcp: []TCPTestConfig
 // - commands: []CommandTestConfig
+// - testCommands: []CommandTestConfig
 // - filePaths: []string
 // - standardRun: bool
 //
@@ -36,6 +37,7 @@ type ContainerTestYAML struct {
 	HTTP           []HTTPTestConfig    `yaml:"http"`
 	TCP            []TCPTestConfig     `yaml:"tcp"`
 	Commands       []CommandTestConfig `yaml:"commands"`
+	TestCommands   []CommandTestConfig `yaml:"testCommands"`
 	FilePaths      []string            `yaml:"filePaths"`
 	StandardRun    bool                `yaml:"standardRun"`
 }
@@ -74,13 +76,19 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		defer cancel()
 	}
 
-	if len(config.HTTP) == 0 && len(config.TCP) == 0 && len(config.FilePaths) == 0 && len(config.Commands) == 0 && !config.StandardRun {
+	if len(config.HTTP) == 0 && len(config.TCP) == 0 && len(config.FilePaths) == 0 && len(config.Commands) == 0 && len(config.TestCommands) == 0 && !config.StandardRun {
 		return fmt.Errorf("no checks configured in %s", yamlPath)
 	}
 
 	for index, command := range config.Commands {
 		if strings.TrimSpace(command.Command) == "" {
 			return fmt.Errorf("commands[%d].command must not be empty", index)
+		}
+	}
+
+	for index, command := range config.TestCommands {
+		if strings.TrimSpace(command.Command) == "" {
+			return fmt.Errorf("testCommands[%d].command must not be empty", index)
 		}
 	}
 
@@ -104,6 +112,12 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 
 	if len(config.Commands) > 0 {
 		if err := checkCommandsFn(ctx, image, containerConfig, config.Commands); err != nil {
+			return err
+		}
+	}
+
+	if len(config.TestCommands) > 0 {
+		if err := checkCommandsFn(ctx, image, containerConfig, config.TestCommands); err != nil {
 			return err
 		}
 	}
