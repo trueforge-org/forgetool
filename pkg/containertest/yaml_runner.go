@@ -18,7 +18,6 @@ var (
 	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkHealthAndWaitsFn   = CheckHealthAndWaits
-	checkFilesExistFn       = CheckFilesExist
 	checkStandardRunFn      = CheckStandardRun
 	checkRunnerOutputFn     = CheckRunnerOutput
 )
@@ -59,6 +58,7 @@ type RunnerConfig struct {
 // - runners: []RunnerConfig
 // - http: []HTTPTestConfig
 // - tcp: []TCPTestConfig
+// - filePaths: []string
 // - healthCommands: []HealthCommandTestConfig
 // - readOnlyRootfs: bool
 // - mounts: []MountConfig
@@ -68,6 +68,7 @@ type ContainerTestYAML struct {
 	Runners        []RunnerConfig            `yaml:"runners"`
 	HTTP           []HTTPTestConfig          `yaml:"http"`
 	TCP            []TCPTestConfig           `yaml:"tcp"`
+	FilePaths      []string                  `yaml:"filePaths"`
 	HealthCommands []HealthCommandTestConfig `yaml:"healthCommands"`
 	ReadOnlyRootfs bool                      `yaml:"readOnlyRootfs"`
 	Mounts         []MountConfig             `yaml:"mounts"`
@@ -180,7 +181,13 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		runners = []RunnerConfig{{}}
 	}
 
-	hasHealthCheckPreconditions := len(config.HTTP) > 0 || len(config.TCP) > 0
+	for index, filePath := range config.FilePaths {
+		trimmedPath := strings.TrimSpace(filePath)
+		if trimmedPath == "" {
+			return fmt.Errorf("filePaths[%d] must not be empty", index)
+		}
+		config.FilePaths[index] = trimmedPath
+	}
 
 	for i, runner := range runners {
 		runnerFilePath := strings.TrimSpace(runner.FilePath)
@@ -248,21 +255,25 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			continue
 		}
 
-		// Normal check sequence: combined health+tcp/http waits (when configured) → file → standardRun.
-		if hasHealthCheckPreconditions {
-			logInfo("Runner[%d]: running combined health+wait checks (http=%d tcp=%d)", i, len(config.HTTP), len(config.TCP))
-			if err := checkHealthAndWaitsFn(healthCtx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
+		runnerFilePaths := append([]string{}, config.FilePaths...)
+		if runnerFilePath != "" {
+			runnerFilePaths = append(runnerFilePaths, runnerFilePath)
+		}
+
+		hasTCPHTTPChecks := len(config.HTTP) > 0 || len(config.TCP) > 0
+		hasFileChecks := len(runnerFilePaths) > 0
+		if hasTCPHTTPChecks || hasFileChecks {
+			combinedCtx := runnerCtx
+			if hasTCPHTTPChecks {
+				combinedCtx = healthCtx
+			}
+
+			logInfo("Runner[%d]: running combined checks (http=%d tcp=%d filePaths=%d)", i, len(config.HTTP), len(config.TCP), len(runnerFilePaths))
+			if err := checkHealthAndWaitsFn(combinedCtx, image, config.HTTP, config.TCP, runnerFilePaths, runnerCfg); err != nil {
 				return err
 			}
 		} else {
-			logInfo("Runner[%d]: skipping health check (no tcp/http configured)", i)
-		}
-
-		if runnerFilePath != "" {
-			logInfo("Runner[%d]: running file checks (1)", i)
-			if err := checkFilesExistFn(runnerCtx, image, []string{runnerFilePath}, runnerCfg); err != nil {
-				return err
-			}
+			logInfo("Runner[%d]: skipping health/wait/file checks (no tcp/http/filePaths configured)", i)
 		}
 
 		logInfo("Runner[%d]: running standard run check", i)

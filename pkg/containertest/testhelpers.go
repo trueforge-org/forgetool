@@ -596,6 +596,20 @@ func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]str
 	return tcpWaitStrategies, nil
 }
 
+func appendFileExecWaitStrategies(filePaths []string, fileWaitStrategies []wait.Strategy) ([]wait.Strategy, error) {
+	for index, filePath := range filePaths {
+		trimmedPath := strings.TrimSpace(filePath)
+		if trimmedPath == "" {
+			return nil, fmt.Errorf("file check #%d missing file path", index+1)
+		}
+
+		logInfo("Adding file exec wait #%d: path=%s", index+1, trimmedPath)
+		fileWaitStrategies = append(fileWaitStrategies, wait.ForExec([]string{"test", "-f", trimmedPath}).WithExitCode(0))
+	}
+
+	return fileWaitStrategies, nil
+}
+
 // CheckHealth waits for the container's Docker HEALTHCHECK to report healthy.
 func CheckHealth(ctx context.Context, image string, containerConfig *ContainerConfig) (err error) {
 	logInfo("🧪 Health check: image=%s", image)
@@ -725,13 +739,13 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 	return nil
 }
 
-// CheckHealthAndWaits verifies health, TCP, and HTTP waits within one container start/stop lifecycle.
-func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig, tcpConfigs []TCPTestConfig, containerConfig *ContainerConfig) (err error) {
-	if len(httpConfigs) == 0 && len(tcpConfigs) == 0 {
-		return fmt.Errorf("at least one HTTP or TCP wait must be provided")
+// CheckHealthAndWaits verifies health/TCP/HTTP waits and file exec waits within one container start/stop lifecycle.
+func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig, tcpConfigs []TCPTestConfig, filePaths []string, containerConfig *ContainerConfig) (err error) {
+	if len(httpConfigs) == 0 && len(tcpConfigs) == 0 && len(filePaths) == 0 {
+		return fmt.Errorf("at least one HTTP, TCP, or file path wait must be provided")
 	}
 
-	logInfo("🧪 Combined health+wait checks: image=%s http=%d tcp=%d", image, len(httpConfigs), len(tcpConfigs))
+	logInfo("🧪 Combined health+wait checks: image=%s http=%d tcp=%d filePaths=%d", image, len(httpConfigs), len(tcpConfigs), len(filePaths))
 	if containerConfig != nil {
 		logInfo("Combined health+wait checks container config: env=%s", envSummary(containerConfig.Env))
 	}
@@ -739,6 +753,7 @@ func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTe
 	portsSet := map[string]struct{}{}
 	var tcpWaitStrategies []wait.Strategy
 	var httpWaitStrategies []wait.Strategy
+	var fileWaitStrategies []wait.Strategy
 
 	waitStartupTimeout := defaultWaitStartupTimeout
 	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
@@ -760,11 +775,20 @@ func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTe
 		return errBuild
 	}
 
-	healthWaitStrategy := wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)
-	waitStrategies := []wait.Strategy{healthWaitStrategy}
-	// Global invariant: health first, then all TCP waits, then all HTTP waits.
+	fileWaitStrategies, errBuild = appendFileExecWaitStrategies(filePaths, fileWaitStrategies)
+	if errBuild != nil {
+		return errBuild
+	}
+
+	waitStrategies := make([]wait.Strategy, 0, 1+len(tcpWaitStrategies)+len(httpWaitStrategies)+len(fileWaitStrategies))
+	if len(httpConfigs) > 0 || len(tcpConfigs) > 0 {
+		healthWaitStrategy := wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)
+		waitStrategies = append(waitStrategies, healthWaitStrategy)
+	}
+	// Global invariant: optional health first, then all TCP waits, then all HTTP waits, then file exec waits.
 	waitStrategies = append(waitStrategies, tcpWaitStrategies...)
 	waitStrategies = append(waitStrategies, httpWaitStrategies...)
+	waitStrategies = append(waitStrategies, fileWaitStrategies...)
 	logWaitStrategiesStart("combined health+wait checks", waitStrategies)
 
 	exposedPorts := make([]string, 0, len(portsSet))
