@@ -473,6 +473,31 @@ func CheckFilesExist(ctx context.Context, image string, filePaths []string, conf
 	return nil
 }
 
+// CheckStandardRun verifies the container can be started without altering entrypoint or args.
+func CheckStandardRun(ctx context.Context, image string, config *ContainerConfig) (err error) {
+	logInfo("🧪 Standard run check: image=%s", image)
+	opts := applyContainerConfig(config)
+
+	container, err := runContainer(ctx, image, opts...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if shouldDumpContainerLogs(err != nil) {
+			dumpContainerLogs(ctx, container, "standard run check")
+		} else {
+			logDebug("Skipping container logs for standard run check (mode=%q, failed=%t)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))), err != nil)
+		}
+		termErr := terminateContainer(ctx, container, "standard run check")
+		if err == nil && termErr != nil {
+			err = fmt.Errorf("failed to terminate container: %w", termErr)
+		}
+	}()
+
+	logInfo("Standard run check completed successfully for image=%s", image)
+	return nil
+}
+
 // CheckCommand verifies that a command runs with optional expected exit code and output content checks.
 func CheckCommand(ctx context.Context, image string, containerConfig *ContainerConfig, commandConfig *CommandTestConfig, entrypoint string, args ...string) (err error) {
 	expectedExitCode := 0
