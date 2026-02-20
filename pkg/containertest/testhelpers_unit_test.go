@@ -776,6 +776,41 @@ func TestCheckCommandAndCommands(t *testing.T) {
 		t.Fatalf("expected wrapped command failure")
 	}
 
+	if err := CheckHealthCommands(ctx, "img", nil, nil); err == nil {
+		t.Fatalf("expected empty healthCommands error")
+	}
+	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{Command: " "}}); err == nil {
+		t.Fatalf("expected blank healthCommand error")
+	}
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, errors.New("start failed")
+	})
+	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{Command: "mycommand"}}); err == nil {
+		t.Fatalf("expected run backend failure for healthCommands")
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 0}, logsReader: io.NopCloser(strings.NewReader("logs"))}, nil
+	})
+	if err := CheckHealthCommands(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}, []HealthCommandTestConfig{{
+		Command:          "mycommand",
+		ExpectedExitCode: 7,
+		ExpectedContent:  "ok",
+		MatchContent:     true,
+	}}); err != nil {
+		t.Fatalf("unexpected healthCommands success error: %v", err)
+	}
+
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{terminateErr: errors.New("terminate failed")}, nil
+	})
+	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{Command: "mycommand"}}); err == nil {
+		t.Fatalf("expected terminate failure for healthCommands")
+	}
+
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
 	})

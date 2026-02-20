@@ -17,6 +17,7 @@ var (
 	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkFilesExistFn       = CheckFilesExist
+	checkHealthCommandsFn   = CheckHealthCommands
 	checkCommandsFn         = CheckCommands
 	checkStandardRunFn      = CheckStandardRun
 	checkRunnerOutputFn     = CheckRunnerOutput
@@ -49,6 +50,7 @@ type RunnerConfig struct {
 // - runners: []RunnerConfig
 // - http: []HTTPTestConfig
 // - tcp: []TCPTestConfig
+// - healthCommands: []HealthCommandTestConfig
 // - commands: []CommandTestConfig
 // - filePaths: []string
 // - standardRun: bool
@@ -57,15 +59,16 @@ type RunnerConfig struct {
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
 type ContainerTestYAML struct {
-	TimeoutSeconds int                 `yaml:"timeoutSeconds"`
-	Runners        []RunnerConfig      `yaml:"runners"`
-	HTTP           []HTTPTestConfig    `yaml:"http"`
-	TCP            []TCPTestConfig     `yaml:"tcp"`
-	Commands       []CommandTestConfig `yaml:"commands"`
-	FilePaths      []string            `yaml:"filePaths"`
-	StandardRun    bool                `yaml:"standardRun"`
-	ReadOnlyRootfs bool                `yaml:"readOnlyRootfs"`
-	Mounts         []MountConfig       `yaml:"mounts"`
+	TimeoutSeconds int                       `yaml:"timeoutSeconds"`
+	Runners        []RunnerConfig            `yaml:"runners"`
+	HTTP           []HTTPTestConfig          `yaml:"http"`
+	TCP            []TCPTestConfig           `yaml:"tcp"`
+	HealthCommands []HealthCommandTestConfig `yaml:"healthCommands"`
+	Commands       []CommandTestConfig       `yaml:"commands"`
+	FilePaths      []string                  `yaml:"filePaths"`
+	StandardRun    bool                      `yaml:"standardRun"`
+	ReadOnlyRootfs bool                      `yaml:"readOnlyRootfs"`
+	Mounts         []MountConfig             `yaml:"mounts"`
 }
 
 // LoadContainerTestYAML reads and parses a container-test YAML file.
@@ -133,7 +136,7 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 // For each runner:
 //   - If expectedOutput is non-empty, an output check is performed first.
 //   - If runTests is true (the default when omitted), the normal check sequence follows:
-//     health → file → tcp/http waits → commands → standardRun.
+//     health → file → tcp/http waits → healthCommands → commands → standardRun.
 //   - If runTests is explicitly false, the normal check sequence is skipped for that runner.
 //
 // When no runners are defined a single default runner is used, which is equivalent
@@ -157,7 +160,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	}
 
 	// Validate that at least one check or output-check runner is configured.
-	hasChecks := len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.FilePaths) > 0 || len(config.Commands) > 0 || config.StandardRun
+	hasChecks := len(config.HTTP) > 0 || len(config.TCP) > 0 || len(config.FilePaths) > 0 || len(config.HealthCommands) > 0 || len(config.Commands) > 0 || config.StandardRun
 	if !hasChecks {
 		for _, r := range config.Runners {
 			if strings.TrimSpace(r.ExpectedOutput) != "" {
@@ -173,6 +176,12 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	for index, command := range config.Commands {
 		if strings.TrimSpace(command.Command) == "" {
 			return fmt.Errorf("commands[%d].command must not be empty", index)
+		}
+	}
+
+	for index, command := range config.HealthCommands {
+		if strings.TrimSpace(command.Command) == "" {
+			return fmt.Errorf("healthCommands[%d].command must not be empty", index)
 		}
 	}
 
@@ -216,7 +225,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			continue
 		}
 
-		// Normal check sequence: health → file → tcp/http waits → commands → standardRun.
+		// Normal check sequence: health → file → tcp/http waits → healthCommands → commands → standardRun.
 		if err := checkHealthFn(ctx, image, runnerCfg); err != nil {
 			return err
 		}
@@ -229,6 +238,12 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 
 		if len(config.HTTP) > 0 || len(config.TCP) > 0 {
 			if err := checkWaitsFn(ctx, image, config.HTTP, config.TCP, runnerCfg); err != nil {
+				return err
+			}
+		}
+
+		if len(config.HealthCommands) > 0 {
+			if err := checkHealthCommandsFn(ctx, image, runnerCfg, config.HealthCommands); err != nil {
 				return err
 			}
 		}

@@ -413,6 +413,14 @@ type CommandTestConfig struct {
 	MatchContent     bool   `yaml:"matchContent"`
 }
 
+// HealthCommandTestConfig holds configuration for exec-based health commands.
+type HealthCommandTestConfig struct {
+	Command          string `yaml:"command"`
+	ExpectedExitCode int    `yaml:"expectedExitCode"`
+	ExpectedContent  string `yaml:"expectedContent"`
+	MatchContent     bool   `yaml:"matchContent"`
+}
+
 func normalizeHTTPConfig(httpConfig HTTPTestConfig) HTTPTestConfig {
 	if httpConfig.Path == "" {
 		httpConfig.Path = "/"
@@ -732,6 +740,69 @@ func CheckCommands(ctx context.Context, image string, containerConfig *Container
 			return fmt.Errorf("command check #%d failed: %w", index+1, err)
 		}
 	}
+
+	return nil
+}
+
+// CheckHealthCommands verifies that exec-based health commands succeed on a running container.
+func CheckHealthCommands(ctx context.Context, image string, containerConfig *ContainerConfig, commands []HealthCommandTestConfig) (err error) {
+	if len(commands) == 0 {
+		return fmt.Errorf("at least one health command must be provided")
+	}
+
+	logInfo("🧪 HealthCommand checks: image=%s commands=%d", image, len(commands))
+	if containerConfig != nil {
+		logInfo("HealthCommand checks container config: env=%s", envSummary(containerConfig.Env))
+	}
+
+	waits := []wait.Strategy{wait.ForHealthCheck()}
+	for index, command := range commands {
+		trimmedCommand := strings.TrimSpace(command.Command)
+		if trimmedCommand == "" {
+			return fmt.Errorf("healthCommand check #%d missing command", index+1)
+		}
+
+		waitStrategy := wait.ForExec([]string{"sh", "-c", trimmedCommand}).WithExitCode(command.ExpectedExitCode)
+		if command.MatchContent {
+			expectedContent := command.ExpectedContent
+			waitStrategy = waitStrategy.WithResponseMatcher(func(body io.Reader) bool {
+				content, readErr := io.ReadAll(body)
+				if readErr != nil {
+					return false
+				}
+				return strings.Contains(string(content), expectedContent)
+			})
+		}
+
+		waits = append(waits, waitStrategy)
+	}
+
+	opts := []testcontainers.ContainerCustomizer{
+		testcontainers.WithWaitStrategy(waits...),
+	}
+
+	configOpts, cleanupMounts := applyContainerConfig(containerConfig)
+	opts = append(opts, configOpts...)
+
+	container, err := runContainer(ctx, image, opts...)
+	if err != nil {
+		cleanupMounts()
+		return err
+	}
+	defer func() {
+		if shouldDumpContainerLogs(err != nil) {
+			dumpContainerLogs(ctx, container, "healthCommand checks")
+		} else {
+			logDebug("Skipping container logs for healthCommand checks (mode=%q, failed=%t)", strings.TrimSpace(strings.ToLower(os.Getenv("TESTHELPERS_CONTAINER_LOGS"))), err != nil)
+		}
+		termErr := terminateContainer(ctx, container, "healthCommand checks")
+		if err == nil && termErr != nil {
+			err = fmt.Errorf("failed to terminate container: %w", termErr)
+		}
+		cleanupMounts()
+	}()
+
+	logInfo("HealthCommand checks completed successfully for image=%s", image)
 
 	return nil
 }
