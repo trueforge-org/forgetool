@@ -54,6 +54,25 @@ func TestLoadContainerTestYAML(t *testing.T) {
 	if config.TimeoutSeconds != 130 || !config.StandardRun || len(config.HTTP) != 1 || config.HTTP[0].Port != "8080" {
 		t.Fatalf("unexpected config: %+v", config)
 	}
+
+	mountsPath := filepath.Join(dir, "mounts.yaml")
+	mountsContent := "standardRun: true\nmounts:\n  - path: /config\n    chmod: \"755\"\n    chown: \"568:568\"\n  - path: /data\n"
+	if err := os.WriteFile(mountsPath, []byte(mountsContent), 0o600); err != nil {
+		t.Fatalf("failed writing mounts yaml: %v", err)
+	}
+	mountsConfig, err := LoadContainerTestYAML(mountsPath)
+	if err != nil {
+		t.Fatalf("unexpected mounts load error: %v", err)
+	}
+	if len(mountsConfig.Mounts) != 2 {
+		t.Fatalf("expected 2 mounts, got %d", len(mountsConfig.Mounts))
+	}
+	if mountsConfig.Mounts[0].Path != "/config" || mountsConfig.Mounts[0].Chmod != "755" || mountsConfig.Mounts[0].Chown != "568:568" {
+		t.Fatalf("unexpected first mount: %+v", mountsConfig.Mounts[0])
+	}
+	if mountsConfig.Mounts[1].Path != "/data" {
+		t.Fatalf("unexpected second mount: %+v", mountsConfig.Mounts[1])
+	}
 }
 
 func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
@@ -141,6 +160,64 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	}
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil {
 		t.Fatalf("expected commands error")
+	}
+}
+
+func TestRunChecksFromYAMLMountValidation(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun: true,
+			Mounts:      []MountConfig{{Path: "  "}},
+		}, nil
+	}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err == nil || !strings.Contains(err.Error(), "mounts[0].path") {
+		t.Fatalf("expected mount path validation error, got %v", err)
+	}
+}
+
+func TestRunChecksFromYAMLMergesMountsIntoConfig(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	yamlMounts := []MountConfig{{Path: "/config", Chmod: "755"}}
+	callerMounts := []MountConfig{{Path: "/data"}}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			StandardRun: true,
+			Mounts:      yamlMounts,
+		}, nil
+	}
+
+	var receivedConfig *ContainerConfig
+	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
+		receivedConfig = cfg
+		return nil
+	}
+
+	callerConfig := &ContainerConfig{Mounts: callerMounts}
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", callerConfig); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if receivedConfig == nil {
+		t.Fatalf("expected non-nil config")
+	}
+	if len(receivedConfig.Mounts) != 2 {
+		t.Fatalf("expected 2 mounts (caller + yaml), got %d", len(receivedConfig.Mounts))
+	}
+	if receivedConfig.Mounts[0].Path != "/data" || receivedConfig.Mounts[1].Path != "/config" {
+		t.Fatalf("unexpected merged mounts: %+v", receivedConfig.Mounts)
+	}
+
+	// Verify original caller config was not mutated.
+	if len(callerConfig.Mounts) != 1 || callerConfig.Mounts[0].Path != "/data" {
+		t.Fatalf("caller config mounts were mutated: %+v", callerConfig.Mounts)
 	}
 }
 

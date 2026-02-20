@@ -30,6 +30,7 @@ var (
 // - commands: []CommandTestConfig
 // - filePaths: []string
 // - standardRun: bool
+// - mounts: []MountConfig
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
 type ContainerTestYAML struct {
@@ -39,6 +40,7 @@ type ContainerTestYAML struct {
 	Commands       []CommandTestConfig `yaml:"commands"`
 	FilePaths      []string            `yaml:"filePaths"`
 	StandardRun    bool                `yaml:"standardRun"`
+	Mounts         []MountConfig       `yaml:"mounts"`
 }
 
 // LoadContainerTestYAML reads and parses a container-test YAML file.
@@ -91,30 +93,52 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 	}
 
-	if err := checkHealthFn(ctx, image, containerConfig); err != nil {
+	for index, mount := range config.Mounts {
+		trimmedPath := strings.TrimSpace(mount.Path)
+		if trimmedPath == "" {
+			return fmt.Errorf("mounts[%d].path must not be empty", index)
+		}
+		if !strings.HasPrefix(trimmedPath, "/") {
+			return fmt.Errorf("mounts[%d].path must be an absolute path starting with '/'", index)
+		}
+		config.Mounts[index].Path = trimmedPath
+	}
+
+	// Merge YAML mounts into the effective container config so every check run picks them up.
+	effectiveConfig := containerConfig
+	if len(config.Mounts) > 0 {
+		merged := &ContainerConfig{}
+		if containerConfig != nil {
+			*merged = *containerConfig
+		}
+		merged.Mounts = append(append([]MountConfig{}, merged.Mounts...), config.Mounts...)
+		effectiveConfig = merged
+	}
+
+	if err := checkHealthFn(ctx, image, effectiveConfig); err != nil {
 		return err
 	}
 
 	if len(config.HTTP) > 0 || len(config.TCP) > 0 {
-		if err := checkWaitsFn(ctx, image, config.HTTP, config.TCP, containerConfig); err != nil {
+		if err := checkWaitsFn(ctx, image, config.HTTP, config.TCP, effectiveConfig); err != nil {
 			return err
 		}
 	}
 
 	if len(config.FilePaths) > 0 {
-		if err := checkFilesExistFn(ctx, image, config.FilePaths, containerConfig); err != nil {
+		if err := checkFilesExistFn(ctx, image, config.FilePaths, effectiveConfig); err != nil {
 			return err
 		}
 	}
 
 	if len(config.Commands) > 0 {
-		if err := checkCommandsFn(ctx, image, containerConfig, config.Commands); err != nil {
+		if err := checkCommandsFn(ctx, image, effectiveConfig, config.Commands); err != nil {
 			return err
 		}
 	}
 
 	if config.StandardRun {
-		if err := checkStandardRunFn(ctx, image, containerConfig); err != nil {
+		if err := checkStandardRunFn(ctx, image, effectiveConfig); err != nil {
 			return err
 		}
 	}
