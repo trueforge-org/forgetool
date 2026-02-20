@@ -2,6 +2,8 @@
 
 Sorted from lowest to highest coverage.
 
+- [ ]  93.37% (352/377) - pkg/containertest/testhelpers.go
+- [ ]  98.86% (87/88) - pkg/containertest/yaml_runner.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
@@ -59,8 +61,6 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (21/21) - pkg/charts/version/bump.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
 - [ ] 100.00% (76/76) - pkg/clustertemplate/clustertemplate.go
-- [ ] 100.00% (251/251) - pkg/containertest/testhelpers.go
-- [ ] 100.00% (36/36) - pkg/containertest/yaml_runner.go
 - [ ] 100.00% (78/78) - pkg/fluxhandler/bootstrap.go
 - [ ] 100.00% (175/175) - pkg/fluxhandler/helm.go
 - [ ] 100.00% (98/98) - pkg/fluxhandler/helm_pull.go
