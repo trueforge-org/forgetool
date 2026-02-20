@@ -671,7 +671,7 @@ func TestCheckHealthCommandsResponseMatcherExecution(t *testing.T) {
 
 	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{
 		Command:          "echo ok",
-		ExpectedExitCode: 0,
+		ExpectedExitCode: intPtr(0),
 		ExpectedContent:  "ok",
 		MatchContent:     true,
 	}}); err != nil {
@@ -706,7 +706,7 @@ func TestCheckHealthCommandsResponseMatcherReadError(t *testing.T) {
 
 	err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{
 		Command:          "echo ok",
-		ExpectedExitCode: 0,
+		ExpectedExitCode: intPtr(0),
 		ExpectedContent:  "ok",
 		MatchContent:     true,
 	}})
@@ -823,8 +823,16 @@ func TestCheckCommandAndCommands(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{state: &container.State{ExitCode: 7}}, nil
 	})
-	if err := CheckCommand(ctx, "img", nil, &CommandTestConfig{ExpectedExitCode: 7}, "echo", "ok"); err != nil {
+	exitCodeSeven := 7
+	if err := CheckCommand(ctx, "img", nil, &CommandTestConfig{ExpectedExitCode: &exitCodeSeven}, "echo", "ok"); err != nil {
 		t.Fatalf("unexpected non-zero expected exit code error: %v", err)
+	}
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 9}}, nil
+	})
+	if err := CheckCommand(ctx, "img", nil, &CommandTestConfig{}, "echo", "ok"); err != nil {
+		t.Fatalf("unexpected command success when expectedExitCode is unset: %v", err)
 	}
 
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
@@ -891,7 +899,7 @@ func TestCheckCommandAndCommands(t *testing.T) {
 	})
 	if err := CheckHealthCommands(ctx, "img", &ContainerConfig{Env: map[string]string{"A": "1"}}, []HealthCommandTestConfig{{
 		Command:          "mycommand",
-		ExpectedExitCode: 7,
+		ExpectedExitCode: &exitCodeSeven,
 		ExpectedContent:  "ok",
 		MatchContent:     true,
 	}}); err != nil {

@@ -122,7 +122,7 @@ func TestLoadContainerTestYAML(t *testing.T) {
 		t.Fatalf("expected 1 health command, got %d", len(runnersConfig.HealthCommands))
 	}
 	h0 := runnersConfig.HealthCommands[0]
-	if h0.Command != "mycommand" || h0.ExpectedExitCode != 7 || h0.ExpectedContent != "ok" || !h0.MatchContent {
+	if h0.Command != "mycommand" || h0.ExpectedExitCode == nil || *h0.ExpectedExitCode != 7 || h0.ExpectedContent != "ok" || !h0.MatchContent {
 		t.Fatalf("unexpected health command config: %+v", h0)
 	}
 }
@@ -300,7 +300,7 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 				TimeoutSeconds: 1,
 			}},
 			FilePaths:      []string{"/etc/hosts"},
-			HealthCommands: []HealthCommandTestConfig{{Command: "mycommand", ExpectedExitCode: 7, ExpectedContent: "ok", MatchContent: true}},
+			HealthCommands: []HealthCommandTestConfig{{Command: "mycommand", ExpectedExitCode: intPtr(7), ExpectedContent: "ok", MatchContent: true}},
 		}, nil
 	}
 

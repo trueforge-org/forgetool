@@ -493,7 +493,7 @@ type TCPTestConfig struct {
 // CommandTestConfig holds optional configuration for command checks.
 type CommandTestConfig struct {
 	Command          string `yaml:"command"`
-	ExpectedExitCode int    `yaml:"expectedExitCode"`
+	ExpectedExitCode *int   `yaml:"expectedExitCode"`
 	ExpectedContent  string `yaml:"expectedContent"`
 	MatchContent     bool   `yaml:"matchContent"`
 }
@@ -501,7 +501,7 @@ type CommandTestConfig struct {
 // HealthCommandTestConfig holds configuration for exec-based health commands.
 type HealthCommandTestConfig struct {
 	Command          string `yaml:"command"`
-	ExpectedExitCode int    `yaml:"expectedExitCode"`
+	ExpectedExitCode *int   `yaml:"expectedExitCode"`
 	ExpectedContent  string `yaml:"expectedContent"`
 	MatchContent     bool   `yaml:"matchContent"`
 }
@@ -797,13 +797,20 @@ func CheckStandardRun(ctx context.Context, image string, config *ContainerConfig
 
 // CheckCommand verifies that a command runs with optional expected exit code and output content checks.
 func CheckCommand(ctx context.Context, image string, containerConfig *ContainerConfig, commandConfig *CommandTestConfig, entrypoint string, args ...string) (err error) {
-	expectedExitCode := 0
+	var expectedExitCode *int
 	if commandConfig != nil {
 		expectedExitCode = commandConfig.ExpectedExitCode
+	} else {
+		exitCodeZero := 0
+		expectedExitCode = &exitCodeZero
 	}
 
 	fullCommand := commandString(entrypoint, args)
-	logInfo("🧪 Command check: image=%s command=%q expectedExitCode=%d", image, fullCommand, expectedExitCode)
+	if expectedExitCode != nil {
+		logInfo("🧪 Command check: image=%s command=%q expectedExitCode=%d", image, fullCommand, *expectedExitCode)
+	} else {
+		logInfo("🧪 Command check: image=%s command=%q expectedExitCode=<any>", image, fullCommand)
+	}
 	if containerConfig != nil {
 		logInfo("Command check container config: env=%s", envSummary(containerConfig.Env))
 	}
@@ -844,9 +851,13 @@ func CheckCommand(ctx context.Context, image string, containerConfig *ContainerC
 		cleanupMounts()
 	}()
 
-	if err := assertExitCode(ctx, container, fmt.Sprintf("command %q", fullCommand), expectedExitCode); err != nil {
-		logWarn("Command check failed: %q", fullCommand)
-		return err
+	if expectedExitCode != nil {
+		if err := assertExitCode(ctx, container, fmt.Sprintf("command %q", fullCommand), *expectedExitCode); err != nil {
+			logWarn("Command check failed: %q", fullCommand)
+			return err
+		}
+	} else {
+		logInfo("Command check: skipping exit code assertion (expectedExitCode unset)")
 	}
 
 	if commandConfig != nil && commandConfig.MatchContent {
@@ -906,7 +917,12 @@ func CheckHealthCommands(ctx context.Context, image string, containerConfig *Con
 			return fmt.Errorf("healthCommand check #%d missing command", index+1)
 		}
 
-		waitStrategy := wait.ForExec([]string{"sh", "-c", trimmedCommand}).WithExitCode(command.ExpectedExitCode)
+		waitStrategy := wait.ForExec([]string{"sh", "-c", trimmedCommand})
+		if command.ExpectedExitCode != nil {
+			waitStrategy = waitStrategy.WithExitCode(*command.ExpectedExitCode)
+		} else {
+			waitStrategy = waitStrategy.WithExitCodeMatcher(func(int) bool { return true })
+		}
 		if command.MatchContent {
 			expectedContent := command.ExpectedContent
 			waitStrategy = waitStrategy.WithResponseMatcher(func(body io.Reader) bool {
