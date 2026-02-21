@@ -875,7 +875,8 @@ func TestCheckCommandAndCommands(t *testing.T) {
 	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
 		return &fakeContainer{state: &container.State{ExitCode: 1}}, nil
 	})
-	if err := CheckCommands(ctx, "img", nil, []CommandTestConfig{{Command: "false"}}); err == nil {
+	exitCodeZero := 0
+	if err := CheckCommands(ctx, "img", nil, []CommandTestConfig{{Command: "false", ExpectedExitCode: &exitCodeZero}}); err == nil {
 		t.Fatalf("expected wrapped command failure")
 	}
 
