@@ -59,6 +59,8 @@ func (f *fakeStrategyTarget) CopyFileFromContainer(context.Context, string) (io.
 }
 
 type fakeContainer struct {
+	id           string
+	useCustomID  bool
 	terminateErr error
 	terminated   bool
 	logsErr      error
@@ -67,7 +69,12 @@ type fakeContainer struct {
 	stateErr     error
 }
 
-func (f *fakeContainer) GetContainerID() string                           { return "id" }
+func (f *fakeContainer) GetContainerID() string {
+	if f.useCustomID {
+		return f.id
+	}
+	return "id"
+}
 func (f *fakeContainer) Endpoint(context.Context, string) (string, error) { return "", nil }
 func (f *fakeContainer) PortEndpoint(context.Context, nat.Port, string) (string, error) {
 	return "", nil
@@ -855,9 +862,17 @@ func TestRunContainerLifecycleHooksExecute(t *testing.T) {
 		}
 
 		c := &fakeContainer{}
+		emptyIDContainer := &fakeContainer{id: "", useCustomID: true}
+		longIDContainer := &fakeContainer{id: "1234567890abcdef", useCustomID: true}
 		for _, hooks := range req.LifecycleHooks {
 			for _, hook := range hooks.PostCreates {
 				if err := hook(runCtx, nil); err != nil {
+					return nil, err
+				}
+				if err := hook(runCtx, emptyIDContainer); err != nil {
+					return nil, err
+				}
+				if err := hook(runCtx, longIDContainer); err != nil {
 					return nil, err
 				}
 				if err := hook(runCtx, c); err != nil {
@@ -886,6 +901,104 @@ func TestRunContainerLifecycleHooksExecute(t *testing.T) {
 
 	if _, err := runContainer(ctx, "img"); err != nil {
 		t.Fatalf("expected lifecycle hook execution success, got %v", err)
+	}
+}
+
+func TestRunContainerStartupFailureSkipsLogsAndWarnsOnTerminateError(t *testing.T) {
+	ctx := context.Background()
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+
+	failed := &fakeContainer{terminateErr: errors.New("terminate boom")}
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return failed, errors.New("start boom")
+	})
+
+	if _, err := runContainer(ctx, "img"); err == nil {
+		t.Fatalf("expected runContainer failure")
+	}
+	if !failed.terminated {
+		t.Fatalf("expected failed-start container termination attempt")
+	}
+}
+
+func TestDeadlineBranchesForHealthAndWaits(t *testing.T) {
+	ctx := context.Background()
+
+	past, cancelPast := context.WithDeadline(ctx, time.Now().Add(-time.Second))
+	defer cancelPast()
+	if err := CheckHealth(past, "img", nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected CheckHealth deadline exceeded, got %v", err)
+	}
+	if err := CheckWaits(past, "img", []HTTPTestConfig{{Port: "8080"}}, nil, nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected CheckWaits deadline exceeded, got %v", err)
+	}
+
+	future, cancelFuture := context.WithDeadline(ctx, time.Now().Add(3*time.Second))
+	defer cancelFuture()
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
+	})
+	if err := CheckHealth(future, "img", nil); err != nil {
+		t.Fatalf("expected CheckHealth success with future deadline, got %v", err)
+	}
+	if err := CheckWaits(future, "img", []HTTPTestConfig{{Port: "8080"}}, nil, nil); err != nil {
+		t.Fatalf("expected CheckWaits success with future deadline, got %v", err)
+	}
+	if err := CheckHealthAndWaits(future, "img", nil, nil, []string{"/bin/sh"}, nil); err != nil {
+		t.Fatalf("expected CheckHealthAndWaits success with future deadline, got %v", err)
+	}
+}
+
+func TestCheckHealthAndWaitsAlwaysLogsOnFailureWhenConfigured(t *testing.T) {
+	ctx := context.Background()
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "always")
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{state: &container.State{ExitCode: 0}, logsReader: io.NopCloser(strings.NewReader("logs"))}, nil
+	})
+
+	err := CheckHealthAndWaits(ctx, "img", nil, nil, []string{"/bin/sh"}, nil)
+	if err != nil {
+		t.Fatalf("expected combined waits success with logs enabled, got %v", err)
+	}
+}
+
+func TestCheckHealthCommandsWithUnsetExitCodeMatcher(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(waitCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+		if req.WaitingFor == nil {
+			return nil, errors.New("missing waiting strategy")
+		}
+
+		target := &fakeStrategyTarget{execExitCode: 9, execReader: strings.NewReader("ok")}
+		if err := req.WaitingFor.WaitUntilReady(waitCtx, target); err != nil {
+			return nil, err
+		}
+
+		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
+	})
+
+	if err := CheckHealthCommands(ctx, "img", nil, []HealthCommandTestConfig{{Command: "echo ok"}}); err != nil {
+		t.Fatalf("expected success with unset expected exit code, got %v", err)
+	}
+}
+
+func TestCheckRunnerOutputPreviewTruncation(t *testing.T) {
+	ctx := context.Background()
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return &fakeContainer{logsReader: io.NopCloser(strings.NewReader(strings.Repeat("a", 700)))}, nil
+	})
+
+	if err := CheckRunnerOutput(ctx, "img", nil, "", "aaa", nil); err != nil {
+		t.Fatalf("expected runner output success with large logs, got %v", err)
 	}
 }
 

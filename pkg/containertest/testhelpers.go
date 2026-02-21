@@ -1097,9 +1097,6 @@ func CheckRunnerOutput(ctx context.Context, image string, containerConfig *Conta
 	trimmedCommand := strings.TrimSpace(command)
 	if trimmedCommand != "" {
 		parts := strings.Fields(trimmedCommand)
-		if len(parts) == 0 {
-			return fmt.Errorf("runner output check: command must not be empty when set")
-		}
 		opts = append(opts, testcontainers.WithEntrypoint(parts[0]))
 		if len(parts) > 1 {
 			opts = append(opts, testcontainers.WithEntrypointArgs(parts[1:]...))
