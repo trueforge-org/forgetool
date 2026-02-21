@@ -34,13 +34,15 @@
       ]
     },
     {
+      "timeoutSeconds": 240,
+      "mainRunner": {
+        "env": { "MAIN": "runner" }
+      },
       "runners": [
         {
           "env": { "MY_VAR": "value" },
-          "command": "myapp --version",
-          "filePath": "/bin/sh",
-          "timeoutSeconds": 180,
-          "readOnlyRoot": true,
+          "entrypoint": "myapp",
+          "cmd": "--version",
           "expectedOutput": "v1.0",
           "exitCode": 0
         }
@@ -50,21 +52,29 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "mainRunner": {
+      "$ref": "#/$defs/runnerConfig",
+      "description": "Optional dedicated main-runner configuration used only for health/file/http/tcp/healthCommands waits. mainRunner env/entrypoint/cmd are applied to that wait container, while expectedOutput/exitCode values are accepted but ignored.",
+      "examples": [
+        {
+          "env": { "MAIN": "runner" },
+          "entrypoint": "myapp",
+          "cmd": "--serve"
+        }
+      ]
+    },
     "runners": {
       "type": "array",
-      "description": "Runner definitions. Each runner specifies a container configuration (env, command, readOnlyRoot, timeoutSeconds) under which configured checks execute. When a runner sets expectedOutput, an output check is performed first. Other checks still run unless runTests is explicitly set to false. When omitted, a single default runner is used.",
+      "description": "Runner definitions. Each runner specifies a container configuration (env, entrypoint/cmd) under which configured checks execute. When a runner sets expectedOutput, an output check is performed first. Wait checks run once on the dedicated main runner. When omitted, a single default runner is used.",
       "default": [],
       "examples": [
         [
           {
             "env": { "MY_VAR": "value" },
-            "command": "myapp --version",
-            "filePath": "/bin/sh",
-            "timeoutSeconds": 180,
-            "readOnlyRoot": true,
+            "entrypoint": "myapp",
+            "cmd": "--version",
             "expectedOutput": "v1.0",
-            "exitCode": 0,
-            "runTests": false
+            "exitCode": 0
           }
         ]
       ],
@@ -142,6 +152,16 @@
         ]
       }
     },
+    "timeoutSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 180,
+      "description": "Optional timeout for main-runner waits and all runner standard/output checks in seconds. Values below 180 are accepted in YAML, but runtime enforces a 180-second minimum.",
+      "examples": [
+        180,
+        300
+      ]
+    },
     "readOnlyRootfs": {
       "type": "boolean",
       "description": "Mounts the container root filesystem as read-only for all checks in the test suite.",
@@ -169,15 +189,12 @@
   "$defs": {
     "runnerConfig": {
       "title": "Runner config",
-      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. Use entrypoint/cmd to override startup for this runner. command is a legacy alias for entrypoint. filePath performs a per-runner in-container file existence check. When expectedOutput is set, an output check runs first and can optionally validate exitCode. Other checks still run unless runTests is explicitly false.",
+      "description": "Configuration for a single runner. Each runner defines the container environment under which checks execute. Use entrypoint/cmd to override startup for this runner. When expectedOutput is set, an output check runs first and can optionally validate exitCode.",
       "examples": [
         {
           "env": { "MY_VAR": "value" },
           "entrypoint": "myapp",
           "cmd": "--version",
-          "filePath": "/bin/sh",
-          "timeoutSeconds": 180,
-          "readOnlyRoot": true,
           "expectedOutput": "v1.0",
           "exitCode": 0
         },
@@ -217,42 +234,6 @@
             "-c \"echo hello\""
           ]
         },
-        "command": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Legacy alias for entrypoint (backward compatible).",
-          "examples": [
-            "myapp",
-            "/bin/sh"
-          ]
-        },
-        "filePath": {
-          "type": "string",
-          "pattern": "\\S",
-          "description": "Optional absolute file path expected to exist in the container for this runner.",
-          "examples": [
-            "/bin/sh",
-            "/usr/local/bin/yq"
-          ]
-        },
-        "timeoutSeconds": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 180,
-          "description": "Optional timeout for this runner in seconds. Values below 180 are accepted in YAML, but runtime enforces a 180-second minimum.",
-          "examples": [
-            180,
-            300
-          ]
-        },
-        "readOnlyRoot": {
-          "type": "boolean",
-          "default": false,
-          "description": "Mount the container root filesystem as read-only for this runner.",
-          "examples": [
-            true
-          ]
-        },
         "expectedOutput": {
           "type": "string",
           "pattern": "\\S",
@@ -268,15 +249,6 @@
           "examples": [
             0,
             7
-          ]
-        },
-        "runTests": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to run the other checks (health, file, tcp, http, healthCommands) for this runner. Defaults to true when omitted. Set to false to skip those checks while still performing a standard container run (and an output check when expectedOutput is set).",
-          "examples": [
-            true,
-            false
           ]
         }
       }

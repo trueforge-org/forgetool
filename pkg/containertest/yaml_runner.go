@@ -18,6 +18,7 @@ var (
 	checkHealthFn           = CheckHealth
 	checkWaitsFn            = CheckWaits
 	checkHealthAndWaitsFn   = CheckHealthAndWaits
+	checkHealthCommandsFn   = CheckHealthCommands
 	checkStandardRunFn      = CheckStandardRun
 	checkRunnerOutputFn     = CheckRunnerOutput
 )
@@ -29,47 +30,40 @@ var (
 //   - env: map[string]string        environment variables to set in the container
 //   - entrypoint: string            override the container entrypoint for this runner
 //   - cmd: string                   override container args/CMD for this runner
-//   - filePath: string              file path to verify in-container for this runner
-//   - command: string               legacy alias for entrypoint (backward compatible, DO NOT USE)
-//   - readOnlyRoot: bool            mount the container root filesystem as read-only
-//   - timeoutSeconds: int            optional per-runner timeout in seconds (min 120 enforced)
 //   - expectedOutput: string        when non-empty, run the container (with entrypoint/cmd if set)
 //     and assert this string is present in the output
 //   - exitCode: int                 optional expected container exit code; when set,
 //     the runner output check verifies the container exits with this exact code
-//   - runTests: bool                whether to run the other checks (health, file, tcp, http,
-//     standard run) for this runner; defaults to true when omitted
 type RunnerConfig struct {
 	Env            map[string]string `yaml:"env"`
 	Entrypoint     string            `yaml:"entrypoint"`
 	Cmd            string            `yaml:"cmd"`
-	FilePath       string            `yaml:"filePath"`
-	Command        string            `yaml:"command"`
-	ReadOnlyRoot   bool              `yaml:"readOnlyRoot"`
-	TimeoutSeconds int               `yaml:"timeoutSeconds"`
 	ExpectedOutput string            `yaml:"expectedOutput"`
 	ExitCode       *int              `yaml:"exitCode"`
-	RunTests       *bool             `yaml:"runTests"`
 }
 
 // ContainerTestYAML defines the struct-based container-test.yaml schema.
 //
 // Supported keys:
+// - mainRunner: RunnerConfig
 // - runners: []RunnerConfig
 // - http: []HTTPTestConfig
 // - tcp: []TCPTestConfig
 // - filePaths: []string
 // - healthCommands: []HealthCommandTestConfig
+// - timeoutSeconds: int
 // - readOnlyRootfs: bool
 // - mounts: []MountConfig
 //
 // Note: this intentionally mirrors the exported helper structs used by runtime checks.
 type ContainerTestYAML struct {
+	MainRunner     *RunnerConfig             `yaml:"mainRunner"`
 	Runners        []RunnerConfig            `yaml:"runners"`
 	HTTP           []HTTPTestConfig          `yaml:"http"`
 	TCP            []TCPTestConfig           `yaml:"tcp"`
 	FilePaths      []string                  `yaml:"filePaths"`
 	HealthCommands []HealthCommandTestConfig `yaml:"healthCommands"`
+	TimeoutSeconds int                       `yaml:"timeoutSeconds"`
 	ReadOnlyRootfs bool                      `yaml:"readOnlyRootfs"`
 	Mounts         []MountConfig             `yaml:"mounts"`
 }
@@ -123,9 +117,6 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 		}
 	}
 	runnerEntrypoint := strings.TrimSpace(runner.Entrypoint)
-	if runnerEntrypoint == "" {
-		runnerEntrypoint = strings.TrimSpace(runner.Command)
-	}
 	runnerCmd := strings.TrimSpace(runner.Cmd)
 	if runnerEntrypoint != "" || runnerCmd != "" {
 		merged.Command = nil
@@ -136,23 +127,38 @@ func buildRunnerContainerConfig(runner RunnerConfig, base *ContainerConfig, yaml
 			merged.Command = append(merged.Command, strings.Fields(runnerCmd)...)
 		}
 	}
-	if runner.ReadOnlyRoot {
-		merged.ReadOnlyRootfs = true
+	return merged
+}
+
+func buildMainRunnerSpec(spec *RunnerConfig) RunnerConfig {
+	if spec == nil {
+		return RunnerConfig{}
 	}
 
-	return merged
+	mainRunner := RunnerConfig{
+		Entrypoint: spec.Entrypoint,
+		Cmd:        spec.Cmd,
+	}
+	if len(spec.Env) > 0 {
+		mainRunner.Env = make(map[string]string, len(spec.Env))
+		for key, value := range spec.Env {
+			mainRunner.Env[key] = value
+		}
+	}
+
+	return mainRunner
 }
 
 // RunChecksFromYAML runs container checks defined in a struct-based container-test YAML file.
 //
 // When the YAML defines one or more runners, each runner spawns its own container
-// configuration (env, command, readOnlyRoot) and checks execute per runner.
+// configuration (env, command) and checks execute per runner.
+// The optional mainRunner may override env/entrypoint/cmd for wait checks only;
+// mainRunner expectedOutput/exitCode are ignored.
 // For each runner:
 //   - If expectedOutput is non-empty, an output check is performed first.
-//   - If runTests is true (the default when omitted), the normal check sequence follows:
-//     health (when tcp/http are configured) → file → tcp/http waits → standardRun.
-//   - If runTests is explicitly false, health/file/wait/health-command checks are skipped,
-//     but a standard container run is still performed for that runner.
+//   - Wait checks are executed once by the dedicated waits runner.
+//   - A standard container run is performed for that runner.
 //
 // When no runners are defined a single default runner is used, which is equivalent
 // to the previous single-pass behaviour.
@@ -189,19 +195,69 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		config.FilePaths[index] = trimmedPath
 	}
 
-	for i, runner := range runners {
-		runnerFilePath := strings.TrimSpace(runner.FilePath)
-		if runner.FilePath != "" && runnerFilePath == "" {
-			return fmt.Errorf("runner[%d].filePath must not be empty", i)
+	hasTCPHTTPChecks := len(config.HTTP) > 0 || len(config.TCP) > 0
+	mainRunnerFilePaths := append([]string{}, config.FilePaths...)
+	mainRunnerSpec := buildMainRunnerSpec(config.MainRunner)
+
+	hasFileWaits := len(mainRunnerFilePaths) > 0
+	hasHealthCommandWaits := len(config.HealthCommands) > 0
+	hasCombinedWaits := hasTCPHTTPChecks || hasFileWaits
+	mainRunnerTimeoutSeconds := config.TimeoutSeconds
+	if hasCombinedWaits || hasHealthCommandWaits {
+		mainRunnerCtx := ctx
+		if mainRunnerTimeoutSeconds > 0 {
+			effectiveTimeoutSeconds := mainRunnerTimeoutSeconds
+			if effectiveTimeoutSeconds < minYAMLTimeoutSeconds {
+				effectiveTimeoutSeconds = minYAMLTimeoutSeconds
+			}
+			timeoutBaseCtx := ctx
+			configuredTimeout := time.Duration(effectiveTimeoutSeconds) * time.Second
+			if hasTCPHTTPChecks || hasFileWaits {
+				configuredTimeout += healthTimeoutExtraSeconds * time.Second
+			}
+			if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+				remaining := time.Until(deadline)
+				if remaining > 0 && remaining < configuredTimeout {
+					logWarn("main runner: parent context deadline (%s) is shorter than configured timeout (%s); honoring configured timeout", remaining.Round(time.Second), configuredTimeout.Round(time.Second))
+					timeoutBaseCtx = context.WithoutCancel(ctx)
+				}
+			}
+
+			var mainRunnerCancel context.CancelFunc
+			mainRunnerCtx, mainRunnerCancel = context.WithTimeout(timeoutBaseCtx, configuredTimeout)
+			defer mainRunnerCancel()
 		}
 
-		logInfo("Runner[%d]: starting (expectedOutput=%t exitCodeSet=%t runTests=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.ExitCode != nil, runner.RunTests == nil || *runner.RunTests, runner.TimeoutSeconds)
+		mainRunnerCfg := buildRunnerContainerConfig(mainRunnerSpec, containerConfig, config.ReadOnlyRootfs, config.Mounts)
+		if hasCombinedWaits {
+			if hasFileWaits && !hasTCPHTTPChecks {
+				logInfo("Main runner: running health check wait for file-based waits")
+				if err := checkHealthFn(mainRunnerCtx, image, mainRunnerCfg); err != nil {
+					return err
+				}
+			}
+			logInfo("Main runner: running combined checks (http=%d tcp=%d filePaths=%d)", len(config.HTTP), len(config.TCP), len(mainRunnerFilePaths))
+			if err := checkHealthAndWaitsFn(mainRunnerCtx, image, config.HTTP, config.TCP, mainRunnerFilePaths, mainRunnerCfg); err != nil {
+				return err
+			}
+		}
+		if hasHealthCommandWaits {
+			logInfo("Main runner: running health command waits (healthCommands=%d)", len(config.HealthCommands))
+			if err := checkHealthCommandsFn(mainRunnerCtx, image, mainRunnerCfg, config.HealthCommands); err != nil {
+				return err
+			}
+		}
+	} else {
+		logInfo("Main runner: skipping health/wait/file checks (no tcp/http/filePaths/healthCommands configured)")
+	}
+
+	for i, runner := range runners {
+		logInfo("Runner[%d]: starting (expectedOutput=%t exitCodeSet=%t timeoutSeconds=%d)", i, strings.TrimSpace(runner.ExpectedOutput) != "", runner.ExitCode != nil, config.TimeoutSeconds)
 		runnerCtx := ctx
-		healthCtx := runnerCtx
-		if runner.TimeoutSeconds > 0 {
-			effectiveTimeoutSeconds := runner.TimeoutSeconds
+		if config.TimeoutSeconds > 0 {
+			effectiveTimeoutSeconds := config.TimeoutSeconds
 			if effectiveTimeoutSeconds < minYAMLTimeoutSeconds {
-				logWarn("runner[%d].timeoutSeconds=%d is very low for container startup; using minimum %d seconds", i, runner.TimeoutSeconds, minYAMLTimeoutSeconds)
+				logWarn("timeoutSeconds=%d is very low for container startup; using minimum %d seconds", config.TimeoutSeconds, minYAMLTimeoutSeconds)
 				effectiveTimeoutSeconds = minYAMLTimeoutSeconds
 			}
 
@@ -218,10 +274,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			var cancel context.CancelFunc
 			runnerCtx, cancel = context.WithTimeout(timeoutBaseCtx, configuredTimeout)
 			defer cancel()
-
-			var healthCancel context.CancelFunc
-			healthCtx, healthCancel = context.WithTimeout(timeoutBaseCtx, time.Duration(effectiveTimeoutSeconds+healthTimeoutExtraSeconds)*time.Second)
-			defer healthCancel()
 		}
 
 		runnerCfg := buildRunnerContainerConfig(runner, containerConfig, config.ReadOnlyRootfs, config.Mounts)
@@ -230,9 +282,6 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		if strings.TrimSpace(runner.ExpectedOutput) != "" {
 			logInfo("Runner[%d]: running output check", i)
 			runnerCommand := strings.TrimSpace(runner.Entrypoint)
-			if runnerCommand == "" {
-				runnerCommand = strings.TrimSpace(runner.Command)
-			}
 			runnerCmd := strings.TrimSpace(runner.Cmd)
 			if runnerCmd != "" {
 				if runnerCommand != "" {
@@ -246,35 +295,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 			}
 		}
 
-		// Skip normal checks when runTests is explicitly false; default is true.
-		if runner.RunTests != nil && !*runner.RunTests {
-			logInfo("Runner[%d]: skipping health/file/wait/health-command checks (runTests=false)", i)
-			if err := checkStandardRunFn(runnerCtx, image, runnerCfg); err != nil {
-				return err
-			}
-			continue
-		}
-
-		runnerFilePaths := append([]string{}, config.FilePaths...)
-		if runnerFilePath != "" {
-			runnerFilePaths = append(runnerFilePaths, runnerFilePath)
-		}
-
-		hasTCPHTTPChecks := len(config.HTTP) > 0 || len(config.TCP) > 0
-		hasFileChecks := len(runnerFilePaths) > 0
-		if hasTCPHTTPChecks || hasFileChecks {
-			combinedCtx := runnerCtx
-			if hasTCPHTTPChecks {
-				combinedCtx = healthCtx
-			}
-
-			logInfo("Runner[%d]: running combined checks (http=%d tcp=%d filePaths=%d)", i, len(config.HTTP), len(config.TCP), len(runnerFilePaths))
-			if err := checkHealthAndWaitsFn(combinedCtx, image, config.HTTP, config.TCP, runnerFilePaths, runnerCfg); err != nil {
-				return err
-			}
-		} else {
-			logInfo("Runner[%d]: skipping health/wait/file checks (no tcp/http/filePaths configured)", i)
-		}
+		logInfo("Runner[%d]: wait checks already executed by main runner", i)
 
 		logInfo("Runner[%d]: running standard run check", i)
 		if err := checkStandardRunFn(runnerCtx, image, runnerCfg); err != nil {
