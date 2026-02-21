@@ -243,6 +243,46 @@ func TestRunChecksFromYAMLFileWaitsAlsoRunHealthCheckWaitOnMainRunner(t *testing
 	}
 }
 
+func TestRunChecksFromYAMLFilePathsValidationRejectsBlank(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{FilePaths: []string{"   "}}, nil
+	}
+
+	err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil)
+	if err == nil || !strings.Contains(err.Error(), "filePaths[0] must not be empty") {
+		t.Fatalf("expected blank filePath validation error, got %v", err)
+	}
+}
+
+func TestRunChecksFromYAMLFileWaitsHealthCheckError(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		return errors.New("health wait boom")
+	}
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, []string, *ContainerConfig) error {
+		t.Fatalf("did not expect combined waits when health wait already failed")
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
+		t.Fatalf("did not expect standard run when health wait already failed")
+		return nil
+	}
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{FilePaths: []string{"/etc/hosts"}}, nil
+	}
+
+	err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil)
+	if err == nil || !strings.Contains(err.Error(), "health wait boom") {
+		t.Fatalf("expected health wait error, got %v", err)
+	}
+}
+
 func TestRunChecksFromYAMLMainRunnerSpecAppliedAndOutputFieldsIgnored(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
@@ -785,6 +825,35 @@ func TestRunChecksFromYAMLRunnerExpectedOutputUsesRunnerOverrides(t *testing.T) 
 	}
 	if gotCfg == nil || gotCfg.Env["FOO"] != "bar" {
 		t.Fatalf("unexpected runner config: %+v", gotCfg)
+	}
+}
+
+func TestRunChecksFromYAMLRunnerExpectedOutputWithCmdOnlyUsesCmd(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	var gotCommand string
+	checkRunnerOutputFn = func(_ context.Context, _ string, _ *ContainerConfig, cmd, _ string, _ *int) error {
+		gotCommand = cmd
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			Runners: []RunnerConfig{{
+				Cmd:            "--version",
+				ExpectedOutput: "v1.2.3",
+			}},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotCommand != "--version" {
+		t.Fatalf("expected command to be cmd-only override, got %q", gotCommand)
 	}
 }
 

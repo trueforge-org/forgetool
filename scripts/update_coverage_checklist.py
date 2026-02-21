@@ -7,12 +7,15 @@ import re
 import subprocess
 from collections import defaultdict
 from pathlib import Path
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 COVERAGE_FILE = ROOT / "coverage.txt"
 CHECKLIST_FILE = ROOT / "coverage_checklist.md"
 
-COVERAGE_LINE_PATTERN = re.compile(r"(.+?):\d+\.\d+,\d+\.\d+\s+(\d+)\s+(\d+)$")
+COVERAGE_RECORD_PATTERN = re.compile(
+    r"(github\.com/trueforge-org/forgetool/\S+?):\d+\.\d+,\d+\.\d+\s+(\d+)\s+(\d+)"
+)
 MODULE_PREFIX_PATTERN = re.compile(r"^github\.com/trueforge-org/forgetool/")
 
 
@@ -29,11 +32,34 @@ def run_tests_for_coverage() -> None:
     if not packages:
         raise RuntimeError("No Go packages with tests were found.")
 
-    subprocess.run(
-        ["go", "test", "-covermode=atomic", f"-coverprofile={COVERAGE_FILE.name}", *packages],
-        cwd=ROOT,
-        check=True,
-    )
+    with tempfile.TemporaryDirectory(prefix="forgetool-cover-") as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        fragments: list[Path] = []
+
+        for index, package in enumerate(packages):
+            fragment = tmp_path / f"coverage_{index}.out"
+            subprocess.run(
+                [
+                    "go",
+                    "test",
+                    "-covermode=atomic",
+                    f"-coverprofile={fragment}",
+                    package,
+                ],
+                cwd=ROOT,
+                check=True,
+            )
+            fragments.append(fragment)
+
+        merged_lines = ["mode: atomic"]
+        for fragment in fragments:
+            for raw_line in fragment.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("mode:"):
+                    continue
+                merged_lines.append(line)
+
+        COVERAGE_FILE.write_text("\n".join(merged_lines) + "\n", encoding="utf-8")
 
 
 def parse_coverage_profile() -> list[tuple[float, int, int, str]]:
@@ -44,15 +70,8 @@ def parse_coverage_profile() -> list[tuple[float, int, int, str]]:
 
     stats: dict[str, list[int]] = defaultdict(lambda: [0, 0])
 
-    for raw_line in COVERAGE_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("mode:"):
-            continue
-
-        match = COVERAGE_LINE_PATTERN.match(line)
-        if not match:
-            continue
-
+    profile_content = COVERAGE_FILE.read_text(encoding="utf-8")
+    for match in COVERAGE_RECORD_PATTERN.finditer(profile_content):
         file_path, statements, count = match.group(1), int(match.group(2)), int(match.group(3))
         file_path = MODULE_PREFIX_PATTERN.sub("", file_path)
 
