@@ -2,7 +2,7 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]  81.63% (480/588) - pkg/containertest/testhelpers.go
+- [ ]  97.11% (571/588) - pkg/containertest/testhelpers.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (5/5) - cmd/adv_precommit.go
