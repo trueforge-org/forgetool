@@ -17,6 +17,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	tcexec "github.com/testcontainers/testcontainers-go/exec"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 type fakeStrategyTarget struct {
@@ -126,6 +127,12 @@ type errReadCloser struct{}
 
 func (e *errReadCloser) Read([]byte) (int, error) { return 0, errors.New("read boom") }
 func (e *errReadCloser) Close() error             { return nil }
+
+type fakeWaitStrategyNoStringer struct{}
+
+func (f fakeWaitStrategyNoStringer) WaitUntilReady(context.Context, wait.StrategyTarget) error {
+	return nil
+}
 
 func withEnv(t *testing.T, key, value string) {
 	t.Helper()
@@ -739,6 +746,146 @@ func TestGetTestImage(t *testing.T) {
 	withEnv(t, "TEST_IMAGE", "custom")
 	if got := GetTestImage("default"); got != "custom" {
 		t.Fatalf("expected override image")
+	}
+}
+
+func TestWaitStrategyHelpers(t *testing.T) {
+	descriptions := describeWaitStrategies([]wait.Strategy{nil, wait.ForHealthCheck(), fakeWaitStrategyNoStringer{}})
+	if len(descriptions) != 3 {
+		t.Fatalf("expected 3 strategy descriptions, got %d", len(descriptions))
+	}
+	if descriptions[0] != "<nil>" {
+		t.Fatalf("expected nil marker, got %q", descriptions[0])
+	}
+	if !strings.Contains(descriptions[1], "health") && !strings.Contains(strings.ToLower(descriptions[1]), "health") {
+		t.Fatalf("expected health strategy description, got %q", descriptions[1])
+	}
+	if !strings.Contains(descriptions[2], "fakeWaitStrategyNoStringer") {
+		t.Fatalf("expected type-based description, got %q", descriptions[2])
+	}
+
+	logWaitStrategiesStart("empty", nil)
+	logWaitStrategiesStart("filled", []wait.Strategy{wait.ForHealthCheck()})
+}
+
+func TestCheckHealthAndWaitsWithoutDocker(t *testing.T) {
+	ctx := context.Background()
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+
+	if err := CheckHealthAndWaits(ctx, "img", nil, nil, nil, nil); err == nil {
+		t.Fatalf("expected empty combined waits error")
+	}
+
+	deadlineCtx, cancel := context.WithDeadline(ctx, time.Now().Add(-time.Second))
+	defer cancel()
+	if err := CheckHealthAndWaits(deadlineCtx, "img", []HTTPTestConfig{{Port: "8080"}}, nil, nil, nil); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded, got %v", err)
+	}
+
+	if err := CheckHealthAndWaits(ctx, "img", []HTTPTestConfig{{Path: "/"}}, nil, nil, nil); err == nil {
+		t.Fatalf("expected missing HTTP port error")
+	}
+
+	if err := CheckHealthAndWaits(ctx, "img", nil, []TCPTestConfig{{Port: " "}}, nil, nil); err == nil {
+		t.Fatalf("expected missing TCP port error")
+	}
+
+	if err := CheckHealthAndWaits(ctx, "img", nil, nil, []string{" "}, nil); err == nil {
+		t.Fatalf("expected blank file path error")
+	}
+
+	setRunBackend(t, func(context.Context, string, ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		return nil, errors.New("start failed")
+	})
+	if err := CheckHealthAndWaits(ctx, "img", []HTTPTestConfig{{Port: "8080"}}, nil, nil, nil); err == nil {
+		t.Fatalf("expected wrapped backend startup error")
+	}
+
+	setRunBackend(t, func(waitCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+		if req.WaitingFor == nil {
+			return nil, errors.New("missing waiting strategy")
+		}
+		if len(req.ExposedPorts) != 2 {
+			return nil, errors.New("expected exposed ports to be configured")
+		}
+
+		return &fakeContainer{state: &container.State{ExitCode: 0}, terminateErr: errors.New("term fail")}, nil
+	})
+	if err := CheckHealthAndWaits(ctx, "img", []HTTPTestConfig{{Port: "8080", Path: "/ready"}}, []TCPTestConfig{{Port: "9090"}}, []string{"/etc/hosts"}, nil); err == nil || !strings.Contains(err.Error(), "failed to terminate container") {
+		t.Fatalf("expected terminate failure, got %v", err)
+	}
+
+	setRunBackend(t, func(waitCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+		if req.WaitingFor == nil {
+			return nil, errors.New("missing waiting strategy")
+		}
+		if len(req.ExposedPorts) != 0 {
+			return nil, errors.New("expected no exposed ports for file-only checks")
+		}
+
+		return &fakeContainer{state: &container.State{ExitCode: 0}}, nil
+	})
+	if err := CheckHealthAndWaits(ctx, "img", nil, nil, []string{"/bin/sh"}, &ContainerConfig{Env: map[string]string{"A": "1"}}); err != nil {
+		t.Fatalf("expected combined waits success, got %v", err)
+	}
+}
+
+func TestRunContainerLifecycleHooksExecute(t *testing.T) {
+	ctx := context.Background()
+	withEnv(t, "TESTHELPERS_CONTAINER_LOGS", "never")
+
+	setRunBackend(t, func(runCtx context.Context, _ string, opts ...testcontainers.ContainerCustomizer) (testcontainers.Container, error) {
+		req := testcontainers.GenericContainerRequest{}
+		for _, opt := range opts {
+			if err := opt.Customize(&req); err != nil {
+				return nil, err
+			}
+		}
+
+		c := &fakeContainer{}
+		for _, hooks := range req.LifecycleHooks {
+			for _, hook := range hooks.PostCreates {
+				if err := hook(runCtx, nil); err != nil {
+					return nil, err
+				}
+				if err := hook(runCtx, c); err != nil {
+					return nil, err
+				}
+			}
+			for _, hook := range hooks.PreStarts {
+				if err := hook(runCtx, c); err != nil {
+					return nil, err
+				}
+			}
+			for _, hook := range hooks.PostStarts {
+				if err := hook(runCtx, c); err != nil {
+					return nil, err
+				}
+			}
+			for _, hook := range hooks.PostReadies {
+				if err := hook(runCtx, c); err != nil {
+					return nil, err
+				}
+			}
+		}
+
+		return c, nil
+	})
+
+	if _, err := runContainer(ctx, "img"); err != nil {
+		t.Fatalf("expected lifecycle hook execution success, got %v", err)
 	}
 }
 
