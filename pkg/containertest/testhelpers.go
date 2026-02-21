@@ -506,6 +506,64 @@ type HealthCommandTestConfig struct {
 	MatchContent     bool   `yaml:"matchContent"`
 }
 
+type labeledWaitStrategy struct {
+	label    string
+	strategy wait.Strategy
+}
+
+func (l labeledWaitStrategy) String() string {
+	if strings.TrimSpace(l.label) != "" {
+		return l.label
+	}
+
+	if l.strategy == nil {
+		return "<nil>"
+	}
+
+	if stringer, ok := l.strategy.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+
+	return fmt.Sprintf("%T", l.strategy)
+}
+
+func (l labeledWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	if l.strategy == nil {
+		return fmt.Errorf("%s: wait strategy is nil", l.String())
+	}
+
+	if err := l.strategy.WaitUntilReady(ctx, target); err != nil {
+		return fmt.Errorf("%s: %w", l.String(), err)
+	}
+
+	return nil
+}
+
+func withWaitLabel(label string, strategy wait.Strategy) wait.Strategy {
+	return labeledWaitStrategy{label: label, strategy: strategy}
+}
+
+func withWaitOrderLabels(strategies []wait.Strategy) []wait.Strategy {
+	if len(strategies) == 0 {
+		return nil
+	}
+
+	ordered := make([]wait.Strategy, 0, len(strategies))
+	total := len(strategies)
+	for index, strategy := range strategies {
+		baseStrategy := strategy
+		description := describeWaitStrategies([]wait.Strategy{strategy})[0]
+		if labeled, ok := strategy.(labeledWaitStrategy); ok {
+			baseStrategy = labeled.strategy
+			description = labeled.String()
+		}
+
+		ordered = append(ordered, withWaitLabel(fmt.Sprintf("wait[%d/%d] %s", index+1, total, description), baseStrategy))
+	}
+
+	return ordered
+}
+
 func describeWaitStrategies(strategies []wait.Strategy) []string {
 	descriptions := make([]string, 0, len(strategies))
 	for _, strategy := range strategies {
@@ -567,12 +625,18 @@ func appendHTTPWaitStrategies(httpConfigs []HTTPTestConfig, portsSet map[string]
 		statusCodeMatcher := httpConfig.StatusCodeMatcher
 		logInfo("Adding HTTP wait #%d: port=%s path=%s expectedStatus=%d startupTimeout=%s", index+1, portStr, httpConfig.Path, httpConfig.StatusCode, waitStartupTimeout.Round(time.Second))
 		tcpWaitStrategies = append(tcpWaitStrategies,
-			wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout),
+			withWaitLabel(
+				fmt.Sprintf("http wait #%d tcp listen on %s", index+1, portStr),
+				wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout),
+			),
 		)
 		httpWaitStrategies = append(httpWaitStrategies,
-			wait.ForHTTP(httpConfig.Path).WithPort(portTCP).WithStatusCodeMatcher(func(status int) bool {
-				return statusCodeMatcher(status)
-			}).WithStartupTimeout(waitStartupTimeout),
+			withWaitLabel(
+				fmt.Sprintf("http wait #%d GET %s on %s expected status %d", index+1, httpConfig.Path, portStr, httpConfig.StatusCode),
+				wait.ForHTTP(httpConfig.Path).WithPort(portTCP).WithStatusCodeMatcher(func(status int) bool {
+					return statusCodeMatcher(status)
+				}).WithStartupTimeout(waitStartupTimeout),
+			),
 		)
 	}
 
@@ -590,7 +654,12 @@ func appendTCPWaitStrategies(tcpConfigs []TCPTestConfig, portsSet map[string]str
 		portsSet[portStr] = struct{}{}
 		logInfo("Adding TCP wait #%d: port=%s startupTimeout=%s", index+1, portStr, waitStartupTimeout.Round(time.Second))
 
-		tcpWaitStrategies = append(tcpWaitStrategies, wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout))
+		tcpWaitStrategies = append(tcpWaitStrategies,
+			withWaitLabel(
+				fmt.Sprintf("tcp wait #%d listen on %s", index+1, portStr),
+				wait.ForListeningPort(portTCP).WithStartupTimeout(waitStartupTimeout),
+			),
+		)
 	}
 
 	return tcpWaitStrategies, nil
@@ -604,7 +673,12 @@ func appendFileExecWaitStrategies(filePaths []string, fileWaitStrategies []wait.
 		}
 
 		logInfo("Adding file exec wait #%d: path=%s", index+1, trimmedPath)
-		fileWaitStrategies = append(fileWaitStrategies, wait.ForExec([]string{"test", "-f", trimmedPath}).WithExitCode(0))
+		fileWaitStrategies = append(fileWaitStrategies,
+			withWaitLabel(
+				fmt.Sprintf("file wait #%d test -f %s", index+1, trimmedPath),
+				wait.ForExec([]string{"test", "-f", trimmedPath}).WithExitCode(0),
+			),
+		)
 	}
 
 	return fileWaitStrategies, nil
@@ -626,7 +700,7 @@ func CheckHealth(ctx context.Context, image string, containerConfig *ContainerCo
 		waitStartupTimeout = remaining
 	}
 
-	waits := []wait.Strategy{wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)}
+	waits := withWaitOrderLabels([]wait.Strategy{withWaitLabel("health wait docker healthcheck", wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout))})
 	logInfo("Health check details: startupTimeout=%s", waitStartupTimeout.Round(time.Second))
 	logWaitStrategiesStart("health check", waits)
 
@@ -698,6 +772,7 @@ func CheckWaits(ctx context.Context, image string, httpConfigs []HTTPTestConfig,
 
 	// Global invariant: run all TCP waits before any HTTP waits.
 	waitStrategies := append(tcpWaitStrategies, httpWaitStrategies...)
+	waitStrategies = withWaitOrderLabels(waitStrategies)
 	logWaitStrategiesStart("wait checks", waitStrategies)
 
 	exposedPorts := make([]string, 0, len(portsSet))
@@ -782,13 +857,14 @@ func CheckHealthAndWaits(ctx context.Context, image string, httpConfigs []HTTPTe
 
 	waitStrategies := make([]wait.Strategy, 0, 1+len(tcpWaitStrategies)+len(httpWaitStrategies)+len(fileWaitStrategies))
 	if len(httpConfigs) > 0 || len(tcpConfigs) > 0 {
-		healthWaitStrategy := wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout)
+		healthWaitStrategy := withWaitLabel("health wait docker healthcheck", wait.ForHealthCheck().WithStartupTimeout(waitStartupTimeout))
 		waitStrategies = append(waitStrategies, healthWaitStrategy)
 	}
 	// Global invariant: optional health first, then all TCP waits, then all HTTP waits, then file exec waits.
 	waitStrategies = append(waitStrategies, tcpWaitStrategies...)
 	waitStrategies = append(waitStrategies, httpWaitStrategies...)
 	waitStrategies = append(waitStrategies, fileWaitStrategies...)
+	waitStrategies = withWaitOrderLabels(waitStrategies)
 	logWaitStrategiesStart("combined health+wait checks", waitStrategies)
 
 	exposedPorts := make([]string, 0, len(portsSet))

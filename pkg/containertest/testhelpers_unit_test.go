@@ -141,6 +141,14 @@ func (f fakeWaitStrategyNoStringer) WaitUntilReady(context.Context, wait.Strateg
 	return nil
 }
 
+type fakeWaitStrategyFailure struct {
+	err error
+}
+
+func (f fakeWaitStrategyFailure) WaitUntilReady(context.Context, wait.StrategyTarget) error {
+	return f.err
+}
+
 func withEnv(t *testing.T, key, value string) {
 	t.Helper()
 	old, had := os.LookupEnv(key)
@@ -773,6 +781,38 @@ func TestWaitStrategyHelpers(t *testing.T) {
 
 	logWaitStrategiesStart("empty", nil)
 	logWaitStrategiesStart("filled", []wait.Strategy{wait.ForHealthCheck()})
+}
+
+func TestLabeledWaitStrategyIncludesLabelOnFailure(t *testing.T) {
+	strategy := withWaitLabel("tcp wait #1 listen on 9117/tcp", fakeWaitStrategyFailure{err: context.DeadlineExceeded})
+	err := strategy.WaitUntilReady(context.Background(), &fakeStrategyTarget{})
+	if err == nil {
+		t.Fatalf("expected labeled wait strategy failure")
+	}
+	if !strings.Contains(err.Error(), "tcp wait #1 listen on 9117/tcp") {
+		t.Fatalf("expected wait label in error, got %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded to be preserved, got %v", err)
+	}
+}
+
+func TestWithWaitOrderLabelsIncludesOrderOnFailure(t *testing.T) {
+	strategies := withWaitOrderLabels([]wait.Strategy{
+		withWaitLabel("tcp wait #1 listen on 9117/tcp", fakeWaitStrategyNoStringer{}),
+		withWaitLabel("http wait #1 GET /ready on 9117/tcp expected status 200", fakeWaitStrategyFailure{err: context.DeadlineExceeded}),
+	})
+
+	err := strategies[1].WaitUntilReady(context.Background(), &fakeStrategyTarget{})
+	if err == nil {
+		t.Fatalf("expected ordered wait strategy failure")
+	}
+	if !strings.Contains(err.Error(), "wait[2/2] http wait #1 GET /ready on 9117/tcp expected status 200") {
+		t.Fatalf("expected ordered wait label in error, got %v", err)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected deadline exceeded to be preserved, got %v", err)
+	}
 }
 
 func TestCheckHealthAndWaitsWithoutDocker(t *testing.T) {
