@@ -588,6 +588,39 @@ func TestWaitStrategyBuilders(t *testing.T) {
 	if len(tcpOnly) != 1 {
 		t.Fatalf("expected one tcp wait strategy")
 	}
+
+	_, verboseHTTPWaits, err := appendHTTPWaitStrategies([]HTTPTestConfig{{Port: "8080", Path: "/", StatusCode: http.StatusOK}}, map[string]struct{}{}, nil, nil, 400*time.Millisecond)
+	if err != nil {
+		t.Fatalf("unexpected verbose http wait append error: %v", err)
+	}
+
+	statusServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer statusServer.Close()
+
+	statusHost := strings.TrimPrefix(statusServer.URL, "http://")
+	statusParts := strings.Split(statusHost, ":")
+	if len(statusParts) != 2 {
+		t.Fatalf("unexpected status server host format: %q", statusHost)
+	}
+	statusPort, err := strconv.Atoi(statusParts[1])
+	if err != nil {
+		t.Fatalf("failed parsing status server port: %v", err)
+	}
+
+	verboseWaitCtx, verboseCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer verboseCancel()
+	err = verboseHTTPWaits[0].WaitUntilReady(verboseWaitCtx, &fakeStrategyTarget{host: statusParts[0], port: nat.Port(strconv.Itoa(statusPort))})
+	if err == nil {
+		t.Fatalf("expected verbose http wait to fail for status mismatch")
+	}
+	if !strings.Contains(err.Error(), "expected status 200") {
+		t.Fatalf("expected verbose status error to include expected status, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "last observed 503") {
+		t.Fatalf("expected verbose status error to include observed status, got %v", err)
+	}
 }
 
 func TestContainerLifecycleHelpers(t *testing.T) {
@@ -795,6 +828,19 @@ func TestLabeledWaitStrategyIncludesLabelOnFailure(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded to be preserved, got %v", err)
 	}
+}
+
+func TestWithWaitLabelDoesNotPanicInMultiStrategyString(t *testing.T) {
+	wrapped := withWaitLabel("tcp wait #1 listen on 9117/tcp", fakeWaitStrategyNoStringer{})
+	multi := wait.ForAll(wrapped)
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Fatalf("unexpected panic while stringifying multi wait strategy: %v", recovered)
+		}
+	}()
+
+	_ = multi.String()
 }
 
 func TestWithWaitOrderLabelsIncludesOrderOnFailure(t *testing.T) {

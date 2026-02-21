@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -511,7 +512,11 @@ type labeledWaitStrategy struct {
 	strategy wait.Strategy
 }
 
-func (l labeledWaitStrategy) String() string {
+func (l *labeledWaitStrategy) String() string {
+	if l == nil {
+		return "<nil>"
+	}
+
 	if strings.TrimSpace(l.label) != "" {
 		return l.label
 	}
@@ -527,7 +532,11 @@ func (l labeledWaitStrategy) String() string {
 	return fmt.Sprintf("%T", l.strategy)
 }
 
-func (l labeledWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+func (l *labeledWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	if l == nil {
+		return fmt.Errorf("wait strategy is nil")
+	}
+
 	if l.strategy == nil {
 		return fmt.Errorf("%s: wait strategy is nil", l.String())
 	}
@@ -540,7 +549,7 @@ func (l labeledWaitStrategy) WaitUntilReady(ctx context.Context, target wait.Str
 }
 
 func withWaitLabel(label string, strategy wait.Strategy) wait.Strategy {
-	return labeledWaitStrategy{label: label, strategy: strategy}
+	return &labeledWaitStrategy{label: label, strategy: strategy}
 }
 
 func withWaitOrderLabels(strategies []wait.Strategy) []wait.Strategy {
@@ -553,15 +562,50 @@ func withWaitOrderLabels(strategies []wait.Strategy) []wait.Strategy {
 	for index, strategy := range strategies {
 		baseStrategy := strategy
 		description := describeWaitStrategies([]wait.Strategy{strategy})[0]
-		if labeled, ok := strategy.(labeledWaitStrategy); ok {
-			baseStrategy = labeled.strategy
-			description = labeled.String()
+		if labeled, ok := strategy.(*labeledWaitStrategy); ok {
+			if labeled == nil {
+				baseStrategy = nil
+				description = "<nil>"
+			} else {
+				baseStrategy = labeled.strategy
+				description = labeled.String()
+			}
 		}
 
 		ordered = append(ordered, withWaitLabel(fmt.Sprintf("wait[%d/%d] %s", index+1, total, description), baseStrategy))
 	}
 
 	return ordered
+}
+
+type verboseHTTPWaitStrategy struct {
+	base            wait.Strategy
+	requestPath     string
+	port            string
+	expectedStatus  int
+	lastStatus      int
+	hasObservedHTTP bool
+}
+
+func (v *verboseHTTPWaitStrategy) WaitUntilReady(ctx context.Context, target wait.StrategyTarget) error {
+	if v.base == nil {
+		return fmt.Errorf("http wait strategy is nil")
+	}
+
+	if err := v.base.WaitUntilReady(ctx, target); err != nil {
+		if v.hasObservedHTTP {
+			statusText := http.StatusText(v.lastStatus)
+			if statusText == "" {
+				statusText = "unknown status"
+			}
+
+			return fmt.Errorf("HTTP GET %s on %s expected status %d, last observed %d (%s): %w", v.requestPath, v.port, v.expectedStatus, v.lastStatus, statusText, err)
+		}
+
+		return fmt.Errorf("HTTP GET %s on %s expected status %d, but no HTTP response was observed before timeout: %w", v.requestPath, v.port, v.expectedStatus, err)
+	}
+
+	return nil
 }
 
 func describeWaitStrategies(strategies []wait.Strategy) []string {
@@ -633,9 +677,21 @@ func appendHTTPWaitStrategies(httpConfigs []HTTPTestConfig, portsSet map[string]
 		httpWaitStrategies = append(httpWaitStrategies,
 			withWaitLabel(
 				fmt.Sprintf("http wait #%d GET %s on %s expected status %d", index+1, httpConfig.Path, portStr, httpConfig.StatusCode),
-				wait.ForHTTP(httpConfig.Path).WithPort(portTCP).WithStatusCodeMatcher(func(status int) bool {
-					return statusCodeMatcher(status)
-				}).WithStartupTimeout(waitStartupTimeout),
+				func() wait.Strategy {
+					verboseHTTPWait := &verboseHTTPWaitStrategy{
+						requestPath:    httpConfig.Path,
+						port:           portStr,
+						expectedStatus: httpConfig.StatusCode,
+					}
+
+					verboseHTTPWait.base = wait.ForHTTP(httpConfig.Path).WithPort(portTCP).WithStatusCodeMatcher(func(status int) bool {
+						verboseHTTPWait.lastStatus = status
+						verboseHTTPWait.hasObservedHTTP = true
+						return statusCodeMatcher(status)
+					}).WithStartupTimeout(waitStartupTimeout)
+
+					return verboseHTTPWait
+				}(),
 			),
 		)
 	}
