@@ -160,8 +160,7 @@ func buildMainRunnerSpec(spec *RunnerConfig) RunnerConfig {
 //   - Wait checks are executed once by the dedicated waits runner.
 //   - A standard container run is performed for that runner.
 //
-// When no runners are defined a single default runner is used, which is equivalent
-// to the previous single-pass behaviour.
+// When no runners are defined, runner-specific checks are skipped.
 func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, containerConfig *ContainerConfig) error {
 	config, err := loadContainerTestYAMLFn(yamlPath)
 	if err != nil {
@@ -181,11 +180,9 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		config.Mounts[index].Path = trimmedPath
 	}
 
-	// Build the list of runners; default to a single empty runner for backward compatibility.
+	// Build the list of configured runners. If none are configured, runner-specific
+	// checks are skipped.
 	runners := config.Runners
-	if len(runners) == 0 {
-		runners = []RunnerConfig{{}}
-	}
 
 	for index, filePath := range config.FilePaths {
 		trimmedPath := strings.TrimSpace(filePath)

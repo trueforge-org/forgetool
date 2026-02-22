@@ -144,13 +144,20 @@ func TestRunChecksFromYAMLValidationAndErrors(t *testing.T) {
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{}, nil
 	}
-	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+	standardRunCalls := 0
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
+		standardRunCalls++
+		return nil
+	}
 	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
-		t.Fatalf("expected default standard run to succeed, got %v", err)
+		t.Fatalf("expected success when no checks are configured, got %v", err)
+	}
+	if standardRunCalls != 0 {
+		t.Fatalf("expected no standard runs when no runners are configured, got %d", standardRunCalls)
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{}, nil
+		return ContainerTestYAML{Runners: []RunnerConfig{{}}}, nil
 	}
 	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error {
 		return errors.New("standard run boom")
@@ -369,7 +376,8 @@ func TestRunChecksFromYAMLMergesMountsIntoConfig(t *testing.T) {
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
-			Mounts: yamlMounts,
+			Mounts:  yamlMounts,
+			Runners: []RunnerConfig{{}},
 		}, nil
 	}
 
@@ -441,8 +449,8 @@ func TestRunChecksFromYAMLCallsAllCheckTypes(t *testing.T) {
 		t.Fatalf("unexpected run error: %v", err)
 	}
 
-	if calledHealthAndWaits != 1 || calledStandardRun != 1 {
-		t.Fatalf("expected all checks once, got health+waits=%d standardRun=%d", calledHealthAndWaits, calledStandardRun)
+	if calledHealthAndWaits != 1 || calledStandardRun != 0 {
+		t.Fatalf("expected only main-runner checks with no configured runners, got health+waits=%d standardRun=%d", calledHealthAndWaits, calledStandardRun)
 	}
 
 	if len(callOrder) < 1 || callOrder[0] != "health+waits" {
@@ -483,8 +491,8 @@ func TestRunChecksFromYAMLTopLevelFilePathsUseCombinedChecks(t *testing.T) {
 	if combinedCalls != 1 {
 		t.Fatalf("expected combined checks once, got %d", combinedCalls)
 	}
-	if standardRunCalls != 1 {
-		t.Fatalf("expected standard run once, got %d", standardRunCalls)
+	if standardRunCalls != 0 {
+		t.Fatalf("expected no standard runs when no runners are configured, got %d", standardRunCalls)
 	}
 }
 
@@ -596,6 +604,7 @@ func TestRunChecksFromYAMLReadOnlyRootfs(t *testing.T) {
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
 			ReadOnlyRootfs: true,
+			Runners:        []RunnerConfig{{}},
 		}, nil
 	}
 	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
@@ -623,6 +632,7 @@ func TestRunChecksFromYAMLReadOnlyRootfsMergesExistingConfig(t *testing.T) {
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
 			ReadOnlyRootfs: true,
+			Runners:        []RunnerConfig{{}},
 		}, nil
 	}
 	checkStandardRunFn = func(_ context.Context, _ string, cfg *ContainerConfig) error {
@@ -697,7 +707,7 @@ func TestBuildRunnerContainerConfig(t *testing.T) {
 	}
 }
 
-func TestRunChecksFromYAMLDefaultRunnerUsesCallerConfig(t *testing.T) {
+func TestRunChecksFromYAMLConfiguredRunnerUsesCallerConfig(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
 
@@ -711,7 +721,7 @@ func TestRunChecksFromYAMLDefaultRunnerUsesCallerConfig(t *testing.T) {
 	}
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
-		return ContainerTestYAML{}, nil
+		return ContainerTestYAML{Runners: []RunnerConfig{{}}}, nil
 	}
 
 	caller := &ContainerConfig{Env: map[string]string{"X": "1"}}
