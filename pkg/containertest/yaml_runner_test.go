@@ -1073,3 +1073,68 @@ func TestRunChecksFromYAMLRunnerStandardRunError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestRunChecksFromYAMLMainRunnerDisabledSkipsHealthWaits(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	healthCalled := false
+	healthCommandsCalled := false
+
+	checkHealthFn = func(context.Context, string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, []string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+	checkHealthCommandsFn = func(context.Context, string, *ContainerConfig, []HealthCommandTestConfig) error {
+		healthCommandsCalled = true
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			MainRunner: &RunnerConfig{Disabled: true},
+			HTTP:       []HTTPTestConfig{{Port: "8080"}},
+			TCP:        []TCPTestConfig{{Port: "9090"}},
+			FilePaths:  []string{"/etc/hosts"},
+			HealthCommands: []HealthCommandTestConfig{
+				{Command: "healthcheck"},
+			},
+			Runners: []RunnerConfig{{}},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if healthCalled {
+		t.Fatalf("expected health/wait checks to be skipped when mainRunner.disabled=true")
+	}
+	if healthCommandsCalled {
+		t.Fatalf("expected healthCommands to be skipped when mainRunner.disabled=true")
+	}
+}
+
+func TestLoadContainerTestYAMLMainRunnerDisabledField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "disabled.yaml")
+	content := "mainRunner:\n  disabled: true\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed writing yaml: %v", err)
+	}
+	config, err := LoadContainerTestYAML(path)
+	if err != nil {
+		t.Fatalf("unexpected load error: %v", err)
+	}
+	if config.MainRunner == nil {
+		t.Fatalf("expected mainRunner to be present")
+	}
+	if !config.MainRunner.Disabled {
+		t.Fatalf("expected mainRunner.disabled=true, got false")
+	}
+}

@@ -250,6 +250,13 @@
             0,
             7
           ]
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "When true on mainRunner, skips all main health/wait/file/healthCommands checks entirely. Has no effect on entries in runners[].",
+          "examples": [
+            true
+          ]
         }
       }
     },
