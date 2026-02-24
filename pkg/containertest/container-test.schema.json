@@ -251,11 +251,12 @@
             7
           ]
         },
-        "disabled": {
+        "enabled": {
           "type": "boolean",
-          "description": "When true on mainRunner, skips all main health/wait/file/healthCommands checks entirely. Has no effect on entries in runners[].",
+          "default": true,
+          "description": "When explicitly false on mainRunner, skips all main health/wait/file/healthCommands checks entirely. Has no effect on entries in runners[]. Defaults to true when unset.",
           "examples": [
-            true
+            false
           ]
         }
       }

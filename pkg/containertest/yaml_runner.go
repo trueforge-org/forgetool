@@ -34,14 +34,15 @@ var (
 //     and assert this string is present in the output
 //   - exitCode: int                 optional expected container exit code; when set,
 //     the runner output check verifies the container exits with this exact code
-//   - disabled: bool                when true on mainRunner, skips main health/wait checks entirely
+//   - enabled: *bool                when explicitly false on mainRunner, skips main health/wait checks entirely;
+//     defaults to true when unset
 type RunnerConfig struct {
 	Env            map[string]string `yaml:"env"`
 	Entrypoint     string            `yaml:"entrypoint"`
 	Cmd            string            `yaml:"cmd"`
 	ExpectedOutput string            `yaml:"expectedOutput"`
 	ExitCode       *int              `yaml:"exitCode"`
-	Disabled       bool              `yaml:"disabled"`
+	Enabled        *bool             `yaml:"enabled"`
 }
 
 // ContainerTestYAML defines the struct-based container-test.yaml schema.
@@ -198,7 +199,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 	mainRunnerFilePaths := append([]string{}, config.FilePaths...)
 	mainRunnerSpec := buildMainRunnerSpec(config.MainRunner)
 
-	mainRunnerDisabled := config.MainRunner != nil && config.MainRunner.Disabled
+	mainRunnerDisabled := config.MainRunner != nil && config.MainRunner.Enabled != nil && !*config.MainRunner.Enabled
 	hasFileWaits := len(mainRunnerFilePaths) > 0
 	hasHealthCommandWaits := len(config.HealthCommands) > 0
 	hasCombinedWaits := hasTCPHTTPChecks || hasFileWaits
@@ -249,7 +250,7 @@ func RunChecksFromYAML(ctx context.Context, image string, yamlPath string, conta
 		}
 	} else {
 		if mainRunnerDisabled {
-			logInfo("Main runner: skipping health/wait/file checks (mainRunner.disabled=true)")
+			logInfo("Main runner: skipping health/wait/file checks (mainRunner.enabled=false)")
 		} else {
 			logInfo("Main runner: skipping health/wait/file checks (no tcp/http/filePaths/healthCommands configured)")
 		}

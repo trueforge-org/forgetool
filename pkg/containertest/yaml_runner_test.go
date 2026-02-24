@@ -1074,7 +1074,11 @@ func TestRunChecksFromYAMLRunnerStandardRunError(t *testing.T) {
 	}
 }
 
-func TestRunChecksFromYAMLMainRunnerDisabledSkipsHealthWaits(t *testing.T) {
+func boolPtr(v bool) *bool {
+	return &v
+}
+
+func TestRunChecksFromYAMLMainRunnerEnabledFalseSkipsHealthWaits(t *testing.T) {
 	ctx := context.Background()
 	setYAMLRunnerSeams(t)
 
@@ -1097,7 +1101,7 @@ func TestRunChecksFromYAMLMainRunnerDisabledSkipsHealthWaits(t *testing.T) {
 
 	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
 		return ContainerTestYAML{
-			MainRunner: &RunnerConfig{Disabled: true},
+			MainRunner: &RunnerConfig{Enabled: boolPtr(false)},
 			HTTP:       []HTTPTestConfig{{Port: "8080"}},
 			TCP:        []TCPTestConfig{{Port: "9090"}},
 			FilePaths:  []string{"/etc/hosts"},
@@ -1113,17 +1117,48 @@ func TestRunChecksFromYAMLMainRunnerDisabledSkipsHealthWaits(t *testing.T) {
 	}
 
 	if healthCalled {
-		t.Fatalf("expected health/wait checks to be skipped when mainRunner.disabled=true")
+		t.Fatalf("expected health/wait checks to be skipped when mainRunner.enabled=false")
 	}
 	if healthCommandsCalled {
-		t.Fatalf("expected healthCommands to be skipped when mainRunner.disabled=true")
+		t.Fatalf("expected healthCommands to be skipped when mainRunner.enabled=false")
 	}
 }
 
-func TestLoadContainerTestYAMLMainRunnerDisabledField(t *testing.T) {
+func TestRunChecksFromYAMLMainRunnerEnabledDefaultsToTrue(t *testing.T) {
+	ctx := context.Background()
+	setYAMLRunnerSeams(t)
+
+	healthCalled := false
+	checkHealthAndWaitsFn = func(context.Context, string, []HTTPTestConfig, []TCPTestConfig, []string, *ContainerConfig) error {
+		healthCalled = true
+		return nil
+	}
+	checkStandardRunFn = func(context.Context, string, *ContainerConfig) error { return nil }
+
+	// mainRunner without an explicit enabled field — health waits must still run.
+	loadContainerTestYAMLFn = func(string) (ContainerTestYAML, error) {
+		return ContainerTestYAML{
+			MainRunner: &RunnerConfig{},
+			HTTP:       []HTTPTestConfig{{Port: "8080"}},
+			Runners:    []RunnerConfig{{}},
+		}, nil
+	}
+
+	if err := RunChecksFromYAML(ctx, "img", "cfg.yaml", nil); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !healthCalled {
+		t.Fatalf("expected health/wait checks to run when mainRunner.enabled is unset (defaults to true)")
+	}
+}
+
+func TestLoadContainerTestYAMLMainRunnerEnabledField(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "disabled.yaml")
-	content := "mainRunner:\n  disabled: true\n"
+
+	// enabled: false should parse correctly.
+	path := filepath.Join(dir, "enabled-false.yaml")
+	content := "mainRunner:\n  enabled: false\n"
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("failed writing yaml: %v", err)
 	}
@@ -1134,7 +1169,23 @@ func TestLoadContainerTestYAMLMainRunnerDisabledField(t *testing.T) {
 	if config.MainRunner == nil {
 		t.Fatalf("expected mainRunner to be present")
 	}
-	if !config.MainRunner.Disabled {
-		t.Fatalf("expected mainRunner.disabled=true, got false")
+	if config.MainRunner.Enabled == nil || *config.MainRunner.Enabled {
+		t.Fatalf("expected mainRunner.enabled=false, got %v", config.MainRunner.Enabled)
+	}
+
+	// Unset enabled should yield nil (default true).
+	pathUnset := filepath.Join(dir, "enabled-unset.yaml")
+	if err := os.WriteFile(pathUnset, []byte("mainRunner: {}\n"), 0o600); err != nil {
+		t.Fatalf("failed writing yaml: %v", err)
+	}
+	configUnset, err := LoadContainerTestYAML(pathUnset)
+	if err != nil {
+		t.Fatalf("unexpected load error: %v", err)
+	}
+	if configUnset.MainRunner == nil {
+		t.Fatalf("expected mainRunner to be present")
+	}
+	if configUnset.MainRunner.Enabled != nil {
+		t.Fatalf("expected mainRunner.enabled to be nil when unset, got %v", configUnset.MainRunner.Enabled)
 	}
 }
