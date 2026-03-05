@@ -1378,6 +1378,8 @@ sigs.k8s.io/controller-runtime v0.23.1 h1:TjJSM80Nf43Mg21+RCy3J70aj/W6KyvDtOlpKf
 sigs.k8s.io/controller-runtime v0.23.1/go.mod h1:B6COOxKptp+YaUT5q4l6LqUJTRpizbgf9KSRNdQGns0=
 sigs.k8s.io/controller-runtime v0.23.2 h1:Oh3FliXaA2CS1chpUXvjVNJtsvGZYUxQH8s7bvR7aXk=
 sigs.k8s.io/controller-runtime v0.23.2/go.mod h1:B6COOxKptp+YaUT5q4l6LqUJTRpizbgf9KSRNdQGns0=
+sigs.k8s.io/controller-runtime v0.23.3 h1:VjB/vhoPoA9l1kEKZHBMnQF33tdCLQKJtydy4iqwZ80=
+sigs.k8s.io/controller-runtime v0.23.3/go.mod h1:B6COOxKptp+YaUT5q4l6LqUJTRpizbgf9KSRNdQGns0=
 sigs.k8s.io/hydrophone v0.7.0 h1:BKEb8m6mcVL6kFEZ4jUCk5VD81bqm2XPtNxFT52ifxc=
 sigs.k8s.io/hydrophone v0.7.0/go.mod h1:w22N+PiIfL6XrIAxEqnZ7HnoER3F447WvdDlQhURiro=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg=
