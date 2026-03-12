@@ -26,7 +26,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.41.0
 	golang.org/x/crypto v0.49.0
 	gopkg.in/yaml.v3 v3.0.1
-	helm.sh/helm/v3 v3.20.0
+	helm.sh/helm/v3 v3.20.1
 	k8s.io/api v0.35.2
 	k8s.io/apimachinery v0.35.2
 	k8s.io/client-go v0.35.2
@@ -412,14 +412,14 @@ require (
 	gopkg.in/typ.v4 v4.4.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	k8s.io/apiextensions-apiserver v0.35.0 // indirect
-	k8s.io/apiserver v0.35.0 // indirect
-	k8s.io/cli-runtime v0.35.0 // indirect
-	k8s.io/component-base v0.35.0 // indirect
-	k8s.io/component-helpers v0.35.0 // indirect
+	k8s.io/apiextensions-apiserver v0.35.1 // indirect
+	k8s.io/apiserver v0.35.1 // indirect
+	k8s.io/cli-runtime v0.35.1 // indirect
+	k8s.io/component-base v0.35.1 // indirect
+	k8s.io/component-helpers v0.35.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
-	k8s.io/kubectl v0.35.0 // indirect
+	k8s.io/kubectl v0.35.1 // indirect
 	k8s.io/utils v0.0.0-20260108192941-914a6e750570 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
 	sigs.k8s.io/cli-utils v0.37.3-0.20250918194211-77c836a69463 // indirect
