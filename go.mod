@@ -6,7 +6,7 @@ require (
 	filippo.io/age v1.3.1
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/beevik/ntp v1.5.0
-	github.com/budimanjojo/talhelper/v3 v3.1.6
+	github.com/budimanjojo/talhelper/v3 v3.1.7
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/getsops/sops/v3 v3.12.2
