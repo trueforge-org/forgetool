@@ -10,7 +10,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/getsops/sops/v3 v3.12.2
-	github.com/go-git/go-git/v5 v5.17.1
+	github.com/go-git/go-git/v5 v5.17.2
 	github.com/go-logr/zerologr v1.2.3
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/invopop/jsonschema v0.13.0
