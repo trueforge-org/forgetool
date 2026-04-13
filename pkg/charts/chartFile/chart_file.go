@@ -17,7 +17,7 @@ const (
 	minHelmVersion     = "3.14"
 	maxHelmVersion     = "4.1"
 	maxKubeVersion     = "1.35.0"
-	kubeVersion        = ">=1.27.0-0"
+	kubeVersion        = ">=1.33.0-0"
 	apiVersion         = "v2"
 	chartType          = "application"
 	maintainerName     = "TrueCharts"
