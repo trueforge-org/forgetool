@@ -44,6 +44,7 @@ func runChartsGenChangelog(args []string) error {
 		PrettyJSON:                true,
 		StatusUpdateInterval:      5,
 		SkipCommitsWithBadMessage: false,
+		AppType:                   changelog.AppTypeChart,
 	}
 	if err := chartsGenChangelogGenerate(opts); err != nil {
 		return fmt.Errorf("generate changelog: %w", err)
