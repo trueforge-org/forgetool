@@ -5,15 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/containertest"
+	containertest "github.com/trueforge-org/forgetool/pkg/containers/test"
 )
 
-func TestRunContainerTestPassesArgumentsToRunner(t *testing.T) {
-	oldRunner := containerTestRunChecksFn
-	t.Cleanup(func() { containerTestRunChecksFn = oldRunner })
+func TestRunContainersTestPassesArgumentsToRunner(t *testing.T) {
+	oldRunner := containersTestRunChecksFn
+	t.Cleanup(func() { containersTestRunChecksFn = oldRunner })
 
 	called := false
-	containerTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
+	containersTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
 		called = true
 		if image != "ghcr.io/trueforge-org/app:latest" {
 			t.Fatalf("expected image to be passed through, got %q", image)
@@ -30,71 +30,71 @@ func TestRunContainerTestPassesArgumentsToRunner(t *testing.T) {
 		return nil
 	}
 
-	err := runContainerTest(context.Background(), "ghcr.io/trueforge-org/app:latest", "./container-test.yaml", []string{"KEY=VALUE"})
+	err := runContainersTest(context.Background(), "ghcr.io/trueforge-org/app:latest", "./container-test.yaml", []string{"KEY=VALUE"})
 	if err != nil {
-		t.Fatalf("runContainerTest returned unexpected error: %v", err)
+		t.Fatalf("runContainersTest returned unexpected error: %v", err)
 	}
 	if !called {
 		t.Fatalf("expected runner function to be called")
 	}
 }
 
-func TestRunContainerTestReturnsErrorForInvalidEnv(t *testing.T) {
-	err := runContainerTest(context.Background(), "image", "./container-test.yaml", []string{"INVALID"})
+func TestRunContainersTestReturnsErrorForInvalidEnv(t *testing.T) {
+	err := runContainersTest(context.Background(), "image", "./container-test.yaml", []string{"INVALID"})
 	if err == nil {
 		t.Fatalf("expected error for invalid --env value")
 	}
 }
 
-func TestRunContainerTestReturnsErrorForEmptyEnvKey(t *testing.T) {
-	err := runContainerTest(context.Background(), "image", "./container-test.yaml", []string{"=VALUE"})
+func TestRunContainersTestReturnsErrorForEmptyEnvKey(t *testing.T) {
+	err := runContainersTest(context.Background(), "image", "./container-test.yaml", []string{"=VALUE"})
 	if err == nil {
 		t.Fatalf("expected error for empty --env key")
 	}
 }
 
-func TestRunContainerTestReturnsErrorWhenImageMissing(t *testing.T) {
-	err := runContainerTest(context.Background(), "", "./container-test.yaml", nil)
+func TestRunContainersTestReturnsErrorWhenImageMissing(t *testing.T) {
+	err := runContainersTest(context.Background(), "", "./container-test.yaml", nil)
 	if err == nil {
 		t.Fatalf("expected error when --image is missing")
 	}
 }
 
-func TestRunContainerTestReturnsErrorWhenConfigMissing(t *testing.T) {
-	err := runContainerTest(context.Background(), "image", "", nil)
+func TestRunContainersTestReturnsErrorWhenConfigMissing(t *testing.T) {
+	err := runContainersTest(context.Background(), "image", "", nil)
 	if err == nil {
 		t.Fatalf("expected error when --config is missing")
 	}
 }
 
-func TestRunContainerTestWrapsRunnerError(t *testing.T) {
-	oldRunner := containerTestRunChecksFn
-	t.Cleanup(func() { containerTestRunChecksFn = oldRunner })
+func TestRunContainersTestWrapsRunnerError(t *testing.T) {
+	oldRunner := containersTestRunChecksFn
+	t.Cleanup(func() { containersTestRunChecksFn = oldRunner })
 
-	containerTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
+	containersTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
 		return errors.New("boom")
 	}
 
-	err := runContainerTest(context.Background(), "image", "./container-test.yaml", nil)
+	err := runContainersTest(context.Background(), "image", "./container-test.yaml", nil)
 	if err == nil {
 		t.Fatalf("expected error when runner fails")
 	}
 }
 
-func TestContainerTestCmdRunEDelegatesToRunContainerTest(t *testing.T) {
-	oldRunner := containerTestRunChecksFn
-	oldImage := containerTestImage
-	oldConfig := containerTestConfigPath
-	oldEnv := containerTestEnvPairs
+func TestContainersTestCmdRunEDelegatesToRunContainerTest(t *testing.T) {
+	oldRunner := containersTestRunChecksFn
+	oldImage := containersTestImage
+	oldConfig := containersTestConfigPath
+	oldEnv := containersTestEnvPairs
 	t.Cleanup(func() {
-		containerTestRunChecksFn = oldRunner
-		containerTestImage = oldImage
-		containerTestConfigPath = oldConfig
-		containerTestEnvPairs = oldEnv
+		containersTestRunChecksFn = oldRunner
+		containersTestImage = oldImage
+		containersTestConfigPath = oldConfig
+		containersTestEnvPairs = oldEnv
 	})
 
 	called := false
-	containerTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
+	containersTestRunChecksFn = func(ctx context.Context, image string, yamlPath string, config *containertest.ContainerConfig) error {
 		called = true
 		if image != "img" || yamlPath != "cfg.yaml" {
 			t.Fatalf("unexpected delegated args: image=%q yaml=%q", image, yamlPath)
@@ -105,11 +105,11 @@ func TestContainerTestCmdRunEDelegatesToRunContainerTest(t *testing.T) {
 		return nil
 	}
 
-	containerTestImage = "img"
-	containerTestConfigPath = "cfg.yaml"
-	containerTestEnvPairs = []string{"A=1"}
+	containersTestImage = "img"
+	containersTestConfigPath = "cfg.yaml"
+	containersTestEnvPairs = []string{"A=1"}
 
-	if err := containerTestCmd.RunE(containerTestCmd, nil); err != nil {
+	if err := containersTestCmd.RunE(containersTestCmd, nil); err != nil {
 		t.Fatalf("unexpected RunE error: %v", err)
 	}
 	if !called {

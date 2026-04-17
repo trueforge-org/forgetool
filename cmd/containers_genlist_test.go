@@ -12,69 +12,69 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/containers/website"
 )
 
-func TestRunContainerGenListErrorPaths(t *testing.T) {
-	oldWalk := containerGenListWalk
-	oldFactory := containerGenListOptionsFactory
-	oldGet := containerGenListGetData
-	oldWrite := containerGenListWrite
+func TestRunContainersGenListErrorPaths(t *testing.T) {
+	oldWalk := containersGenListWalk
+	oldFactory := containersGenListOptionsFactory
+	oldGet := containersGenListGetData
+	oldWrite := containersGenListWrite
 	t.Cleanup(func() {
-		containerGenListWalk = oldWalk
-		containerGenListOptionsFactory = oldFactory
-		containerGenListGetData = oldGet
-		containerGenListWrite = oldWrite
+		containersGenListWalk = oldWalk
+		containersGenListOptionsFactory = oldFactory
+		containersGenListGetData = oldGet
+		containersGenListWrite = oldWrite
 	})
 
-	containerGenListOptionsFactory = func() *website.ContainerListOptions {
+	containersGenListOptionsFactory = func() *website.ContainerListOptions {
 		return &website.ContainerListOptions{OutputPath: "ignored"}
 	}
-	containerGenListGetData = func(_ *website.ContainerListOptions) fs.WalkDirFunc {
+	containersGenListGetData = func(_ *website.ContainerListOptions) fs.WalkDirFunc {
 		return func(string, fs.DirEntry, error) error { return nil }
 	}
 
 	walkErr := errors.New("walk failed")
-	containerGenListWalk = func([]string, fs.WalkDirFunc) error { return walkErr }
-	if err := runContainerGenList([]string{"./apps"}); err == nil || !strings.Contains(err.Error(), "failed to generate container list") {
+	containersGenListWalk = func([]string, fs.WalkDirFunc) error { return walkErr }
+	if err := runContainersGenList([]string{"./apps"}); err == nil || !strings.Contains(err.Error(), "failed to generate container list") {
 		t.Fatalf("expected wrapped walk error, got %v", err)
 	}
 
-	containerGenListWalk = func([]string, fs.WalkDirFunc) error { return nil }
+	containersGenListWalk = func([]string, fs.WalkDirFunc) error { return nil }
 	writeErr := errors.New("write failed")
-	containerGenListWrite = func(_ *website.ContainerListOptions) error { return writeErr }
-	if err := runContainerGenList([]string{"./apps"}); err == nil || !strings.Contains(err.Error(), "failed to write container list") {
+	containersGenListWrite = func(_ *website.ContainerListOptions) error { return writeErr }
+	if err := runContainersGenList([]string{"./apps"}); err == nil || !strings.Contains(err.Error(), "failed to write container list") {
 		t.Fatalf("expected wrapped write error, got %v", err)
 	}
 }
 
-func TestRunContainerGenListSuccess(t *testing.T) {
-	oldWalk := containerGenListWalk
-	oldFactory := containerGenListOptionsFactory
-	oldGet := containerGenListGetData
-	oldWrite := containerGenListWrite
+func TestRunContainersGenListSuccess(t *testing.T) {
+	oldWalk := containersGenListWalk
+	oldFactory := containersGenListOptionsFactory
+	oldGet := containersGenListGetData
+	oldWrite := containersGenListWrite
 	t.Cleanup(func() {
-		containerGenListWalk = oldWalk
-		containerGenListOptionsFactory = oldFactory
-		containerGenListGetData = oldGet
-		containerGenListWrite = oldWrite
+		containersGenListWalk = oldWalk
+		containersGenListOptionsFactory = oldFactory
+		containersGenListGetData = oldGet
+		containersGenListWrite = oldWrite
 	})
 
 	calledWalk := false
 	calledWrite := false
-	containerGenListOptionsFactory = func() *website.ContainerListOptions {
+	containersGenListOptionsFactory = func() *website.ContainerListOptions {
 		return &website.ContainerListOptions{OutputPath: "ignored"}
 	}
-	containerGenListGetData = func(_ *website.ContainerListOptions) fs.WalkDirFunc {
+	containersGenListGetData = func(_ *website.ContainerListOptions) fs.WalkDirFunc {
 		return func(string, fs.DirEntry, error) error { return nil }
 	}
-	containerGenListWalk = func([]string, fs.WalkDirFunc) error {
+	containersGenListWalk = func([]string, fs.WalkDirFunc) error {
 		calledWalk = true
 		return nil
 	}
-	containerGenListWrite = func(_ *website.ContainerListOptions) error {
+	containersGenListWrite = func(_ *website.ContainerListOptions) error {
 		calledWrite = true
 		return nil
 	}
 
-	if err := runContainerGenList([]string{"./apps"}); err != nil {
+	if err := runContainersGenList([]string{"./apps"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !calledWalk || !calledWrite {
@@ -82,12 +82,12 @@ func TestRunContainerGenListSuccess(t *testing.T) {
 	}
 }
 
-func TestGenContainerListCommandRunCallsRunner(t *testing.T) {
-	oldRunner := containerGenListRunner
-	t.Cleanup(func() { containerGenListRunner = oldRunner })
+func TestGenContainersListCommandRunCallsRunner(t *testing.T) {
+	oldRunner := containersGenListRunner
+	t.Cleanup(func() { containersGenListRunner = oldRunner })
 
 	called := false
-	containerGenListRunner = func(args []string) error {
+	containersGenListRunner = func(args []string) error {
 		called = true
 		if len(args) != 1 || args[0] != "./apps" {
 			t.Fatalf("unexpected args: %#v", args)
@@ -95,51 +95,51 @@ func TestGenContainerListCommandRunCallsRunner(t *testing.T) {
 		return nil
 	}
 
-	genContainerListCmd.Run(genContainerListCmd, []string{"./apps"})
+	genContainersListCmd.Run(genContainersListCmd, []string{"./apps"})
 	if !called {
 		t.Fatalf("expected command Run to call runner")
 	}
 }
 
-func TestGenContainerListCommandRunCallsOnError(t *testing.T) {
-	oldRunner := containerGenListRunner
-	oldOnError := containerGenListOnError
+func TestGenContainersListCommandRunCallsOnError(t *testing.T) {
+	oldRunner := containersGenListRunner
+	oldOnError := containersGenListOnError
 	t.Cleanup(func() {
-		containerGenListRunner = oldRunner
-		containerGenListOnError = oldOnError
+		containersGenListRunner = oldRunner
+		containersGenListOnError = oldOnError
 	})
 
 	want := errors.New("boom")
-	containerGenListRunner = func([]string) error { return want }
+	containersGenListRunner = func([]string) error { return want }
 	called := false
-	containerGenListOnError = func(err error) {
+	containersGenListOnError = func(err error) {
 		called = true
 		if !errors.Is(err, want) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
 
-	genContainerListCmd.Run(genContainerListCmd, []string{"./apps"})
+	genContainersListCmd.Run(genContainersListCmd, []string{"./apps"})
 	if !called {
 		t.Fatalf("expected command Run to call error handler")
 	}
 }
 
-func TestRunContainerGenListWithFixture(t *testing.T) {
-	oldWalk := containerGenListWalk
-	oldFactory := containerGenListOptionsFactory
-	oldGet := containerGenListGetData
-	oldWrite := containerGenListWrite
+func TestRunContainersGenListWithFixture(t *testing.T) {
+	oldWalk := containersGenListWalk
+	oldFactory := containersGenListOptionsFactory
+	oldGet := containersGenListGetData
+	oldWrite := containersGenListWrite
 	t.Cleanup(func() {
-		containerGenListWalk = oldWalk
-		containerGenListOptionsFactory = oldFactory
-		containerGenListGetData = oldGet
-		containerGenListWrite = oldWrite
+		containersGenListWalk = oldWalk
+		containersGenListOptionsFactory = oldFactory
+		containersGenListGetData = oldGet
+		containersGenListWrite = oldWrite
 	})
 
-	containerGenListWalk = defaultContainerGenListWalk
-	containerGenListGetData = defaultContainerGenListGetData
-	containerGenListWrite = defaultContainerGenListWrite
+	containersGenListWalk = defaultContainersGenListWalk
+	containersGenListGetData = defaultContainersGenListGetData
+	containersGenListWrite = defaultContainersGenListWrite
 
 	oldWD, err := os.Getwd()
 	if err != nil {
@@ -151,7 +151,7 @@ func TestRunContainerGenListWithFixture(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(oldWD) })
 
-	containerGenListOptionsFactory = func() *website.ContainerListOptions {
+	containersGenListOptionsFactory = func() *website.ContainerListOptions {
 		return &website.ContainerListOptions{OutputPath: filepath.Join(tmp, "containers.json")}
 	}
 
@@ -160,7 +160,7 @@ func TestRunContainerGenListWithFixture(t *testing.T) {
 		t.Fatalf("fixture abs path failed: %v", err)
 	}
 
-	if err := runContainerGenList([]string{fixtureRoot}); err != nil {
+	if err := runContainersGenList([]string{fixtureRoot}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -184,30 +184,30 @@ func TestRunContainerGenListWithFixture(t *testing.T) {
 	}
 }
 
-func TestDefaultContainerGenListWrappers(t *testing.T) {
-	opts := defaultContainerGenListOptionsFactory()
+func TestDefaultContainersGenListWrappers(t *testing.T) {
+	opts := defaultContainersGenListOptionsFactory()
 	if opts.OutputPath != "./containers.json" {
 		t.Fatalf("unexpected default output path: %s", opts.OutputPath)
 	}
 
-	if defaultContainerGenListGetData(opts) == nil {
+	if defaultContainersGenListGetData(opts) == nil {
 		t.Fatalf("expected container data walker function")
 	}
 
 	opts.OutputPath = filepath.Join(t.TempDir(), "containers.json")
-	if err := defaultContainerGenListWrite(opts); err == nil {
+	if err := defaultContainersGenListWrite(opts); err == nil {
 		t.Fatalf("expected write error when container list is nil")
 	}
 }
 
-func TestDefaultContainerGenListWalk_DefaultPath(t *testing.T) {
+func TestDefaultContainersGenListWalk_DefaultPath(t *testing.T) {
 	called := false
 	walkFn := func(path string, d fs.DirEntry, err error) error {
 		called = true
 		return nil
 	}
 	// Empty paths should use ./apps which doesn't exist, so it should error
-	err := defaultContainerGenListWalk(nil, walkFn)
+	err := defaultContainersGenListWalk(nil, walkFn)
 	if err == nil {
 		// Only fail if neither errored nor walked something
 		if !called {

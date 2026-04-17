@@ -11,26 +11,26 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/changelog"
 )
 
-var containerGenChangelogLongHelp = strings.TrimSpace(`
+var containersGenChangelogLongHelp = strings.TrimSpace(`
 
 `)
 
-func defaultContainerGenChangelogGenerate(opts *changelog.ChangelogOptions) error {
+func defaultContainersGenChangelogGenerate(opts *changelog.ChangelogOptions) error {
 	return opts.Generate()
 }
 
-func defaultContainerGenChangelogRender(opts *changelog.ChangelogOptions) error {
+func defaultContainersGenChangelogRender(opts *changelog.ChangelogOptions) error {
 	return opts.Render()
 }
 
 var (
-	containerGenChangelogGenerate = defaultContainerGenChangelogGenerate
-	containerGenChangelogRender   = defaultContainerGenChangelogRender
-	containerGenChangelogRunner   = runContainerGenChangelog
-	containerGenChangelogOnError  = func(err error) { log.Fatal().Err(err) }
+	containersGenChangelogGenerate = defaultContainersGenChangelogGenerate
+	containersGenChangelogRender   = defaultContainersGenChangelogRender
+	containersGenChangelogRunner   = runContainersGenChangelog
+	containersGenChangelogOnError  = func(err error) { log.Fatal().Err(err) }
 )
 
-func runContainerGenChangelog(args []string) error {
+func runContainersGenChangelog(args []string) error {
 	if len(args) < 3 {
 		return errors.New("missing required arguments. please provide the repo path, template path and apps directory")
 	}
@@ -46,28 +46,28 @@ func runContainerGenChangelog(args []string) error {
 		SkipCommitsWithBadMessage: false,
 		AppType:                   changelog.AppTypeContainer,
 	}
-	if err := containerGenChangelogGenerate(opts); err != nil {
+	if err := containersGenChangelogGenerate(opts); err != nil {
 		return fmt.Errorf("generate changelog: %w", err)
 	}
-	if err := containerGenChangelogRender(opts); err != nil {
+	if err := containersGenChangelogRender(opts); err != nil {
 		return fmt.Errorf("render changelog: %w", err)
 	}
 
 	return nil
 }
 
-var containerGenChangelogCmd = &cobra.Command{
+var containersGenChangelogCmd = &cobra.Command{
 	Use:     "genchangelog",
 	Short:   "Generate changelog for containers",
-	Long:    containerGenChangelogLongHelp,
+	Long:    containersGenChangelogLongHelp,
 	Example: "forgetool containers genchangelog <repo path> <template path> <apps dir>",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := containerGenChangelogRunner(args); err != nil {
-			containerGenChangelogOnError(err)
+		if err := containersGenChangelogRunner(args); err != nil {
+			containersGenChangelogOnError(err)
 		}
 	},
 }
 
 func init() {
-	containerCmd.AddCommand(containerGenChangelogCmd)
+	containersCmd.AddCommand(containersGenChangelogCmd)
 }

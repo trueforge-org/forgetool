@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/trueforge-org/forgetool/pkg/containertest"
+	containertest "github.com/trueforge-org/forgetool/pkg/containers/test"
 )
 
 var containersTestLongHelp = strings.TrimSpace(`
@@ -60,17 +60,17 @@ var containersTestCmd = &cobra.Command{
 	Use:     "test",
 	Short:   "Run container tests from YAML configuration",
 	Example: "forgetool containers test --image ghcr.io/trueforge-org/myimage:latest --config ./container-test.yaml",
-	Long:    containerTestLongHelp,
+	Long:    containersTestLongHelp,
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runContainerTest(cmd.Context(), containerTestImage, containerTestConfigPath, containerTestEnvPairs)
+		return runContainersTest(cmd.Context(), containersTestImage, containersTestConfigPath, containersTestEnvPairs)
 	},
 }
 
 func init() {
-	containerTestCmd.Flags().StringVar(&containerTestImage, "image", "", "container image to run")
-	containerTestCmd.Flags().StringVar(&containerTestConfigPath, "config", "", "path to container-test.yaml")
-	containerTestCmd.Flags().StringArrayVar(&containerTestEnvPairs, "env", nil, "environment variable (KEY=VALUE), repeatable")
+	containersTestCmd.Flags().StringVar(&containersTestImage, "image", "", "container image to run")
+	containersTestCmd.Flags().StringVar(&containersTestConfigPath, "config", "", "path to container-test.yaml")
+	containersTestCmd.Flags().StringArrayVar(&containersTestEnvPairs, "env", nil, "environment variable (KEY=VALUE), repeatable")
 
-	containerCmd.AddCommand(containerTestCmd)
+	containersCmd.AddCommand(containersTestCmd)
 }

@@ -14,11 +14,11 @@ var containersCmd = &cobra.Command{
 	Use:           "containers",
 	Short:         "Commands for container validation",
 	Example:       "forgetool containers test",
-	Long:          containerLongHelp,
+	Long:          containersLongHelp,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
 
 func init() {
-	RootCmd.AddCommand(containerCmd)
+	RootCmd.AddCommand(containersCmd)
 }
