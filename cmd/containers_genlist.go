@@ -11,26 +11,26 @@ import (
 	"github.com/trueforge-org/forgetool/pkg/containers/website"
 )
 
-var containerGenListLongHelp = strings.TrimSpace(`
+var containersGenListLongHelp = strings.TrimSpace(`
 Generates a JSON file listing all containers found under the given path(s).
 Each container is identified by its docker-bake.hcl file.
 `)
 
-func defaultContainerGenListOptionsFactory() *website.ContainerListOptions {
+func defaultContainersGenListOptionsFactory() *website.ContainerListOptions {
 	return &website.ContainerListOptions{
 		OutputPath: "./containers.json",
 	}
 }
 
-func defaultContainerGenListGetData(opts *website.ContainerListOptions) fs.WalkDirFunc {
+func defaultContainersGenListGetData(opts *website.ContainerListOptions) fs.WalkDirFunc {
 	return opts.GetContainerData
 }
 
-func defaultContainerGenListWrite(opts *website.ContainerListOptions) error {
+func defaultContainersGenListWrite(opts *website.ContainerListOptions) error {
 	return opts.WriteContainerList()
 }
 
-var defaultContainerGenListWalk = func(paths []string, fn fs.WalkDirFunc) error {
+var defaultContainersGenListWalk = func(paths []string, fn fs.WalkDirFunc) error {
 	if len(paths) == 0 {
 		paths = []string{"./apps"}
 	}
@@ -43,29 +43,29 @@ var defaultContainerGenListWalk = func(paths []string, fn fs.WalkDirFunc) error 
 }
 
 var (
-	containerGenListWalk           = defaultContainerGenListWalk
-	containerGenListOptionsFactory = defaultContainerGenListOptionsFactory
-	containerGenListGetData        = defaultContainerGenListGetData
-	containerGenListWrite          = defaultContainerGenListWrite
-	containerGenListRunner         = runContainerGenList
-	containerGenListOnError        = func(err error) { log.Fatal().Err(err).Msg("container list generation failed") }
+	containersGenListWalk           = defaultContainersGenListWalk
+	containersGenListOptionsFactory = defaultContainersGenListOptionsFactory
+	containersGenListGetData        = defaultContainersGenListGetData
+	containersGenListWrite          = defaultContainersGenListWrite
+	containersGenListRunner         = runContainersGenList
+	containersGenListOnError        = func(err error) { log.Fatal().Err(err).Msg("container list generation failed") }
 )
 
-func runContainerGenList(args []string) error {
-	opts := containerGenListOptionsFactory()
-	if err := containerGenListWalk(args, containerGenListGetData(opts)); err != nil {
+func runContainersGenList(args []string) error {
+	opts := containersGenListOptionsFactory()
+	if err := containersGenListWalk(args, containersGenListGetData(opts)); err != nil {
 		return fmt.Errorf("failed to generate container list json file: %w", err)
 	}
 
-	if err := containerGenListWrite(opts); err != nil {
+	if err := containersGenListWrite(opts); err != nil {
 		return fmt.Errorf("failed to write container list json file: %w", err)
 	}
 
 	return nil
 }
 
-var genContainerListCmd = &cobra.Command{
-	Use:     "gencontainerlist",
+var genContainersListCmd = &cobra.Command{
+	Use:     "gencontainerslist",
 	Short:   "Generate container list json file",
 	Long:    containerGenListLongHelp,
 	Example: "forgetool containers gencontainerlist <path to apps folder>",

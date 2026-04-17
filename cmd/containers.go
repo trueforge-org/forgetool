@@ -6,11 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var containerLongHelp = strings.TrimSpace(`
+var containersLongHelp = strings.TrimSpace(`
 These are all commands that can be used to test container images
 `)
 
-var containerCmd = &cobra.Command{
+var containersCmd = &cobra.Command{
 	Use:           "containers",
 	Short:         "Commands for container validation",
 	Example:       "forgetool containers test",
