@@ -19,6 +19,33 @@ type ChangedData struct {
 	Apps       map[string]*App `json:"apps"`
 }
 
+// UnmarshalJSON supports loading both the current "apps" key and the legacy
+// "charts" key so that cached changelog.json files produced by older versions
+// continue to work without a cache bust.
+func (c *ChangedData) UnmarshalJSON(data []byte) error {
+	type Alias ChangedData
+	aux := &struct {
+		*Alias
+		Charts map[string]*App `json:"charts"`
+	}{
+		Alias: (*Alias)(c),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	// Merge legacy "charts" entries into Apps.
+	if len(aux.Charts) > 0 && len(c.Apps) == 0 {
+		c.Apps = aux.Charts
+	} else {
+		for k, v := range aux.Charts {
+			if _, exists := c.Apps[k]; !exists {
+				c.Apps[k] = v
+			}
+		}
+	}
+	return nil
+}
+
 var readChangedDataFileFunc = os.ReadFile
 var marshalChangedDataFunc = json.MarshalIndent
 

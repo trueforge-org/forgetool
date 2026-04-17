@@ -212,3 +212,79 @@ func TestWriteToFileAndRoundTrip(t *testing.T) {
 		t.Fatalf("expected commit message preserved")
 	}
 }
+
+func TestLoadFromFileLegacyChartsKey(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "legacy.json")
+	legacy := []byte(`{
+		"last_commit": "legacy123",
+		"charts": {
+			"myapp": {
+				"versions": {
+					"2.0.0": {
+						"version": "2.0.0",
+						"train": "stable",
+						"commits": {
+							"h1": {
+								"commit_hash": "h1",
+								"parent_hash": "p1",
+								"author": {"name": "dev", "date": "2024-06-01"},
+								"kind": "fix",
+								"message": "legacy commit"
+							}
+						}
+					}
+				}
+			}
+		}
+	}`)
+	if err := os.WriteFile(tmp, legacy, 0644); err != nil {
+		t.Fatalf("write legacy file: %v", err)
+	}
+
+	var cd ChangedData
+	cd.mu = &sync.RWMutex{}
+	if err := cd.LoadFromFile(tmp); err != nil {
+		t.Fatalf("LoadFromFile legacy: %v", err)
+	}
+	if cd.LastCommit != "legacy123" {
+		t.Fatalf("expected LastCommit legacy123, got %s", cd.LastCommit)
+	}
+	if cd.Apps["myapp"] == nil {
+		t.Fatalf("expected myapp to be loaded from legacy charts key")
+	}
+	if cd.Apps["myapp"].Versions["2.0.0"].Commits["h1"].Message != "legacy commit" {
+		t.Fatalf("expected legacy commit message preserved")
+	}
+}
+
+func TestLoadFromFileWritesAppsKey(t *testing.T) {
+	tmp := filepath.Join(t.TempDir(), "roundtrip.json")
+	cd := ChangedData{
+		mu:         &sync.RWMutex{},
+		LastCommit: "rt1",
+		Apps:       map[string]*App{"testapp": {Versions: map[string]*Version{}}},
+	}
+	if err := cd.WriteToFile(tmp); err != nil {
+		t.Fatalf("WriteToFile: %v", err)
+	}
+	raw, _ := os.ReadFile(tmp)
+	if !contains(string(raw), `"apps"`) {
+		t.Fatalf("expected written JSON to use \"apps\" key, got: %s", string(raw))
+	}
+	if contains(string(raw), `"charts"`) {
+		t.Fatalf("written JSON must not contain legacy \"charts\" key")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
