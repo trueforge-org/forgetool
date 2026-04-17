@@ -14,9 +14,9 @@ import (
 )
 
 func resetChangelogGlobals() {
-	changedData = ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
-	stagingData = ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
-	activeCharts = ActiveCharts{items: make(map[string]ActiveChart), mu: &sync.RWMutex{}}
+	changedData = ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
+	stagingData = ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
+	activeApps = ActiveApps{items: make(map[string]ActiveApp), mu: &sync.RWMutex{}}
 	currentStatus = status{processedCount: 0, totalCount: 0, skippedCount: 0, avgTime: 0, totalProcessingTime: 0, mu: &sync.RWMutex{}}
 	skipCommitsWithBadMessage = false
 }
@@ -47,7 +47,7 @@ func commitAll(t *testing.T, repo *git.Repository, message string, when time.Tim
 	return h
 }
 
-func createRepoWithChartHistory(t *testing.T) (string, *object.Commit, *object.Commit, *object.Commit) {
+func createRepoWithAppHistory(t *testing.T) (string, *object.Commit, *object.Commit, *object.Commit) {
 	t.Helper()
 	repoDir := t.TempDir()
 	repo, err := git.PlainInit(repoDir, false)
@@ -55,14 +55,14 @@ func createRepoWithChartHistory(t *testing.T) (string, *object.Commit, *object.C
 		t.Fatalf("init repo failed: %v", err)
 	}
 
-	chartPath := filepath.Join(repoDir, "charts", "stable", "app", "Chart.yaml")
+	appPath := filepath.Join(repoDir, "charts", "stable", "app", "Chart.yaml")
 	valuesPath := filepath.Join(repoDir, "charts", "stable", "app", "values.yaml")
 
-	writeFile(t, chartPath, "name: app\nversion: 1.0.0\n")
+	writeFile(t, appPath, "name: app\nversion: 1.0.0\n")
 	writeFile(t, valuesPath, "foo: bar\n")
 	h1 := commitAll(t, repo, "feat(app): initial", time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC))
 
-	writeFile(t, chartPath, "name: app\nversion: 1.1.0\n")
+	writeFile(t, appPath, "name: app\nversion: 1.1.0\n")
 	writeFile(t, valuesPath, "foo: baz\n")
 	h2 := commitAll(t, repo, "feat(app): bump", time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC))
 
@@ -75,35 +75,35 @@ func createRepoWithChartHistory(t *testing.T) (string, *object.Commit, *object.C
 	return repoDir, c1, c2, c3
 }
 
-func TestActiveChartsWalkerAndLookup(t *testing.T) {
-	ac := ActiveCharts{items: make(map[string]ActiveChart), mu: &sync.RWMutex{}}
+func TestActiveAppsWalkerAndLookup(t *testing.T) {
+	ac := ActiveApps{items: make(map[string]ActiveApp), mu: &sync.RWMutex{}}
 
 	d := t.TempDir()
-	chartPath := filepath.Join(d, "charts", "stable", "app", "Chart.yaml")
-	writeFile(t, chartPath, "name: app\nversion: 1.0.0\n")
+	appPath := filepath.Join(d, "charts", "stable", "app", "Chart.yaml")
+	writeFile(t, appPath, "name: app\nversion: 1.0.0\n")
 
-	entries, err := os.ReadDir(filepath.Dir(chartPath))
+	entries, err := os.ReadDir(filepath.Dir(appPath))
 	if err != nil {
 		t.Fatalf("readdir failed: %v", err)
 	}
-	var chartEntry os.DirEntry
+	var appEntry os.DirEntry
 	for _, e := range entries {
 		if e.Name() == "Chart.yaml" {
-			chartEntry = e
+			appEntry = e
 			break
 		}
 	}
-	if chartEntry == nil {
-		t.Fatalf("missing chart entry")
+	if appEntry == nil {
+		t.Fatalf("missing app entry")
 	}
 
-	if err := ac.getActiveChartsWalker(filepath.ToSlash(chartPath), chartEntry, nil); err != nil {
+	if err := ac.getActiveAppsWalker(filepath.ToSlash(appPath), appEntry, nil); err != nil {
 		t.Fatalf("walker failed: %v", err)
 	}
-	if !ac.isActiveChart("app") {
+	if !ac.isActiveApp("app") {
 		t.Fatalf("expected app to be active")
 	}
-	if err := ac.getActiveChartsWalker("a/Chart.yaml", chartEntry, nil); err == nil {
+	if err := ac.getActiveAppsWalker("a/Chart.yaml", appEntry, nil); err == nil {
 		t.Fatalf("expected invalid short path to fail")
 	}
 }
@@ -125,11 +125,11 @@ func TestCheckPathAndValidate(t *testing.T) {
 
 	tpl := filepath.Join(td, "changelog.tmpl")
 	repoPath := filepath.Join(td, "repo")
-	chartsDir := filepath.Join(repoPath, "charts")
+	appsDir := filepath.Join(repoPath, "charts")
 	jsonPath := filepath.Join(td, "changed.json")
 	writeFile(t, tpl, "{{ .Name }}")
-	if err := os.MkdirAll(chartsDir, os.ModePerm); err != nil {
-		t.Fatalf("mkdir charts failed: %v", err)
+	if err := os.MkdirAll(appsDir, os.ModePerm); err != nil {
+		t.Fatalf("mkdir apps failed: %v", err)
 	}
 	writeFile(t, jsonPath, "{}")
 
@@ -138,7 +138,7 @@ func TestCheckPathAndValidate(t *testing.T) {
 		TemplatePath:         tpl,
 		ChangelogFileName:    "CHANGELOG.md",
 		JSONOutputPath:       jsonPath,
-		ChartsDir:            chartsDir,
+		AppsDir:              appsDir,
 		StatusUpdateInterval: 1,
 	}
 	if err := opts.validate(); err != nil {
@@ -148,9 +148,9 @@ func TestCheckPathAndValidate(t *testing.T) {
 
 func TestPatchProcessingAndVersionRouting(t *testing.T) {
 	resetChangelogGlobals()
-	repoDir, _, c2, c3 := createRepoWithChartHistory(t)
+	repoDir, _, c2, c3 := createRepoWithAppHistory(t)
 
-	activeCharts.items["app"] = ActiveChart{Name: "app", Train: "stable"}
+	activeApps.items["app"] = ActiveApp{Name: "app", Train: "stable"}
 
 	par2, err := c2.Parent(0)
 	if err != nil {
@@ -161,23 +161,23 @@ func TestPatchProcessingAndVersionRouting(t *testing.T) {
 		t.Fatalf("patch c2 failed: %v", err)
 	}
 
-	multi, err := getChartsWithMultipleChangedFiles(patch2)
+	multi, err := getAppsWithMultipleChangedFiles(patch2)
 	if err != nil {
-		t.Fatalf("getChartsWithMultipleChangedFiles failed: %v", err)
+		t.Fatalf("getAppsWithMultipleChangedFiles failed: %v", err)
 	}
 	if len(multi["app"]) == 0 {
 		t.Fatalf("expected changed files for app in repo %s", repoDir)
 	}
 
-	single := getChartsWithSingleChangedFile(multi)
+	single := getAppsWithSingleChangedFile(multi)
 	if !strings.HasSuffix(single["app"].new.Path(), "Chart.yaml") {
 		t.Fatalf("expected Chart.yaml to be preferred, got %s", single["app"].new.Path())
 	}
 
-	if err := processChartsWithSingleChangedFile(c2, par2, single); err != nil {
-		t.Fatalf("processChartsWithSingleChangedFile for c2 failed: %v", err)
+	if err := processAppsWithSingleChangedFile(c2, par2, single); err != nil {
+		t.Fatalf("processAppsWithSingleChangedFile for c2 failed: %v", err)
 	}
-	if changedData.Charts["app"] == nil || changedData.Charts["app"].Versions["1.1.0"] == nil {
+	if changedData.Apps["app"] == nil || changedData.Apps["app"].Versions["1.1.0"] == nil {
 		t.Fatalf("expected changedData to contain app@1.1.0")
 	}
 
@@ -189,15 +189,15 @@ func TestPatchProcessingAndVersionRouting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("patch c3 failed: %v", err)
 	}
-	multi3, err := getChartsWithMultipleChangedFiles(patch3)
+	multi3, err := getAppsWithMultipleChangedFiles(patch3)
 	if err != nil {
-		t.Fatalf("getChartsWithMultipleChangedFiles for c3 failed: %v", err)
+		t.Fatalf("getAppsWithMultipleChangedFiles for c3 failed: %v", err)
 	}
-	single3 := getChartsWithSingleChangedFile(multi3)
-	if err := processChartsWithSingleChangedFile(c3, par3, single3); err != nil {
-		t.Fatalf("processChartsWithSingleChangedFile for c3 failed: %v", err)
+	single3 := getAppsWithSingleChangedFile(multi3)
+	if err := processAppsWithSingleChangedFile(c3, par3, single3); err != nil {
+		t.Fatalf("processAppsWithSingleChangedFile for c3 failed: %v", err)
 	}
-	if stagingData.Charts["app"] == nil || stagingData.Charts["app"].Versions["1.1.0"] == nil {
+	if stagingData.Apps["app"] == nil || stagingData.Apps["app"].Versions["1.1.0"] == nil {
 		t.Fatalf("expected stagingData to contain app@1.1.0 for unreleased changes")
 	}
 
@@ -206,13 +206,13 @@ func TestPatchProcessingAndVersionRouting(t *testing.T) {
 func TestMergeStagingToCurrent(t *testing.T) {
 	resetChangelogGlobals()
 
-	changedData.Charts["app"] = &Chart{Versions: map[string]*Version{
+	changedData.Apps["app"] = &App{Versions: map[string]*Version{
 		"1.2.0": {Version: "1.2.0", Train: "stable", Commits: map[string]*Commit{}},
 	}}
-	stagingData.Charts["app"] = &Chart{Versions: map[string]*Version{
+	stagingData.Apps["app"] = &App{Versions: map[string]*Version{
 		"1.1.0": {Version: "1.1.0", Train: "stable", Commits: map[string]*Commit{"abc": {CommitHash: "abc", Author: Author{Name: "x", Date: "2024-01-02"}}}},
 	}}
-	stagingData.Charts["newchart"] = &Chart{Versions: map[string]*Version{
+	stagingData.Apps["newapp"] = &App{Versions: map[string]*Version{
 		"0.1.0": {Version: "0.1.0", Train: "stable", Commits: map[string]*Commit{"def": {CommitHash: "def", Author: Author{Name: "y", Date: "2024-01-02"}}}},
 	}}
 
@@ -220,28 +220,28 @@ func TestMergeStagingToCurrent(t *testing.T) {
 		t.Fatalf("mergeStagingToCurrent failed: %v", err)
 	}
 
-	if changedData.Charts["app"].Versions["1.1.0"] == nil {
+	if changedData.Apps["app"].Versions["1.1.0"] == nil {
 		t.Fatalf("expected app@1.1.0 to be present after merge")
 	}
-	if changedData.Charts["newchart"] == nil {
-		t.Fatalf("expected newchart to be copied from staging")
+	if changedData.Apps["newapp"] == nil {
+		t.Fatalf("expected newapp to be copied from staging")
 	}
 }
 
 func TestRenderWritesChangelog(t *testing.T) {
 	td := t.TempDir()
 	repoPath := filepath.Join(td, "repo")
-	chartDir := filepath.Join(repoPath, "charts", "stable", "app")
-	if err := os.MkdirAll(chartDir, os.ModePerm); err != nil {
-		t.Fatalf("mkdir chart dir failed: %v", err)
+	appDir := filepath.Join(repoPath, "charts", "stable", "app")
+	if err := os.MkdirAll(appDir, os.ModePerm); err != nil {
+		t.Fatalf("mkdir app dir failed: %v", err)
 	}
-	writeFile(t, filepath.Join(chartDir, "Chart.yaml"), "name: app\nversion: 1.0.0\n")
+	writeFile(t, filepath.Join(appDir, "Chart.yaml"), "name: app\nversion: 1.0.0\n")
 
 	tplPath := filepath.Join(td, "changelog.tmpl")
 	writeFile(t, tplPath, "# {{ .Name }}\n{{ .Train }}\n{{ range .SortedVersions }}- {{ . }}\n{{ end }}")
 
 	jsonPath := filepath.Join(td, "changed.json")
-	data := ChangedData{mu: &sync.RWMutex{}, Charts: map[string]*Chart{
+	data := ChangedData{mu: &sync.RWMutex{}, Apps: map[string]*App{
 		"app": {
 			Versions: map[string]*Version{
 				"1.0.0": {Version: "1.0.0", Train: "stable", Commits: map[string]*Commit{"a": {CommitHash: "a", Author: Author{Name: "t", Date: "2024-01-01"}}}},
@@ -257,7 +257,7 @@ func TestRenderWritesChangelog(t *testing.T) {
 		TemplatePath:         tplPath,
 		ChangelogFileName:    "CHANGELOG.md",
 		JSONOutputPath:       jsonPath,
-		ChartsDir:            filepath.Join(repoPath, "charts"),
+		AppsDir:              filepath.Join(repoPath, "charts"),
 		StatusUpdateInterval: 1,
 	}
 
@@ -271,6 +271,6 @@ func TestRenderWritesChangelog(t *testing.T) {
 		t.Fatalf("expected changelog output, got err: %v", err)
 	}
 	if !strings.Contains(string(out), "app") {
-		t.Fatalf("expected output to contain chart name, got: %s", string(out))
+		t.Fatalf("expected output to contain app name, got: %s", string(out))
 	}
 }

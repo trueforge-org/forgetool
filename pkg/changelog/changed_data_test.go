@@ -12,7 +12,7 @@ import (
 )
 
 func TestSortVersionsReverse(t *testing.T) {
-	c := &Chart{Versions: map[string]*Version{
+	c := &App{Versions: map[string]*Version{
 		"1.0.0": {Version: "1.0.0"},
 		"3.0.0": {Version: "3.0.0"},
 		"2.0.0": {Version: "2.0.0"},
@@ -34,7 +34,7 @@ func TestSortVersionsReverse(t *testing.T) {
 }
 
 func TestSortVersionsInvalidVersion(t *testing.T) {
-	c := &Chart{Versions: map[string]*Version{
+	c := &App{Versions: map[string]*Version{
 		"not-a-version": {Version: "not-a-version"},
 	}}
 	_, err := c.SortVersions(false)
@@ -43,7 +43,7 @@ func TestSortVersionsInvalidVersion(t *testing.T) {
 	}
 }
 
-func TestAddOrUpdateChartDuplicate(t *testing.T) {
+func TestAddOrUpdateAppDuplicate(t *testing.T) {
 	parentHash := plumbing.NewHash("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	commit1 := &object.Commit{
 		Hash:         plumbing.NewHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
@@ -59,22 +59,22 @@ func TestAddOrUpdateChartDuplicate(t *testing.T) {
 	}
 
 	var cd ChangedData
-	cd.AddOrUpdateChart("mychart", "1.0.0", "stable", commit1)
-	cd.AddOrUpdateChart("mychart", "1.0.0", "stable", commit2)
+	cd.AddOrUpdateApp("myapp", "1.0.0", "stable", commit1)
+	cd.AddOrUpdateApp("myapp", "1.0.0", "stable", commit2)
 
-	if len(cd.Charts["mychart"].Versions["1.0.0"].Commits) != 2 {
-		t.Fatalf("expected 2 commits, got %d", len(cd.Charts["mychart"].Versions["1.0.0"].Commits))
+	if len(cd.Apps["myapp"].Versions["1.0.0"].Commits) != 2 {
+		t.Fatalf("expected 2 commits, got %d", len(cd.Apps["myapp"].Versions["1.0.0"].Commits))
 	}
 
 	// Adding the same commit again should not increase count
-	cd.AddOrUpdateChart("mychart", "1.0.0", "stable", commit1)
-	if len(cd.Charts["mychart"].Versions["1.0.0"].Commits) != 2 {
-		t.Fatalf("expected 2 commits after duplicate, got %d", len(cd.Charts["mychart"].Versions["1.0.0"].Commits))
+	cd.AddOrUpdateApp("myapp", "1.0.0", "stable", commit1)
+	if len(cd.Apps["myapp"].Versions["1.0.0"].Commits) != 2 {
+		t.Fatalf("expected 2 commits after duplicate, got %d", len(cd.Apps["myapp"].Versions["1.0.0"].Commits))
 	}
 }
 
 func TestAddVersionIdempotent(t *testing.T) {
-	c := &Chart{}
+	c := &App{}
 	c.AddVersion("1.0.0", "stable")
 	c.AddVersion("1.0.0", "stable")
 	if len(c.Versions) != 1 {
@@ -172,7 +172,7 @@ func TestWriteToFileAndRoundTrip(t *testing.T) {
 	cd := &ChangedData{
 		mu:         &sync.RWMutex{},
 		LastCommit: "abc123",
-		Charts: map[string]*Chart{
+		Apps: map[string]*App{
 			"myapp": {
 				Versions: map[string]*Version{
 					"1.0.0": {
@@ -205,10 +205,10 @@ func TestWriteToFileAndRoundTrip(t *testing.T) {
 	if cd2.LastCommit != "abc123" {
 		t.Fatalf("expected LastCommit abc123, got %s", cd2.LastCommit)
 	}
-	if cd2.Charts["myapp"] == nil {
-		t.Fatalf("expected myapp chart")
+	if cd2.Apps["myapp"] == nil {
+		t.Fatalf("expected myapp app")
 	}
-	if cd2.Charts["myapp"].Versions["1.0.0"].Commits["hash1"].Message != "add feature" {
+	if cd2.Apps["myapp"].Versions["1.0.0"].Commits["hash1"].Message != "add feature" {
 		t.Fatalf("expected commit message preserved")
 	}
 }

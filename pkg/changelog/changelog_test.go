@@ -62,8 +62,8 @@ func TestIsValidCommit(t *testing.T) {
 	}
 }
 
-func TestChartSortVersions(t *testing.T) {
-	c := &Chart{Versions: map[string]*Version{
+func TestAppSortVersions(t *testing.T) {
+	c := &App{Versions: map[string]*Version{
 		"2.0.0": {Version: "2.0.0"},
 		"1.0.0": {Version: "1.0.0"},
 	}}
@@ -80,7 +80,7 @@ func TestChartSortVersions(t *testing.T) {
 	}
 }
 
-func TestAddOrUpdateChartAndCommits(t *testing.T) {
+func TestAddOrUpdateAppAndCommits(t *testing.T) {
 	var cd ChangedData
 
 	// construct fake commits
@@ -95,14 +95,14 @@ func TestAddOrUpdateChartAndCommits(t *testing.T) {
 		Message: "feat(core): add feature\n\ndetails",
 	}
 
-	cd.AddOrUpdateChart("mychart", "1.2.3", "trainA", commit)
+	cd.AddOrUpdateApp("myapp", "1.2.3", "trainA", commit)
 
-	if cd.Charts == nil {
-		t.Fatalf("Charts map not initialized")
+	if cd.Apps == nil {
+		t.Fatalf("Apps map not initialized")
 	}
-	ch, ok := cd.Charts["mychart"]
+	ch, ok := cd.Apps["myapp"]
 	if !ok {
-		t.Fatalf("chart missing")
+		t.Fatalf("app missing")
 	}
 	if _, ok := ch.Versions["1.2.3"]; !ok {
 		t.Fatalf("version missing")
@@ -128,7 +128,7 @@ func TestLoadAndWriteToFile(t *testing.T) {
 
 	cd := &ChangedData{}
 	// populate a small structure
-	cd.Charts = map[string]*Chart{"c": {Versions: map[string]*Version{"0.1.0": {Version: "0.1.0"}}}}
+	cd.Apps = map[string]*App{"c": {Versions: map[string]*Version{"0.1.0": {Version: "0.1.0"}}}}
 
 	if err := cd.WriteToFile(p); err != nil {
 		t.Fatalf("WriteToFile failed: %v", err)
@@ -138,11 +138,11 @@ func TestLoadAndWriteToFile(t *testing.T) {
 	if err := cd2.LoadFromFile(p); err != nil {
 		t.Fatalf("LoadFromFile failed: %v", err)
 	}
-	if cd2.Charts == nil {
-		t.Fatalf("expected charts loaded")
+	if cd2.Apps == nil {
+		t.Fatalf("expected apps loaded")
 	}
-	if _, ok := cd2.Charts["c"]; !ok {
-		t.Fatalf("expected chart 'c' in loaded data")
+	if _, ok := cd2.Apps["c"]; !ok {
+		t.Fatalf("expected app 'c' in loaded data")
 	}
 
 	// invalid path tests
@@ -262,7 +262,7 @@ func TestValidateMissingRepoPath(t *testing.T) {
 	opts := ChangelogOptions{
 		TemplatePath:         "/tmp/tmpl",
 		ChangelogFileName:    "CHANGELOG.md",
-		ChartsDir:            "/tmp/charts",
+		AppsDir:              "/tmp/charts",
 		JSONOutputPath:       "/tmp/out.json",
 		StatusUpdateInterval: 1,
 	}
@@ -275,7 +275,7 @@ func TestValidateMissingTemplatePath(t *testing.T) {
 	opts := ChangelogOptions{
 		RepoPath:             "/tmp/repo",
 		ChangelogFileName:    "CHANGELOG.md",
-		ChartsDir:            "/tmp/charts",
+		AppsDir:              "/tmp/charts",
 		JSONOutputPath:       "/tmp/out.json",
 		StatusUpdateInterval: 1,
 	}
@@ -288,7 +288,7 @@ func TestValidateMissingChangelogFileName(t *testing.T) {
 	opts := ChangelogOptions{
 		RepoPath:             "/tmp/repo",
 		TemplatePath:         "/tmp/tmpl",
-		ChartsDir:            "/tmp/charts",
+		AppsDir:              "/tmp/charts",
 		JSONOutputPath:       "/tmp/out.json",
 		StatusUpdateInterval: 1,
 	}
@@ -297,7 +297,7 @@ func TestValidateMissingChangelogFileName(t *testing.T) {
 	}
 }
 
-func TestValidateMissingChartsDir(t *testing.T) {
+func TestValidateMissingAppsDir(t *testing.T) {
 	opts := ChangelogOptions{
 		RepoPath:             "/tmp/repo",
 		TemplatePath:         "/tmp/tmpl",
@@ -306,7 +306,7 @@ func TestValidateMissingChartsDir(t *testing.T) {
 		StatusUpdateInterval: 1,
 	}
 	if err := opts.validate(); err == nil {
-		t.Fatal("expected error for missing ChartsDir")
+		t.Fatal("expected error for missing AppsDir")
 	}
 }
 
@@ -315,7 +315,7 @@ func TestValidateMissingJSONOutputPath(t *testing.T) {
 		RepoPath:             "/tmp/repo",
 		TemplatePath:         "/tmp/tmpl",
 		ChangelogFileName:    "CHANGELOG.md",
-		ChartsDir:            "/tmp/charts",
+		AppsDir:              "/tmp/charts",
 		StatusUpdateInterval: 1,
 	}
 	if err := opts.validate(); err == nil {
@@ -328,7 +328,7 @@ func TestValidateZeroStatusUpdateInterval(t *testing.T) {
 		RepoPath:          "/tmp/repo",
 		TemplatePath:      "/tmp/tmpl",
 		ChangelogFileName: "CHANGELOG.md",
-		ChartsDir:         "/tmp/charts",
+		AppsDir:           "/tmp/charts",
 		JSONOutputPath:    "/tmp/out.json",
 	}
 	if err := opts.validate(); err == nil {

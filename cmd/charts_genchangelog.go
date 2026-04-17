@@ -32,13 +32,13 @@ var (
 
 func runChartsGenChangelog(args []string) error {
 	if len(args) < 3 {
-		return errors.New("missing required arguments. please provide the repo path, template path and charts directory")
+		return errors.New("missing required arguments. please provide the repo path, template path and apps directory")
 	}
 
 	opts := &changelog.ChangelogOptions{
 		RepoPath:                  args[0],
 		TemplatePath:              args[1],
-		ChartsDir:                 args[2],
+		AppsDir:                   args[2],
 		ChangelogFileName:         "CHANGELOG.md",
 		JSONOutputPath:            "./changelog.json",
 		PrettyJSON:                true,

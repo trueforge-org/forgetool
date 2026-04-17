@@ -80,31 +80,31 @@ func (o *ChangelogOptions) reverseCommits(cIter object.CommitIter, lastCommit st
 	return commits, nil
 }
 
-// Just some random text to avoid any chart name conflicts
+// Just some random text to avoid any app name conflicts
 var invalidName = "5fdad45c8f5b954e5643c314"
 
-func getChartName(path string) string {
-	// path = charts/<train>/<chart>/...
+func getAppName(path string) string {
+	// path = apps/<train>/<app>/...
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
-		log.Debug().Msgf("failed to get chart name from path [%s]", path)
+		log.Debug().Msgf("failed to get app name from path [%s]", path)
 		return invalidName
 	}
 	return parts[2]
 }
 
-var chartFilePathRegex = regexp.MustCompile(`^charts/([\w-_]+)/([\w-_]+)/Chart.yaml$`)
+var appFilePathRegex = regexp.MustCompile(`^charts/([\w-_]+)/([\w-_]+)/Chart.yaml$`)
 var commitTreeFunc = func(c *object.Commit) (*object.Tree, error) { return c.Tree() }
 var treeFileFunc = func(t *object.Tree, path string) (*object.File, error) { return t.File(path) }
 var fileContentsFunc = func(f *object.File) (string, error) { return f.Contents() }
 
-func getChartPath(path string) (string, error) {
+func getAppPath(path string) (string, error) {
 	original := path
 	for {
 		if path == "." {
-			return "", fmt.Errorf("path too short [%s], or could not construct chart path", original)
+			return "", fmt.Errorf("path too short [%s], or could not construct app path", original)
 		}
-		if chartFilePathRegex.MatchString(filepath.Join(path, "Chart.yaml")) {
+		if appFilePathRegex.MatchString(filepath.Join(path, "Chart.yaml")) {
 			return filepath.Join(path, "Chart.yaml"), nil
 		}
 		// Remove the last part of the path and try again
@@ -112,7 +112,7 @@ func getChartPath(path string) (string, error) {
 	}
 }
 
-func getChartVersion(c *object.Commit, path string) (version string, retErr error) {
+func getAppVersion(c *object.Commit, path string) (version string, retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			retErr = fmt.Errorf("failed to get tree: %v", r)
@@ -153,10 +153,10 @@ func getVersion(strData string) (string, error) {
 	return "", fmt.Errorf("could not find version in file")
 }
 
-func getChartTrain(path string) string {
+func getAppTrain(path string) string {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
-		log.Error().Msgf("Could not get chart train from path [%s]", path)
+		log.Error().Msgf("Could not get app train from path [%s]", path)
 		return ""
 	}
 	return parts[1]

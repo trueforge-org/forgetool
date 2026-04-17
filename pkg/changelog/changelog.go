@@ -14,12 +14,12 @@ import (
 )
 
 type ChangelogOptions struct {
-	RepoPath                  string // Path to the repository (eg "./charts")
+	RepoPath                  string // Path to the repository (eg "./apps")
 	TemplatePath              string // Path to the template file (eg "./changelog.tmpl")
 	ChangelogFileName         string // Name of the changelog file eg "CHANGELOG.md"
 	JSONOutputPath            string // Path to the JSON output file
 	PrettyJSON                bool   // If true, the JSON output will be pretty-printed
-	ChartsDir                 string // Dir where the charts are located (eg "./charts/")
+	AppsDir                   string // Dir where the apps are located (eg "./apps/")
 	StatusUpdateInterval      int    // Interval in seconds between status updates
 	SkipCommitsWithBadMessage bool   // If true, commits with bad messages will be skipped
 }
@@ -52,8 +52,8 @@ func (o *ChangelogOptions) validate() error {
 	if o.ChangelogFileName == "" {
 		return fmt.Errorf("changelog file name is empty")
 	}
-	if o.ChartsDir == "" {
-		return fmt.Errorf("charts dir is empty")
+	if o.AppsDir == "" {
+		return fmt.Errorf("apps dir is empty")
 	}
 	if o.JSONOutputPath == "" {
 		return fmt.Errorf("json output path is empty")
@@ -65,7 +65,7 @@ func (o *ChangelogOptions) validate() error {
 	paths := map[string]bool{
 		o.TemplatePath:   false,
 		o.RepoPath:       false,
-		o.ChartsDir:      false,
+		o.AppsDir:        false,
 		o.JSONOutputPath: false,
 	}
 
@@ -78,13 +78,13 @@ func (o *ChangelogOptions) validate() error {
 	return nil
 }
 
-var changedData ChangedData = ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
-var stagingData ChangedData = ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
-var activeCharts ActiveCharts = ActiveCharts{items: make(map[string]ActiveChart), mu: &sync.RWMutex{}}
+var changedData ChangedData = ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
+var stagingData ChangedData = ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
+var activeApps ActiveApps = ActiveApps{items: make(map[string]ActiveApp), mu: &sync.RWMutex{}}
 var currentStatus status = status{processedCount: 0, totalCount: 0, skippedCount: 0, avgTime: 0, totalProcessingTime: 0, mu: &sync.RWMutex{}}
 var skipCommitsWithBadMessage bool
 var dateFormat = "2006-01-02"
-var walkChartsFunc = helper.WalkCharts2
+var walkAppsFunc = helper.WalkCharts2
 var openRepoFunc = git.PlainOpen
 var processCommitFunc = processCommit
 var mergeStagingToCurrentFunc = mergeStagingToCurrent
@@ -137,10 +137,10 @@ func (o *ChangelogOptions) prepareGenerate(start time.Time) error {
 		return err
 	}
 
-	if err := walkChartsFunc([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
+	if err := walkAppsFunc([]string{o.RepoPath}, activeApps.getActiveAppsWalker, helper.AsyncMode); err != nil {
 		return err
 	}
-	log.Info().Msgf("Found [%d] active charts in [%s]", len(activeCharts.items), time.Since(start))
+	log.Info().Msgf("Found [%d] active apps in [%s]", len(activeApps.items), time.Since(start))
 
 	log.Info().Msgf("Loading json %s", o.JSONOutputPath)
 	if err := changedData.LoadFromFile(o.JSONOutputPath); err != nil {
@@ -188,7 +188,7 @@ func (o *ChangelogOptions) processCommits(commits []*gitobject.Commit) {
 	}
 }
 
-// We have to go over the stagingData, for each chart,
+// We have to go over the stagingData, for each app,
 // we sort the versions from the changelogData
 // and we add the commits from stagingData to the nearest next version in changelogData
 func mergeStagingToCurrent() error {
@@ -199,8 +199,8 @@ func mergeStagingToCurrent() error {
 
 	stagingData.mu.Lock()
 	defer stagingData.mu.Unlock()
-	for chart, stagingChartItem := range stagingData.Charts {
-		if err := mergeChartStaging(chart, stagingChartItem); err != nil {
+	for app, stagingAppItem := range stagingData.Apps {
+		if err := mergeAppStaging(app, stagingAppItem); err != nil {
 			return err
 		}
 	}
@@ -209,25 +209,25 @@ func mergeStagingToCurrent() error {
 	return nil
 }
 
-func mergeChartStaging(chart string, stagingChartItem *Chart) error {
-	chartItem, ok := changedData.Charts[chart]
+func mergeAppStaging(app string, stagingAppItem *App) error {
+	appItem, ok := changedData.Apps[app]
 	if !ok {
-		changedData.Charts[chart] = stagingChartItem
+		changedData.Apps[app] = stagingAppItem
 		return nil
 	}
 
-	if chartItem.Versions == nil || len(chartItem.Versions) == 0 {
-		chartItem.Versions = stagingChartItem.Versions
+	if appItem.Versions == nil || len(appItem.Versions) == 0 {
+		appItem.Versions = stagingAppItem.Versions
 		return nil
 	}
 
-	chartVersions, err := chartItem.SortVersions(false)
+	appVersions, err := appItem.SortVersions(false)
 	if err != nil {
 		return err
 	}
 
-	for versionKey := range stagingData.Charts[chart].Versions {
-		if err = mergeVersionStaging(chart, versionKey, chartItem, stagingChartItem, chartVersions); err != nil {
+	for versionKey := range stagingData.Apps[app].Versions {
+		if err = mergeVersionStaging(app, versionKey, appItem, stagingAppItem, appVersions); err != nil {
 			return err
 		}
 	}
@@ -235,45 +235,45 @@ func mergeChartStaging(chart string, stagingChartItem *Chart) error {
 	return nil
 }
 
-func mergeVersionStaging(chart string, versionKey string, chartItem *Chart, stagingChartItem *Chart, chartVersions []*semver.Version) error {
+func mergeVersionStaging(app string, versionKey string, appItem *App, stagingAppItem *App, appVersions []*semver.Version) error {
 	stagingVer, err := semver.NewVersion(versionKey)
 	if err != nil {
 		return err
 	}
 
-	for _, chartVer := range chartVersions {
-		if !chartVer.GreaterThan(stagingVer) {
+	for _, appVer := range appVersions {
+		if !appVer.GreaterThan(stagingVer) {
 			continue
 		}
-		chartVerItem := ensureChartVersion(chartItem, versionKey, stagingChartItem)
-		mergeVersionCommits(chart, versionKey, chartVerItem, stagingChartItem.Versions[versionKey].Commits)
+		appVerItem := ensureAppVersion(appItem, versionKey, stagingAppItem)
+		mergeVersionCommits(app, versionKey, appVerItem, stagingAppItem.Versions[versionKey].Commits)
 		return nil
 	}
 
-	mergeVersionCommits(chart, versionKey, chartItem.Versions[versionKey], stagingChartItem.Versions[versionKey].Commits)
+	mergeVersionCommits(app, versionKey, appItem.Versions[versionKey], stagingAppItem.Versions[versionKey].Commits)
 	return nil
 }
 
-func ensureChartVersion(chartItem *Chart, versionKey string, stagingChartItem *Chart) *Version {
-	chartVerItem, ok := chartItem.Versions[versionKey]
+func ensureAppVersion(appItem *App, versionKey string, stagingAppItem *App) *Version {
+	appVerItem, ok := appItem.Versions[versionKey]
 	if !ok {
-		chartItem.AddVersion(versionKey, stagingChartItem.Versions[versionKey].Train)
-		chartVerItem = chartItem.Versions[versionKey]
+		appItem.AddVersion(versionKey, stagingAppItem.Versions[versionKey].Train)
+		appVerItem = appItem.Versions[versionKey]
 	}
-	return chartVerItem
+	return appVerItem
 }
 
-func mergeVersionCommits(chart string, versionKey string, chartVerItem *Version, commits map[string]*Commit) {
-	if chartVerItem.Commits == nil {
-		log.Warn().Msgf("Commits were nil for version [%s] in chart [%s]", versionKey, chart)
-		chartVerItem.Commits = make(map[string]*Commit)
+func mergeVersionCommits(app string, versionKey string, appVerItem *Version, commits map[string]*Commit) {
+	if appVerItem.Commits == nil {
+		log.Warn().Msgf("Commits were nil for version [%s] in app [%s]", versionKey, app)
+		appVerItem.Commits = make(map[string]*Commit)
 	}
 
 	for commitKey, commit := range commits {
-		if _, ok := chartVerItem.Commits[commitKey]; ok {
+		if _, ok := appVerItem.Commits[commitKey]; ok {
 			log.Warn().Msgf("Commit [%s] already exists in version [%s]", commitKey, versionKey)
 			continue
 		}
-		chartVerItem.Commits[commitKey] = commit
+		appVerItem.Commits[commitKey] = commit
 	}
 }

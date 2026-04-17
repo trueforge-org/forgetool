@@ -22,7 +22,7 @@ func TestRunChartsGenChangelog(t *testing.T) {
 	}
 
 	chartsGenChangelogGenerate = func(opts *changelog.ChangelogOptions) error {
-		if opts.RepoPath != "repo" || opts.TemplatePath != "tmpl" || opts.ChartsDir != "charts" {
+		if opts.RepoPath != "repo" || opts.TemplatePath != "tmpl" || opts.AppsDir != "charts" {
 			t.Fatalf("unexpected options: %#v", opts)
 		}
 		return nil
@@ -105,7 +105,7 @@ func TestDefaultChangelogWrappersReturnErrorsOnInvalidInput(t *testing.T) {
 	bad := &changelog.ChangelogOptions{
 		RepoPath:                  "",
 		TemplatePath:              filepath.Join("..", "does-not-exist"),
-		ChartsDir:                 "",
+		AppsDir:                   "",
 		ChangelogFileName:         "CHANGELOG.md",
 		JSONOutputPath:            filepath.Join(t.TempDir(), "changelog.json"),
 		StatusUpdateInterval:      1,
@@ -127,7 +127,7 @@ func TestDefaultChangelogWrappersDirect(t *testing.T) {
 	bad := &changelog.ChangelogOptions{
 		RepoPath:                  "",
 		TemplatePath:              filepath.Join("..", "does-not-exist"),
-		ChartsDir:                 "",
+		AppsDir:                   "",
 		ChangelogFileName:         "CHANGELOG.md",
 		JSONOutputPath:            filepath.Join(t.TempDir(), "changelog.json"),
 		StatusUpdateInterval:      1,

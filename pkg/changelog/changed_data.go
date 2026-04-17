@@ -14,59 +14,59 @@ import (
 )
 
 type ChangedData struct {
-	mu         *sync.RWMutex     `json:"-"`
-	LastCommit string            `json:"last_commit"`
-	Charts     map[string]*Chart `json:"charts"`
+	mu         *sync.RWMutex   `json:"-"`
+	LastCommit string          `json:"last_commit"`
+	Apps       map[string]*App `json:"apps"`
 }
 
 var readChangedDataFileFunc = os.ReadFile
 var marshalChangedDataFunc = json.MarshalIndent
 
-type Chart struct {
+type App struct {
 	Versions       map[string]*Version `json:"versions"`
 	SortedVersions []string            `json:"-"` // Used only for rendering
 	Name           string              `json:"-"` // Used only for rendering
 	Train          string              `json:"-"` // Used only for rendering
 }
 
-func (c *Chart) SortVersions(reverse bool) ([]*semver.Version, error) {
-	chartVersions := []*semver.Version{}
+func (c *App) SortVersions(reverse bool) ([]*semver.Version, error) {
+	appVersions := []*semver.Version{}
 	for key := range c.Versions {
 		semVer, err := semver.NewVersion(key)
 		if err != nil {
 			return nil, err
 		}
-		chartVersions = append(chartVersions, semVer)
+		appVersions = append(appVersions, semVer)
 	}
 	// Sort the versions from oldest to newest
-	sort.Slice(chartVersions, func(i, j int) bool {
+	sort.Slice(appVersions, func(i, j int) bool {
 		if reverse {
-			return chartVersions[i].GreaterThan(chartVersions[j])
+			return appVersions[i].GreaterThan(appVersions[j])
 		}
-		return chartVersions[i].LessThan(chartVersions[j])
+		return appVersions[i].LessThan(appVersions[j])
 	})
 
-	for _, version := range chartVersions {
+	for _, version := range appVersions {
 		c.SortedVersions = append(c.SortedVersions, version.String())
 	}
 
-	return chartVersions, nil
+	return appVersions, nil
 }
 
-func (c *ChangedData) AddOrUpdateChart(chart string, version string, train string, commit *object.Commit) {
-	if c.Charts == nil {
-		c.Charts = make(map[string]*Chart)
+func (c *ChangedData) AddOrUpdateApp(app string, version string, train string, commit *object.Commit) {
+	if c.Apps == nil {
+		c.Apps = make(map[string]*App)
 	}
-	_, exists := c.Charts[chart]
+	_, exists := c.Apps[app]
 	if !exists {
-		c.Charts[chart] = &Chart{}
+		c.Apps[app] = &App{}
 	}
 
-	c.Charts[chart].AddVersion(version, train)
-	c.Charts[chart].Versions[version].AddCommit(commit)
+	c.Apps[app].AddVersion(version, train)
+	c.Apps[app].Versions[version].AddCommit(commit)
 }
 
-func (c *Chart) AddVersion(version string, train string) {
+func (c *App) AddVersion(version string, train string) {
 	if c.Versions == nil {
 		c.Versions = make(map[string]*Version)
 	}

@@ -103,25 +103,25 @@ func TestProcessCommitsAndMergeHelpers(t *testing.T) {
 		t.Fatalf("expected processedCount increment")
 	}
 
-	chart := &Chart{Versions: map[string]*Version{"1.2.0": {Version: "1.2.0", Commits: map[string]*Commit{}}}}
-	staging := &Chart{Versions: map[string]*Version{"1.1.0": {Version: "1.1.0", Train: "stable", Commits: map[string]*Commit{"c1": {CommitHash: "c1"}}}}}
-	changedData.Charts = map[string]*Chart{"app": chart}
-	stagingData.Charts = map[string]*Chart{"app": staging}
-	if err := mergeChartStaging("app", staging); err != nil {
-		t.Fatalf("mergeChartStaging failed: %v", err)
+	chart := &App{Versions: map[string]*Version{"1.2.0": {Version: "1.2.0", Commits: map[string]*Commit{}}}}
+	staging := &App{Versions: map[string]*Version{"1.1.0": {Version: "1.1.0", Train: "stable", Commits: map[string]*Commit{"c1": {CommitHash: "c1"}}}}}
+	changedData.Apps = map[string]*App{"app": chart}
+	stagingData.Apps = map[string]*App{"app": staging}
+	if err := mergeAppStaging("app", staging); err != nil {
+		t.Fatalf("mergeAppStaging failed: %v", err)
 	}
 
-	changedData.Charts = map[string]*Chart{}
-	if err := mergeChartStaging("new", staging); err != nil {
-		t.Fatalf("mergeChartStaging new chart failed: %v", err)
+	changedData.Apps = map[string]*App{}
+	if err := mergeAppStaging("new", staging); err != nil {
+		t.Fatalf("mergeAppStaging new app failed: %v", err)
 	}
 
-	changedData.Charts = map[string]*Chart{"empty": {Versions: nil}}
-	if err := mergeChartStaging("empty", staging); err != nil {
-		t.Fatalf("mergeChartStaging empty versions failed: %v", err)
+	changedData.Apps = map[string]*App{"empty": {Versions: nil}}
+	if err := mergeAppStaging("empty", staging); err != nil {
+		t.Fatalf("mergeAppStaging empty versions failed: %v", err)
 	}
 
-	if err := mergeVersionStaging("x", "bad", &Chart{Versions: map[string]*Version{}}, &Chart{Versions: map[string]*Version{}}, []*semver.Version{}); err == nil {
+	if err := mergeVersionStaging("x", "bad", &App{Versions: map[string]*Version{}}, &App{Versions: map[string]*Version{}}, []*semver.Version{}); err == nil {
 		t.Fatalf("expected mergeVersionStaging semver parse error")
 	}
 }
@@ -147,13 +147,13 @@ func TestProcessCommit_SeamErrorPaths(t *testing.T) {
 	resetChangelogGlobals()
 	origParent := getParentCommitFunc
 	origPatch := getPatchFunc
-	origMulti := getChartsWithMultipleChangedFilesFunc
-	origSingle := processChartsWithSingleChangedFileFunc
+	origMulti := getAppsWithMultipleChangedFilesFunc
+	origSingle := processAppsWithSingleChangedFileFunc
 	t.Cleanup(func() {
 		getParentCommitFunc = origParent
 		getPatchFunc = origPatch
-		getChartsWithMultipleChangedFilesFunc = origMulti
-		processChartsWithSingleChangedFileFunc = origSingle
+		getAppsWithMultipleChangedFilesFunc = origMulti
+		processAppsWithSingleChangedFileFunc = origSingle
 	})
 
 	c := &object.Commit{Message: "feat(app): ok", ParentHashes: []plumbing.Hash{{}}, Hash: plumbing.NewHash("cccccccccccccccccccccccccccccccccccccccc")}
@@ -170,20 +170,20 @@ func TestProcessCommit_SeamErrorPaths(t *testing.T) {
 	}
 
 	getPatchFunc = func(_, _ *object.Commit) (*object.Patch, error) { return &object.Patch{}, nil }
-	getChartsWithMultipleChangedFilesFunc = func(_ *object.Patch) (chartsWithChangedFiles, error) { return nil, errors.New("changed") }
+	getAppsWithMultipleChangedFilesFunc = func(_ *object.Patch) (appsWithChangedFiles, error) { return nil, errors.New("changed") }
 	if err := processCommit(c); err == nil {
 		t.Fatalf("expected changed-files error")
 	}
 
-	getChartsWithMultipleChangedFilesFunc = func(_ *object.Patch) (chartsWithChangedFiles, error) {
-		return chartsWithChangedFiles{"app": {}}, nil
+	getAppsWithMultipleChangedFilesFunc = func(_ *object.Patch) (appsWithChangedFiles, error) {
+		return appsWithChangedFiles{"app": {}}, nil
 	}
-	processChartsWithSingleChangedFileFunc = func(_ *object.Commit, _ *object.Commit, _ chartsWithChangedFile) error { return errors.New("single") }
+	processAppsWithSingleChangedFileFunc = func(_ *object.Commit, _ *object.Commit, _ appsWithChangedFile) error { return errors.New("single") }
 	if err := processCommit(c); err == nil {
 		t.Fatalf("expected single-file processing error")
 	}
 
-	processChartsWithSingleChangedFileFunc = func(_ *object.Commit, _ *object.Commit, _ chartsWithChangedFile) error { return nil }
+	processAppsWithSingleChangedFileFunc = func(_ *object.Commit, _ *object.Commit, _ appsWithChangedFile) error { return nil }
 	if err := processCommit(c); err != nil {
 		t.Fatalf("expected processCommit success, got %v", err)
 	}
@@ -225,17 +225,17 @@ func TestCheckPathAndPrepareGenerateBranches(t *testing.T) {
 	td := t.TempDir()
 	tpl := filepath.Join(td, "tmpl")
 	repo := filepath.Join(td, "repo")
-	charts := filepath.Join(td, "charts")
+	apps := filepath.Join(td, "charts")
 	jsonPath := filepath.Join(td, "changed.json")
 	_ = os.WriteFile(tpl, []byte("x"), 0644)
 	_ = os.MkdirAll(repo, 0755)
-	_ = os.MkdirAll(charts, 0755)
+	_ = os.MkdirAll(apps, 0755)
 	_ = os.WriteFile(jsonPath, []byte("{}"), 0644)
 
-	opt := &ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, ChartsDir: charts, StatusUpdateInterval: 1}
-	origWalk := walkChartsFunc
-	walkChartsFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return nil }
-	t.Cleanup(func() { walkChartsFunc = origWalk })
+	opt := &ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, AppsDir: apps, StatusUpdateInterval: 1}
+	origWalk := walkAppsFunc
+	walkAppsFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return nil }
+	t.Cleanup(func() { walkAppsFunc = origWalk })
 	if err := opt.prepareGenerate(time.Now()); err != nil {
 		t.Fatalf("prepareGenerate success expected, got %v", err)
 	}
@@ -244,7 +244,7 @@ func TestCheckPathAndPrepareGenerateBranches(t *testing.T) {
 		t.Fatalf("prepareGenerate with last commit expected success, got %v", err)
 	}
 
-	walkChartsFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return errors.New("walk") }
+	walkAppsFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return errors.New("walk") }
 	if err := opt.prepareGenerate(time.Now()); err == nil {
 		t.Fatalf("expected walk error")
 	}
@@ -272,55 +272,55 @@ func (m mockFilePatch) Chunks() []diff.Chunk          { return []diff.Chunk{mock
 
 func TestPatchHelpersWithMocks(t *testing.T) {
 	resetChangelogGlobals()
-	activeCharts.items["app"] = ActiveChart{Name: "app", Train: "stable"}
-	origPath := getChartPathFunc
-	origVer := getChartVersionFunc
+	activeApps.items["app"] = ActiveApp{Name: "app", Train: "stable"}
+	origPath := getAppPathFunc
+	origVer := getAppVersionFunc
 	t.Cleanup(func() {
-		getChartPathFunc = origPath
-		getChartVersionFunc = origVer
+		getAppPathFunc = origPath
+		getAppVersionFunc = origVer
 	})
 
 	if _, _, err := getChangedFilePair(mockFilePatch{from: nil, to: nil}); !errors.Is(err, errSkipPatch) {
 		t.Fatalf("expected skip for nil new file")
 	}
 	if _, _, err := getChangedFilePair(mockFilePatch{to: mockDiffFile{p: "charts/stable/other/Chart.yaml"}}); !errors.Is(err, errSkipPatch) {
-		t.Fatalf("expected skip for inactive chart")
+		t.Fatalf("expected skip for inactive app")
 	}
-	getChartPathFunc = func(_ string) (string, error) { return "", errors.New("bad") }
+	getAppPathFunc = func(_ string) (string, error) { return "", errors.New("bad") }
 	if _, _, err := getChangedFilePair(mockFilePatch{to: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}); !errors.Is(err, errSkipPatch) {
-		t.Fatalf("expected skip for invalid chart path")
+		t.Fatalf("expected skip for invalid app path")
 	}
 
-	getChartPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
+	getAppPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
 	if _, _, err := getChangedFilePair(mockFilePatch{from: mockDiffFile{p: "charts/stable/app/values.yaml"}, to: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}); err != nil {
 		t.Fatalf("expected valid changed pair, got %v", err)
 	}
 
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "", errors.New("ver") }
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "", errors.New("ver") }
 	if _, _, err := getOldAndNewVersion(&object.Commit{}, &object.Commit{}, oldNewPaths{new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}); err == nil {
 		t.Fatalf("expected new version error")
 	}
 
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
 	if _, _, err := getOldAndNewVersion(&object.Commit{}, &object.Commit{}, oldNewPaths{new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}, old: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}); err != nil {
 		t.Fatalf("expected old/new version success, got %v", err)
 	}
 
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "bad-semver", nil }
-	if err := processChartsWithSingleChangedFile(&object.Commit{Hash: plumbing.NewHash("dddddddddddddddddddddddddddddddddddddddd"), ParentHashes: []plumbing.Hash{{}}, Author: object.Signature{Name: "t", When: time.Now()}, Message: "feat(app): add"}, &object.Commit{}, chartsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}, old: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err == nil {
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "bad-semver", nil }
+	if err := processAppsWithSingleChangedFile(&object.Commit{Hash: plumbing.NewHash("dddddddddddddddddddddddddddddddddddddddd"), ParentHashes: []plumbing.Hash{{}}, Author: object.Signature{Name: "t", When: time.Now()}, Message: "feat(app): add"}, &object.Commit{}, appsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}, old: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err == nil {
 		t.Fatalf("expected semver parse error")
 	}
 }
 
 func TestRenderSeamBranches(t *testing.T) {
 	origLoad := loadChangedDataFileFunc
-	origWalk := walkChartsRenderFunc
-	origRender := renderChartChangelogFunc
+	origWalk := walkAppsRenderFunc
+	origRender := renderAppChangelogFunc
 	t.Cleanup(func() {
 		loadChangedDataFileFunc = origLoad
-		walkChartsRenderFunc = origWalk
-		renderChartChangelogFunc = origRender
+		walkAppsRenderFunc = origWalk
+		renderAppChangelogFunc = origRender
 	})
 
 	o := &ChangelogOptions{RepoPath: t.TempDir(), JSONOutputPath: filepath.Join(t.TempDir(), "x.json")}
@@ -330,17 +330,17 @@ func TestRenderSeamBranches(t *testing.T) {
 	}
 
 	loadChangedDataFileFunc = func(_ *ChangedData, _ string) error { return nil }
-	walkChartsRenderFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return errors.New("walk") }
+	walkAppsRenderFunc = func(_ []string, _ fs.WalkDirFunc, _ helper.WalkMode) error { return errors.New("walk") }
 	if err := o.Render(); err == nil {
 		t.Fatalf("expected render walk error")
 	}
 
-	walkChartsRenderFunc = func(_ []string, walker fs.WalkDirFunc, _ helper.WalkMode) error {
+	walkAppsRenderFunc = func(_ []string, walker fs.WalkDirFunc, _ helper.WalkMode) error {
 		return walker("charts/stable/app/Chart.yaml", fakeDirEntry{name: "Chart.yaml"}, nil)
 	}
-	renderChartChangelogFunc = func(_ *ChangelogOptions, _ *ChangedData, _, _ string) error { return errors.New("chart") }
+	renderAppChangelogFunc = func(_ *ChangelogOptions, _ *ChangedData, _, _ string) error { return errors.New("app") }
 	if err := o.Render(); err == nil {
-		t.Fatalf("expected render chart error")
+		t.Fatalf("expected render app error")
 	}
 }
 
@@ -372,17 +372,17 @@ func TestChangedData_LoadAndWriteErrorSeams(t *testing.T) {
 
 func TestPatch_AdditionalBranches(t *testing.T) {
 	resetChangelogGlobals()
-	activeCharts.items["app"] = ActiveChart{Name: "app", Train: "stable"}
-	origPath := getChartPathFunc
-	origVer := getChartVersionFunc
+	activeApps.items["app"] = ActiveApp{Name: "app", Train: "stable"}
+	origPath := getAppPathFunc
+	origVer := getAppVersionFunc
 	origPatches := getFilePatchesFunc
 	t.Cleanup(func() {
-		getChartPathFunc = origPath
-		getChartVersionFunc = origVer
+		getAppPathFunc = origPath
+		getAppVersionFunc = origVer
 		getFilePatchesFunc = origPatches
 	})
 
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "bad-old" {
 			return "", errors.New("bad-old")
 		}
@@ -392,7 +392,7 @@ func TestPatch_AdditionalBranches(t *testing.T) {
 		t.Fatalf("expected skip when old path invalid")
 	}
 
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "bad-new" {
 			return "", errors.New("bad-new")
 		}
@@ -401,7 +401,7 @@ func TestPatch_AdditionalBranches(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	getChartVersionFunc = func(_ *object.Commit, path string) (string, error) {
+	getAppVersionFunc = func(_ *object.Commit, path string) (string, error) {
 		if path == "ok" {
 			return "", errors.New("ver")
 		}
@@ -410,7 +410,7 @@ func TestPatch_AdditionalBranches(t *testing.T) {
 	if _, _, err := getOldAndNewVersion(&object.Commit{}, &object.Commit{}, oldNewPaths{new: mockDiffFile{p: "bad-new"}}); err == nil {
 		t.Fatalf("expected new path error")
 	}
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "oldbad" {
 			return "", errors.New("old-path")
 		}
@@ -422,11 +422,11 @@ func TestPatch_AdditionalBranches(t *testing.T) {
 		}
 		return "ok", nil
 	}
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
 	if _, _, err := getOldAndNewVersion(&object.Commit{}, &object.Commit{}, oldNewPaths{new: mockDiffFile{p: "ok"}, old: mockDiffFile{p: "oldbad"}}); err == nil {
 		t.Fatalf("expected old path error")
 	}
-	getChartVersionFunc = func(_ *object.Commit, path string) (string, error) {
+	getAppVersionFunc = func(_ *object.Commit, path string) (string, error) {
 		if path == "old" {
 			return "", errors.New("old-ver")
 		}
@@ -436,34 +436,34 @@ func TestPatch_AdditionalBranches(t *testing.T) {
 		t.Fatalf("expected old version error")
 	}
 
-	getChartPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
-	getChartVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
+	getAppPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
+	getAppVersionFunc = func(_ *object.Commit, _ string) (string, error) { return "1.0.0", nil }
 	getFilePatchesFunc = func(_ *object.Patch) []diff.FilePatch {
 		return []diff.FilePatch{
 			mockFilePatch{to: nil},
 			mockFilePatch{to: mockDiffFile{p: "charts/stable/app/Chart.yaml"}},
 		}
 	}
-	if _, err := getChartsWithMultipleChangedFiles(&object.Patch{}); err != nil {
-		t.Fatalf("expected getChartsWithMultipleChangedFiles success, got %v", err)
+	if _, err := getAppsWithMultipleChangedFiles(&object.Patch{}); err != nil {
+		t.Fatalf("expected getAppsWithMultipleChangedFiles success, got %v", err)
 	}
 }
 
-func TestRenderChartAndPrepareVersionsBranches(t *testing.T) {
-	o := &ChangelogOptions{TemplatePath: filepath.Join(t.TempDir(), "missing.tpl"), ChartsDir: t.TempDir(), ChangelogFileName: "CHANGELOG.md", JSONOutputPath: "x"}
-	if o.hasRenderableChartData(nil, "x") {
-		t.Fatalf("expected nil chart data to be non-renderable")
+func TestRenderAppAndPrepareVersionsBranches(t *testing.T) {
+	o := &ChangelogOptions{TemplatePath: filepath.Join(t.TempDir(), "missing.tpl"), AppsDir: t.TempDir(), ChangelogFileName: "CHANGELOG.md", JSONOutputPath: "x"}
+	if o.hasRenderableAppData(nil, "x") {
+		t.Fatalf("expected nil app data to be non-renderable")
 	}
-	if o.hasRenderableChartData(&Chart{Versions: nil}, "x") {
+	if o.hasRenderableAppData(&App{Versions: nil}, "x") {
 		t.Fatalf("expected nil versions to be non-renderable")
 	}
 
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{"app": {Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{}}}}}}, "app", "stable"); err == nil {
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{"app": {Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{}}}}}}, "app", "stable"); err == nil {
 		t.Fatalf("expected template parse error")
 	}
 
-	badChart := &Chart{Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}
-	if err := o.prepareChartVersions(badChart); err == nil {
+	badApp := &App{Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}
+	if err := o.prepareAppVersions(badApp); err == nil {
 		t.Fatalf("expected sort versions error")
 	}
 
@@ -473,15 +473,15 @@ func TestRenderChartAndPrepareVersionsBranches(t *testing.T) {
 		t.Fatalf("write template failed: %v", err)
 	}
 	o.TemplatePath = tpl
-	chart := &Chart{Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{"a": {Author: Author{Date: "bad-date"}}}}}}
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{"app": chart}}, "app", "stable"); err == nil {
-		t.Fatalf("expected prepareChartVersions commit sort error")
+	chart := &App{Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{"a": {Author: Author{Date: "bad-date"}}}}}}
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{"app": chart}}, "app", "stable"); err == nil {
+		t.Fatalf("expected prepareAppVersions commit sort error")
 	}
 }
 
-func TestGetChartVersion_ErrorBranches(t *testing.T) {
-	if _, err := getChartVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
-		t.Fatalf("expected getChartVersion tree error for detached commit")
+func TestGetAppVersion_ErrorBranches(t *testing.T) {
+	if _, err := getAppVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
+		t.Fatalf("expected getAppVersion tree error for detached commit")
 	}
 }
 
@@ -494,7 +494,7 @@ func TestChangelog_DefaultSeamFuncsAndMergeErrorBranches(t *testing.T) {
 	td := t.TempDir()
 	tpl := filepath.Join(td, "tmpl")
 	repo := filepath.Join(td, "repo")
-	charts := filepath.Join(td, "charts")
+	apps := filepath.Join(td, "charts")
 	jsonPath := filepath.Join(td, "changed.json")
 	_ = os.WriteFile(tpl, []byte("x"), 0644)
 	repoObj, err := git.PlainInit(repo, false)
@@ -514,9 +514,9 @@ func TestChangelog_DefaultSeamFuncsAndMergeErrorBranches(t *testing.T) {
 	if _, err := wt.Commit("feat(app): init", &git.CommitOptions{Author: &object.Signature{Name: "t", Email: "t@e", When: time.Now()}}); err != nil {
 		t.Fatalf("git commit failed: %v", err)
 	}
-	_ = os.MkdirAll(charts, 0755)
+	_ = os.MkdirAll(apps, 0755)
 	_ = os.WriteFile(jsonPath, []byte("{}"), 0644)
-	o := &ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, ChartsDir: charts, StatusUpdateInterval: 1}
+	o := &ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, AppsDir: apps, StatusUpdateInterval: 1}
 	if err := prepareGenerateFunc(o, time.Now()); err != nil {
 		t.Fatalf("expected default prepareGenerateFunc success, got %v", err)
 	}
@@ -524,14 +524,14 @@ func TestChangelog_DefaultSeamFuncsAndMergeErrorBranches(t *testing.T) {
 		t.Fatalf("expected default loadCommitsForGenerateFunc to return commits, got commits=%d err=%v", len(commits), err)
 	}
 
-	changedData.Charts = map[string]*Chart{"app": {Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}}
-	stagingData.Charts = map[string]*Chart{"app": {Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{}}}}}
+	changedData.Apps = map[string]*App{"app": {Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}}
+	stagingData.Apps = map[string]*App{"app": {Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{}}}}}
 	if err := mergeStagingToCurrent(); err == nil {
 		t.Fatalf("expected merge sort error")
 	}
 
-	changedData.Charts = map[string]*Chart{"app": {Versions: map[string]*Version{"1.1.0": {Version: "1.1.0", Commits: map[string]*Commit{}}}}}
-	stagingData.Charts = map[string]*Chart{"app": {Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}}
+	changedData.Apps = map[string]*App{"app": {Versions: map[string]*Version{"1.1.0": {Version: "1.1.0", Commits: map[string]*Commit{}}}}}
+	stagingData.Apps = map[string]*App{"app": {Versions: map[string]*Version{"bad": {Version: "bad", Commits: map[string]*Commit{}}}}}
 	if err := mergeStagingToCurrent(); err == nil {
 		t.Fatalf("expected merge version staging error")
 	}
@@ -539,18 +539,18 @@ func TestChangelog_DefaultSeamFuncsAndMergeErrorBranches(t *testing.T) {
 
 func TestPatch_ProcessAndCollectRemainingBranches(t *testing.T) {
 	resetChangelogGlobals()
-	activeCharts.items["app"] = ActiveChart{Name: "app", Train: "stable"}
-	origPath := getChartPathFunc
-	origVer := getChartVersionFunc
+	activeApps.items["app"] = ActiveApp{Name: "app", Train: "stable"}
+	origPath := getAppPathFunc
+	origVer := getAppVersionFunc
 	origPatches := getFilePatchesFunc
 	t.Cleanup(func() {
-		getChartPathFunc = origPath
-		getChartVersionFunc = origVer
+		getAppPathFunc = origPath
+		getAppVersionFunc = origVer
 		getFilePatchesFunc = origPatches
 	})
 
-	getChartPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
-	getChartVersionFunc = func(_ *object.Commit, path string) (string, error) {
+	getAppPathFunc = func(_ string) (string, error) { return "charts/stable/app/Chart.yaml", nil }
+	getAppVersionFunc = func(_ *object.Commit, path string) (string, error) {
 		if path == "old-bad" {
 			return "bad", nil
 		}
@@ -569,14 +569,14 @@ func TestPatch_ProcessAndCollectRemainingBranches(t *testing.T) {
 			mockFilePatch{to: mockDiffFile{p: "charts/stable/app/Chart.yaml"}},
 		}
 	}
-	if _, err := getChartsWithMultipleChangedFiles(&object.Patch{}); err != nil {
-		t.Fatalf("expected getChartsWithMultipleChangedFiles success with empty path skip, got %v", err)
+	if _, err := getAppsWithMultipleChangedFiles(&object.Patch{}); err != nil {
+		t.Fatalf("expected getAppsWithMultipleChangedFiles success with empty path skip, got %v", err)
 	}
 
 	c := &object.Commit{Hash: plumbing.NewHash("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"), ParentHashes: []plumbing.Hash{{}}, Author: object.Signature{Name: "t", When: time.Now()}, Message: "feat(app): x"}
 	par := &object.Commit{}
 
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "new" {
 			return "new-ok", nil
 		}
@@ -585,11 +585,11 @@ func TestPatch_ProcessAndCollectRemainingBranches(t *testing.T) {
 		}
 		return "new-ok", nil
 	}
-	if err := processChartsWithSingleChangedFile(c, par, chartsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err == nil {
+	if err := processAppsWithSingleChangedFile(c, par, appsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err == nil {
 		t.Fatalf("expected old semver parse error")
 	}
 
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "new" {
 			return "new-bad", nil
 		}
@@ -598,17 +598,17 @@ func TestPatch_ProcessAndCollectRemainingBranches(t *testing.T) {
 		}
 		return "new-bad", nil
 	}
-	getChartVersionFunc = func(_ *object.Commit, path string) (string, error) {
+	getAppVersionFunc = func(_ *object.Commit, path string) (string, error) {
 		if path == "old-ok" {
 			return "1.0.0", nil
 		}
 		return "bad", nil
 	}
-	if err := processChartsWithSingleChangedFile(c, par, chartsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err == nil {
+	if err := processAppsWithSingleChangedFile(c, par, appsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err == nil {
 		t.Fatalf("expected new semver parse error")
 	}
 
-	getChartPathFunc = func(path string) (string, error) {
+	getAppPathFunc = func(path string) (string, error) {
 		if path == "new" {
 			return "new-ok", nil
 		}
@@ -617,26 +617,26 @@ func TestPatch_ProcessAndCollectRemainingBranches(t *testing.T) {
 		}
 		return "new-ok", nil
 	}
-	getChartVersionFunc = func(_ *object.Commit, path string) (string, error) {
+	getAppVersionFunc = func(_ *object.Commit, path string) (string, error) {
 		if path == "old-ok" {
 			return "1.0.0", nil
 		}
 		return "1.1.0", nil
 	}
-	if err := processChartsWithSingleChangedFile(c, par, chartsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err != nil {
+	if err := processAppsWithSingleChangedFile(c, par, appsWithChangedFile{"app": {new: mockDiffFile{p: "new"}, old: mockDiffFile{p: "old"}}}); err != nil {
 		t.Fatalf("expected greater-than branch success, got %v", err)
 	}
 }
 
-func TestRenderChart_FileSystemBranches(t *testing.T) {
+func TestRenderApp_FileSystemBranches(t *testing.T) {
 	tplDir := t.TempDir()
 	tpl := filepath.Join(tplDir, "changelog.tmpl")
 	if err := os.WriteFile(tpl, []byte("{{ index .SortedVersions 99 }}"), 0644); err != nil {
 		t.Fatalf("write template failed: %v", err)
 	}
-	o := &ChangelogOptions{TemplatePath: tpl, ChartsDir: filepath.Join(t.TempDir(), "base"), ChangelogFileName: "CHANGELOG.md", JSONOutputPath: "x"}
-	chart := &Chart{Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{"a": {Author: Author{Date: "2024-01-01"}}}}}}
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{"app": chart}}, "app", "stable"); err == nil {
+	o := &ChangelogOptions{TemplatePath: tpl, AppsDir: filepath.Join(t.TempDir(), "base"), ChangelogFileName: "CHANGELOG.md", JSONOutputPath: "x"}
+	chart := &App{Versions: map[string]*Version{"1.0.0": {Version: "1.0.0", Commits: map[string]*Commit{"a": {Author: Author{Date: "2024-01-01"}}}}}}
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{"app": chart}}, "app", "stable"); err == nil {
 		t.Fatalf("expected template execute error")
 	}
 
@@ -647,8 +647,8 @@ func TestRenderChart_FileSystemBranches(t *testing.T) {
 	if err := os.WriteFile(blocking, []byte("x"), 0644); err != nil {
 		t.Fatalf("write blocking file failed: %v", err)
 	}
-	o.ChartsDir = blocking
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{"app": chart}}, "app", "stable"); err == nil {
+	o.AppsDir = blocking
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{"app": chart}}, "app", "stable"); err == nil {
 		t.Fatalf("expected mkdir error")
 	}
 
@@ -659,9 +659,9 @@ func TestRenderChart_FileSystemBranches(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(outDir, "stable", "app", "CHANGELOG.md"), 0755); err != nil {
 		t.Fatalf("mkdir blocking changelog path failed: %v", err)
 	}
-	o.ChartsDir = outDir
+	o.AppsDir = outDir
 	o.ChangelogFileName = "CHANGELOG.md"
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{"app": chart}}, "app", "stable"); err == nil {
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{"app": chart}}, "app", "stable"); err == nil {
 		t.Fatalf("expected write file error")
 	}
 }
@@ -695,19 +695,19 @@ func TestUtils_RemainingBranches(t *testing.T) {
 
 	commitTreeFunc = func(_ *object.Commit) (*object.Tree, error) { return &object.Tree{}, nil }
 	treeFileFunc = func(_ *object.Tree, _ string) (*object.File, error) { return nil, errors.New("file") }
-	if _, err := getChartVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
+	if _, err := getAppVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
 		t.Fatalf("expected get file error")
 	}
 
 	commitTreeFunc = func(_ *object.Commit) (*object.Tree, error) { return nil, errors.New("tree") }
-	if _, err := getChartVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
+	if _, err := getAppVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
 		t.Fatalf("expected get tree error")
 	}
 
 	commitTreeFunc = func(_ *object.Commit) (*object.Tree, error) { return &object.Tree{}, nil }
 	treeFileFunc = func(_ *object.Tree, _ string) (*object.File, error) { return &object.File{}, nil }
 	fileContentsFunc = func(_ *object.File) (string, error) { return "", errors.New("contents") }
-	if _, err := getChartVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
+	if _, err := getAppVersion(&object.Commit{}, "charts/stable/app/Chart.yaml"); err == nil {
 		t.Fatalf("expected get file contents error")
 	}
 }
@@ -716,14 +716,14 @@ func TestChangelog_FinalBranches(t *testing.T) {
 	td := t.TempDir()
 	tpl := filepath.Join(td, "tmpl")
 	repo := filepath.Join(td, "repo")
-	charts := filepath.Join(td, "charts")
+	apps := filepath.Join(td, "charts")
 	jsonPath := filepath.Join(td, "changed.json")
 	_ = os.WriteFile(tpl, []byte("x"), 0644)
 	_ = os.MkdirAll(repo, 0755)
-	_ = os.MkdirAll(charts, 0755)
+	_ = os.MkdirAll(apps, 0755)
 	_ = os.WriteFile(jsonPath, []byte("{}"), 0644)
 
-	if err := (&ChangelogOptions{RepoPath: repo, TemplatePath: "\x00", ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, ChartsDir: charts, StatusUpdateInterval: 1}).validate(); err == nil {
+	if err := (&ChangelogOptions{RepoPath: repo, TemplatePath: "\x00", ChangelogFileName: "CHANGELOG.md", JSONOutputPath: jsonPath, AppsDir: apps, StatusUpdateInterval: 1}).validate(); err == nil {
 		t.Fatalf("expected validate checkPath loop error")
 	}
 
@@ -731,7 +731,7 @@ func TestChangelog_FinalBranches(t *testing.T) {
 		t.Fatalf("expected prepareGenerate validate error")
 	}
 
-	if err := (&ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: td, ChartsDir: charts, StatusUpdateInterval: 1}).prepareGenerate(time.Now()); err == nil {
+	if err := (&ChangelogOptions{RepoPath: repo, TemplatePath: tpl, ChangelogFileName: "CHANGELOG.md", JSONOutputPath: td, AppsDir: apps, StatusUpdateInterval: 1}).prepareGenerate(time.Now()); err == nil {
 		t.Fatalf("expected prepareGenerate load file error with directory json path")
 	}
 
@@ -762,7 +762,7 @@ func TestChangelog_FinalBranches(t *testing.T) {
 }
 
 func TestCommitAndPatchFinalBranches(t *testing.T) {
-	repoDir, _, c2, _ := createRepoWithChartHistory(t)
+	repoDir, _, c2, _ := createRepoWithAppHistory(t)
 	_ = repoDir
 	if _, err := getParentCommitFunc(c2); err != nil {
 		t.Fatalf("expected default getParentCommitFunc success, got %v", err)
@@ -786,7 +786,7 @@ func TestCommitAndPatchFinalBranches(t *testing.T) {
 
 	getChangedFilePairFunc = func(_ diff.FilePatch) (string, oldNewPaths, error) { return "", oldNewPaths{}, errors.New("boom") }
 	getFilePatchesFunc = func(_ *object.Patch) []diff.FilePatch { return []diff.FilePatch{mockFilePatch{}} }
-	if _, err := getChartsWithMultipleChangedFiles(&object.Patch{}); err == nil {
+	if _, err := getAppsWithMultipleChangedFiles(&object.Patch{}); err == nil {
 		t.Fatalf("expected non-skip changed-file error branch")
 	}
 
@@ -794,28 +794,28 @@ func TestCommitAndPatchFinalBranches(t *testing.T) {
 		return "app", oldNewPaths{new: mockDiffFile{p: ""}}, nil
 	}
 	getFilePatchesFunc = func(_ *object.Patch) []diff.FilePatch { return []diff.FilePatch{mockFilePatch{}} }
-	if _, err := getChartsWithMultipleChangedFiles(&object.Patch{}); err != nil {
+	if _, err := getAppsWithMultipleChangedFiles(&object.Patch{}); err != nil {
 		t.Fatalf("expected empty new path skip branch success, got %v", err)
 	}
 
 	getOldAndNewVersionFunc = func(_ *object.Commit, _ *object.Commit, _ oldNewPaths) (string, string, error) {
 		return "", "", errors.New("oldnew")
 	}
-	if err := processChartsWithSingleChangedFile(&object.Commit{}, &object.Commit{}, chartsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err == nil {
+	if err := processAppsWithSingleChangedFile(&object.Commit{}, &object.Commit{}, appsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err == nil {
 		t.Fatalf("expected old/new version error branch")
 	}
 
 	getOldAndNewVersionFunc = func(_ *object.Commit, _ *object.Commit, _ oldNewPaths) (string, string, error) {
 		return "", "1.0.0", nil
 	}
-	if err := processChartsWithSingleChangedFile(&object.Commit{Hash: plumbing.NewHash("1212121212121212121212121212121212121212"), ParentHashes: []plumbing.Hash{{}}, Author: object.Signature{Name: "t", When: time.Now()}, Message: "feat(app): x"}, &object.Commit{}, chartsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err != nil {
+	if err := processAppsWithSingleChangedFile(&object.Commit{Hash: plumbing.NewHash("1212121212121212121212121212121212121212"), ParentHashes: []plumbing.Hash{{}}, Author: object.Signature{Name: "t", When: time.Now()}, Message: "feat(app): x"}, &object.Commit{}, appsWithChangedFile{"app": {new: mockDiffFile{p: "charts/stable/app/Chart.yaml"}}}); err != nil {
 		t.Fatalf("expected old version empty branch success, got %v", err)
 	}
 }
 
 func TestRender_EarlyReturnBranch(t *testing.T) {
 	o := &ChangelogOptions{JSONOutputPath: "x"}
-	if err := o.renderChartChangelog(&ChangedData{Charts: map[string]*Chart{}}, "missing", "stable"); err != nil {
+	if err := o.renderAppChangelog(&ChangedData{Apps: map[string]*App{}}, "missing", "stable"); err != nil {
 		t.Fatalf("expected early non-renderable return nil, got %v", err)
 	}
 }

@@ -51,13 +51,13 @@ type oldNewPaths struct {
 	old diff.File
 	new diff.File
 }
-type chartsWithChangedFiles map[string][]oldNewPaths
-type chartsWithChangedFile map[string]oldNewPaths
+type appsWithChangedFiles map[string][]oldNewPaths
+type appsWithChangedFile map[string]oldNewPaths
 
 var getParentCommitFunc = func(c *object.Commit) (*object.Commit, error) { return c.Parent(0) }
 var getPatchFunc = func(par, c *object.Commit) (*object.Patch, error) { return par.Patch(c) }
-var getChartsWithMultipleChangedFilesFunc = getChartsWithMultipleChangedFiles
-var processChartsWithSingleChangedFileFunc = processChartsWithSingleChangedFile
+var getAppsWithMultipleChangedFilesFunc = getAppsWithMultipleChangedFiles
+var processAppsWithSingleChangedFileFunc = processAppsWithSingleChangedFile
 
 func processCommit(c *object.Commit) error {
 	var err error
@@ -74,19 +74,19 @@ func processCommit(c *object.Commit) error {
 		return fmt.Errorf("failed to get patch: %w", err)
 	}
 
-	// Go over the filePatches (old/new pairs) and get create a
-	// map of charts with an slice of all the old/new fileDiffs
-	chartsWithMultipleFiles, err := getChartsWithMultipleChangedFilesFunc(patch)
+	// Go over the filePatches (old/new pairs) and create a
+	// map of apps with a slice of all the old/new fileDiffs
+	appsWithMultipleFiles, err := getAppsWithMultipleChangedFilesFunc(patch)
 	if err != nil {
 		return fmt.Errorf("failed to get changed files: %w", err)
 	}
 
-	// For each chart, keep a single old/new pair, preferably the chart.yaml
+	// For each app, keep a single old/new pair, preferably the Chart.yaml
 	// otherwise the first file in the list, doesn't matter
-	chartsWithSingleFile := getChartsWithSingleChangedFile(chartsWithMultipleFiles)
+	appsWithSingleFile := getAppsWithSingleChangedFile(appsWithMultipleFiles)
 
 	// Populate the changedData and stagingData
-	if err := processChartsWithSingleChangedFileFunc(c, parCommit, chartsWithSingleFile); err != nil {
+	if err := processAppsWithSingleChangedFileFunc(c, parCommit, appsWithSingleFile); err != nil {
 		return fmt.Errorf("failed to process changed file: %w", err)
 	}
 

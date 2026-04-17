@@ -14,27 +14,27 @@ import (
 )
 
 var loadChangedDataFileFunc = func(cd *ChangedData, path string) error { return cd.LoadFromFile(path) }
-var walkChartsRenderFunc = helper.WalkCharts2
-var renderChartChangelogFunc = func(o *ChangelogOptions, data *ChangedData, chartName, train string) error {
-	return o.renderChartChangelog(data, chartName, train)
+var walkAppsRenderFunc = helper.WalkCharts2
+var renderAppChangelogFunc = func(o *ChangelogOptions, data *ChangedData, appName, train string) error {
+	return o.renderAppChangelog(data, appName, train)
 }
 
 func (o *ChangelogOptions) Render() error {
 	start := time.Now()
 	log.Info().Msgf("Starting changelog render at %s", start)
 
-	changelogData := ChangedData{mu: &sync.RWMutex{}, Charts: make(map[string]*Chart)}
-	activeCharts := ActiveCharts{items: make(map[string]ActiveChart), mu: &sync.RWMutex{}}
+	changelogData := ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
+	activeApps := ActiveApps{items: make(map[string]ActiveApp), mu: &sync.RWMutex{}}
 	if err := loadChangedDataFileFunc(&changelogData, o.JSONOutputPath); err != nil {
 		return fmt.Errorf("failed to load %s: %w", o.JSONOutputPath, err)
 	}
-	if err := walkChartsRenderFunc([]string{o.RepoPath}, activeCharts.getActiveChartsWalker, helper.AsyncMode); err != nil {
-		return fmt.Errorf("failed to walk charts: %w", err)
+	if err := walkAppsRenderFunc([]string{o.RepoPath}, activeApps.getActiveAppsWalker, helper.AsyncMode); err != nil {
+		return fmt.Errorf("failed to walk apps: %w", err)
 	}
 
-	for _, chart := range activeCharts.items {
-		if err := renderChartChangelogFunc(o, &changelogData, chart.Name, chart.Train); err != nil {
-			return fmt.Errorf("failed to render changelog for chart [%s]: %w", chart.Name, err)
+	for _, app := range activeApps.items {
+		if err := renderAppChangelogFunc(o, &changelogData, app.Name, app.Train); err != nil {
+			return fmt.Errorf("failed to render changelog for app [%s]: %w", app.Name, err)
 		}
 	}
 
@@ -42,9 +42,9 @@ func (o *ChangelogOptions) Render() error {
 	return nil
 }
 
-func (o *ChangelogOptions) renderChartChangelog(changelogData *ChangedData, chartName, train string) error {
-	chartData := changelogData.Charts[chartName]
-	if !o.hasRenderableChartData(chartData, chartName) {
+func (o *ChangelogOptions) renderAppChangelog(changelogData *ChangedData, appName, train string) error {
+	appData := changelogData.Apps[appName]
+	if !o.hasRenderableAppData(appData, appName) {
 		return nil
 	}
 
@@ -53,19 +53,19 @@ func (o *ChangelogOptions) renderChartChangelog(changelogData *ChangedData, char
 		return err
 	}
 
-	if err := o.prepareChartVersions(chartData); err != nil {
+	if err := o.prepareAppVersions(appData); err != nil {
 		return err
 	}
 
-	chartData.Name = chartName
-	chartData.Train = train
+	appData.Name = appName
+	appData.Train = train
 
 	var buf bytes.Buffer
-	if err = tmpl.Execute(&buf, chartData); err != nil {
+	if err = tmpl.Execute(&buf, appData); err != nil {
 		return err
 	}
 
-	output := filepath.Join(o.ChartsDir, train, chartName)
+	output := filepath.Join(o.AppsDir, train, appName)
 	if err := os.MkdirAll(output, os.ModePerm); err != nil {
 		return err
 	}
@@ -77,25 +77,25 @@ func (o *ChangelogOptions) renderChartChangelog(changelogData *ChangedData, char
 	return nil
 }
 
-func (o *ChangelogOptions) hasRenderableChartData(chartData *Chart, chartName string) bool {
-	if chartData == nil {
-		log.Error().Msgf("chart [%s] not found in %s", chartName, o.JSONOutputPath)
+func (o *ChangelogOptions) hasRenderableAppData(appData *App, appName string) bool {
+	if appData == nil {
+		log.Error().Msgf("app [%s] not found in %s", appName, o.JSONOutputPath)
 		return false
 	}
-	if chartData.Versions == nil {
-		log.Error().Msgf("chart [%s] has no versions in %s", chartName, o.JSONOutputPath)
+	if appData.Versions == nil {
+		log.Error().Msgf("app [%s] has no versions in %s", appName, o.JSONOutputPath)
 		return false
 	}
 
 	return true
 }
 
-func (o *ChangelogOptions) prepareChartVersions(chartData *Chart) error {
-	if _, err := chartData.SortVersions(true); err != nil {
+func (o *ChangelogOptions) prepareAppVersions(appData *App) error {
+	if _, err := appData.SortVersions(true); err != nil {
 		return err
 	}
 
-	for _, version := range chartData.Versions {
+	for _, version := range appData.Versions {
 		sortedCommits, err := version.SortCommits(true)
 		if err != nil {
 			return err

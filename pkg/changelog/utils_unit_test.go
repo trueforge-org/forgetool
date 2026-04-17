@@ -5,29 +5,29 @@ import (
 	"testing"
 )
 
-func TestGetChartNameDeeperPath(t *testing.T) {
-	got := getChartName("charts/stable/mychart/templates/deployment.yaml")
+func TestGetAppNameDeeperPath(t *testing.T) {
+	got := getAppName("charts/stable/mychart/templates/deployment.yaml")
 	if got != "mychart" {
 		t.Fatalf("expected mychart, got %s", got)
 	}
 }
 
-func TestGetChartNameSingleSegment(t *testing.T) {
-	got := getChartName("onlyone")
+func TestGetAppNameSingleSegment(t *testing.T) {
+	got := getAppName("onlyone")
 	if got != invalidName {
 		t.Fatalf("expected invalidName for single segment path, got %s", got)
 	}
 }
 
-func TestGetChartNameTwoSegments(t *testing.T) {
-	got := getChartName("charts/train")
+func TestGetAppNameTwoSegments(t *testing.T) {
+	got := getAppName("charts/train")
 	if got != invalidName {
 		t.Fatalf("expected invalidName for two-segment path, got %s", got)
 	}
 }
 
-func TestGetChartPathNested(t *testing.T) {
-	p, err := getChartPath("charts/stable/mychart/templates/deployment.yaml")
+func TestGetAppPathNested(t *testing.T) {
+	p, err := getAppPath("charts/stable/mychart/templates/deployment.yaml")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -37,8 +37,8 @@ func TestGetChartPathNested(t *testing.T) {
 	}
 }
 
-func TestGetChartPathDirectChart(t *testing.T) {
-	p, err := getChartPath("charts/stable/mychart/Chart.yaml")
+func TestGetAppPathDirectApp(t *testing.T) {
+	p, err := getAppPath("charts/stable/mychart/Chart.yaml")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -81,15 +81,15 @@ func TestGetVersionMultipleDashes(t *testing.T) {
 	}
 }
 
-func TestGetChartTrainThreeSegments(t *testing.T) {
-	got := getChartTrain("charts/enterprise/app/Chart.yaml")
+func TestGetAppTrainThreeSegments(t *testing.T) {
+	got := getAppTrain("charts/enterprise/app/Chart.yaml")
 	if got != "enterprise" {
 		t.Fatalf("expected enterprise, got %s", got)
 	}
 }
 
-func TestGetChartTrainEmpty(t *testing.T) {
-	got := getChartTrain("x")
+func TestGetAppTrainEmpty(t *testing.T) {
+	got := getAppTrain("x")
 	if got != "" {
 		t.Fatalf("expected empty, got %s", got)
 	}

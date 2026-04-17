@@ -12,8 +12,8 @@ import (
 )
 
 var errSkipPatch = errors.New("skip patch")
-var getChartPathFunc = getChartPath
-var getChartVersionFunc = getChartVersion
+var getAppPathFunc = getAppPath
+var getAppVersionFunc = getAppVersion
 var getFilePatchesFunc = func(p *object.Patch) []diff.FilePatch { return p.FilePatches() }
 var getChangedFilePairFunc = getChangedFilePair
 var getOldAndNewVersionFunc = getOldAndNewVersion
@@ -25,105 +25,105 @@ func getChangedFilePair(p diff.FilePatch) (string, oldNewPaths, error) {
 		return "", oldNewPaths{}, errSkipPatch
 	}
 
-	// Get chart name and check if its an active chart
-	// if the new.Path() is a path outside of the charts folder,
-	// it will not be an active chart anyway and so we skip the diff
-	chartName := getChartName(new.Path())
-	if chartName == invalidName || !activeCharts.isActiveChart(chartName) {
-		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not an active chart", new.Path())
+	// Get app name and check if its an active app
+	// if the new.Path() is a path outside of the apps folder,
+	// it will not be an active app anyway and so we skip the diff
+	appName := getAppName(new.Path())
+	if appName == invalidName || !activeApps.isActiveApp(appName) {
+		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not an active app", new.Path())
 		return "", oldNewPaths{}, errSkipPatch
 	}
-	if _, err := getChartPathFunc(new.Path()); err != nil {
-		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid chart path", new.Path())
+	if _, err := getAppPathFunc(new.Path()); err != nil {
+		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid app path", new.Path())
 		return "", oldNewPaths{}, errSkipPatch
 	}
 	if old != nil { // If an old file exists in the patch
-		if _, err := getChartPathFunc(old.Path()); err != nil {
-			log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid chart path", old.Path())
+		if _, err := getAppPathFunc(old.Path()); err != nil {
+			log.Debug().Msgf("Skipping file patch. Reason: [%s] is not a valid app path", old.Path())
 			return "", oldNewPaths{}, errSkipPatch
 		}
 	}
 
-	return chartName, oldNewPaths{new: new, old: old}, nil
+	return appName, oldNewPaths{new: new, old: old}, nil
 }
 
 func getOldAndNewVersion(c *object.Commit, par *object.Commit, paths oldNewPaths) (string, string, error) {
-	newChartPath, err := getChartPathFunc(paths.new.Path())
+	newAppPath, err := getAppPathFunc(paths.new.Path())
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get chart path from file path [%s]: %w", paths.new.Path(), err)
+		return "", "", fmt.Errorf("failed to get app path from file path [%s]: %w", paths.new.Path(), err)
 	}
-	newChartVer, err := getChartVersionFunc(c, newChartPath)
+	newAppVer, err := getAppVersionFunc(c, newAppPath)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get chart data from path [%s]: %w", newChartPath, err)
+		return "", "", fmt.Errorf("failed to get app data from path [%s]: %w", newAppPath, err)
 	}
 
-	oldChartVer := ""
+	oldAppVer := ""
 	if paths.old != nil { // If an old file exists in the patch
-		oldChartPath, err := getChartPathFunc(paths.old.Path())
+		oldAppPath, err := getAppPathFunc(paths.old.Path())
 		if err != nil {
-			return "", "", fmt.Errorf("failed to get chart path from file path [%s]: %w", paths.old.Path(), err)
+			return "", "", fmt.Errorf("failed to get app path from file path [%s]: %w", paths.old.Path(), err)
 		}
 		// Note here we pass the parent commit, not the current commit
-		oldChartVer, err = getChartVersionFunc(par, oldChartPath)
+		oldAppVer, err = getAppVersionFunc(par, oldAppPath)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to get chart data from path [%s]: %w", oldChartPath, err)
+			return "", "", fmt.Errorf("failed to get app data from path [%s]: %w", oldAppPath, err)
 		}
 	}
 
-	return oldChartVer, newChartVer, nil
+	return oldAppVer, newAppVer, nil
 }
 
-func getChartsWithMultipleChangedFiles(p *object.Patch) (chartsWithChangedFiles, error) {
-	chartsWithMultipleFiles := make(chartsWithChangedFiles)
+func getAppsWithMultipleChangedFiles(p *object.Patch) (appsWithChangedFiles, error) {
+	appsWithMultipleFiles := make(appsWithChangedFiles)
 	for _, p := range getFilePatchesFunc(p) {
-		// Get chart name and the "new" file path
-		chartName, paths, err := getChangedFilePairFunc(p)
+		// Get app name and the "new" file path
+		appName, paths, err := getChangedFilePairFunc(p)
 		if err != nil {
 			if errors.Is(err, errSkipPatch) {
 				continue
 			}
-			return chartsWithChangedFiles{}, fmt.Errorf("failed to get changed files: %w", err)
+			return appsWithChangedFiles{}, fmt.Errorf("failed to get changed files: %w", err)
 		}
 		// if there is no new file, skip the filePatch
 		if paths.new.Path() == "" {
 			continue
 		}
 
-		// Add the file to the charts changed files
-		chartsWithMultipleFiles[chartName] = append(chartsWithMultipleFiles[chartName], paths)
+		// Add the file to the apps changed files
+		appsWithMultipleFiles[appName] = append(appsWithMultipleFiles[appName], paths)
 	}
 
-	return chartsWithMultipleFiles, nil
+	return appsWithMultipleFiles, nil
 }
 
-func getChartsWithSingleChangedFile(c chartsWithChangedFiles) chartsWithChangedFile {
-	chartsWithSingleFile := make(chartsWithChangedFile)
-	for chartName, filePaths := range c {
+func getAppsWithSingleChangedFile(c appsWithChangedFiles) appsWithChangedFile {
+	appsWithSingleFile := make(appsWithChangedFile)
+	for appName, filePaths := range c {
 		for _, paths := range filePaths {
-			_, ok := chartsWithSingleFile[chartName]
-			// If the chart hasn't been seen before,
+			_, ok := appsWithSingleFile[appName]
+			// If the app hasn't been seen before,
 			// or the filePath is a Chart.yaml file
 			// we add the pair to the map
 			if !ok || strings.HasSuffix(paths.new.Path(), "Chart.yaml") {
-				chartsWithSingleFile[chartName] = paths
+				appsWithSingleFile[appName] = paths
 				continue
 			}
 		}
 	}
-	return chartsWithSingleFile
+	return appsWithSingleFile
 }
 
-func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, chartsWithSingleFile chartsWithChangedFile) error {
-	// For each chart, get the old and new versions
-	for chartName, paths := range chartsWithSingleFile {
+func processAppsWithSingleChangedFile(c *object.Commit, par *object.Commit, appsWithSingleFile appsWithChangedFile) error {
+	// For each app, get the old and new versions
+	for appName, paths := range appsWithSingleFile {
 		oldVer, newVer, err := getOldAndNewVersionFunc(c, par, paths)
 		if err != nil {
 			return fmt.Errorf("failed to get old and new versions: %w", err)
 		}
-		// If the old version is empty, (chart addition)
+		// If the old version is empty, (app addition)
 		// we add the new version to the changedData
 		if oldVer == "" {
-			addChartToChangedData(chartName, newVer, paths.new.Path(), c)
+			addAppToChangedData(appName, newVer, paths.new.Path(), c)
 			continue
 		}
 
@@ -138,29 +138,29 @@ func processChartsWithSingleChangedFile(c *object.Commit, par *object.Commit, ch
 
 		// if new version is greater than the old version, we add the new version to the changedData
 		if newSemVer.GreaterThan(oldSemVer) {
-			addChartToChangedData(chartName, newVer, paths.new.Path(), c)
+			addAppToChangedData(appName, newVer, paths.new.Path(), c)
 			continue
 		}
 
 		// Otherwise, we add the new version to the stagingData
 		// It is probably less or equal to the old version,
-		// in either case the chart changes is unreleased.
+		// in either case the app changes is unreleased.
 		// so it should go to the "next" version, we do that at the end
 		// although if its less, it will be hard to actually get which is the "next" version
 		// but we can't really do anything about it, so just put it on the immediate next version
-		addChartToStagingData(chartName, newVer, paths.new.Path(), c)
+		addAppToStagingData(appName, newVer, paths.new.Path(), c)
 	}
 	return nil
 }
 
-func addChartToChangedData(chartName, version, chartPath string, c *object.Commit) {
+func addAppToChangedData(appName, version, appPath string, c *object.Commit) {
 	changedData.mu.Lock()
-	changedData.AddOrUpdateChart(chartName, version, getChartTrain(chartPath), c)
+	changedData.AddOrUpdateApp(appName, version, getAppTrain(appPath), c)
 	changedData.mu.Unlock()
 }
 
-func addChartToStagingData(chartName, version, chartPath string, c *object.Commit) {
+func addAppToStagingData(appName, version, appPath string, c *object.Commit) {
 	stagingData.mu.Lock()
-	stagingData.AddOrUpdateChart(chartName, version, getChartTrain(chartPath), c)
+	stagingData.AddOrUpdateApp(appName, version, getAppTrain(appPath), c)
 	stagingData.mu.Unlock()
 }
