@@ -10,8 +10,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/trueforge-org/forgetool/pkg/charts/helmignore"
 	"github.com/trueforge-org/forgetool/pkg/charts/image"
-	"github.com/trueforge-org/forgetool/pkg/charts/readme"
-	"github.com/trueforge-org/forgetool/pkg/charts/version"
+	"github.com/trueforge-org/forgetool/pkg/readme"
+	"github.com/trueforge-org/forgetool/pkg/version"
 )
 
 var updateSourcesFunc = updateSources
