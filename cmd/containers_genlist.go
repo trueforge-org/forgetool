@@ -65,10 +65,10 @@ func runContainersGenList(args []string) error {
 }
 
 var genContainersListCmd = &cobra.Command{
-	Use:     "gencontainerslist",
+	Use:     "genlist",
 	Short:   "Generate containers list json file",
 	Long:    containersGenListLongHelp,
-	Example: "forgetool containers gencontainerslist <path to apps folder>",
+	Example: "forgetool containers genlist <path to apps folder>",
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := containersGenListRunner(args); err != nil {
 			containersGenListOnError(err)
