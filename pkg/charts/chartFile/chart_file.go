@@ -27,7 +27,7 @@ const (
 	defaultAppVersion  = "unknown"
 	defaultDescription = "No description provided."
 	defaultHome        = "https://truecharts.org"
-	defaultIcon        = "https://github.com/trueforge-org/website/blob/main/public/svg/logo.svg"
+	defaultIcon        = "https://github.com/trueforge-org/website/blob/main/shared/public/logo.svg"
 	supportUrl         = `- name: support
 url: https://discord.com/invite/tVsPTHWTtr`
 )
