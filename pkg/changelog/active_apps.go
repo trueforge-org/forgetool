@@ -1,13 +1,8 @@
 package changelog
 
 import (
-	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
-
-	"github.com/rs/zerolog/log"
 )
 
 type ActiveApp struct {
@@ -31,30 +26,8 @@ func (a *ActiveApps) getActiveAppsWalker(path string, entry os.DirEntry, err err
 	if err != nil {
 		return err
 	}
-	if entry.Name() != "Chart.yaml" {
+	if entry.Name() != activeAppsManifestFile {
 		return nil
 	}
-	// path = apps/<train>/<app>/Chart.yaml or apps/<app>/Chart.yaml
-	segLen := len(strings.Split(path, "/"))
-	if segLen < 3 {
-		return fmt.Errorf("path (%s) is not valid. expected at least <root>/<app>/Chart.yaml", path)
-	}
-	// appDir = apps/<train>/<app>/
-	appDir, _ := filepath.Split(path)
-	// appDir = apps/<train>/<app>
-	appDir = strings.TrimSuffix(appDir, "/")
-	// train = apps/<train>
-	train := filepath.Dir(appDir)
-	// train = <train>
-	train = filepath.Base(train)
-	// appName = <app>
-	appName := filepath.Base(appDir)
-	a.mu.Lock()
-	if _, ok := a.items[appName]; !ok {
-		a.items[appName] = ActiveApp{Name: appName, Train: train}
-	} else {
-		log.Error().Msgf("app [%s] already exists in activeApps", appName)
-	}
-	a.mu.Unlock()
-	return nil
+	return parseActiveAppFunc(a, path)
 }

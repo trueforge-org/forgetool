@@ -3,9 +3,6 @@ package changelog
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
 
@@ -83,34 +80,9 @@ func (o *ChangelogOptions) reverseCommits(cIter object.CommitIter, lastCommit st
 // Just some random text to avoid any app name conflicts
 var invalidName = "5fdad45c8f5b954e5643c314"
 
-func getAppName(path string) string {
-	// path = apps/<train>/<app>/...
-	parts := strings.Split(path, "/")
-	if len(parts) < 3 {
-		log.Debug().Msgf("failed to get app name from path [%s]", path)
-		return invalidName
-	}
-	return parts[2]
-}
-
-var appFilePathRegex = regexp.MustCompile(`^charts/([\w-_]+)/([\w-_]+)/Chart.yaml$`)
 var commitTreeFunc = func(c *object.Commit) (*object.Tree, error) { return c.Tree() }
 var treeFileFunc = func(t *object.Tree, path string) (*object.File, error) { return t.File(path) }
 var fileContentsFunc = func(f *object.File) (string, error) { return f.Contents() }
-
-func getAppPath(path string) (string, error) {
-	original := path
-	for {
-		if path == "." {
-			return "", fmt.Errorf("path too short [%s], or could not construct app path", original)
-		}
-		if appFilePathRegex.MatchString(filepath.Join(path, "Chart.yaml")) {
-			return filepath.Join(path, "Chart.yaml"), nil
-		}
-		// Remove the last part of the path and try again
-		path = filepath.Dir(path)
-	}
-}
 
 func getAppVersion(c *object.Commit, path string) (version string, retErr error) {
 	defer func() {
@@ -131,33 +103,5 @@ func getAppVersion(c *object.Commit, path string) (version string, retErr error)
 	if err != nil {
 		return "", fmt.Errorf("failed to get file contents: %w", err)
 	}
-	return getVersion(strData)
-}
-
-var charsToRemove = []string{"-"}
-
-// We use this instead of NewHelmChart.Load(), because
-// this will work even if the Chart.yaml is malformed
-func getVersion(strData string) (string, error) {
-	lines := strings.Split(strData, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "version:") {
-			ver := strings.TrimSpace(strings.Split(line, ":")[1])
-			// In some cases there was a type in the version (eg "1.0.-2")
-			for _, c := range charsToRemove {
-				ver = strings.ReplaceAll(ver, c, "")
-			}
-			return ver, nil
-		}
-	}
-	return "", fmt.Errorf("could not find version in file")
-}
-
-func getAppTrain(path string) string {
-	parts := strings.Split(path, "/")
-	if len(parts) < 2 {
-		log.Error().Msgf("Could not get app train from path [%s]", path)
-		return ""
-	}
-	return parts[1]
+	return getVersionFromContentFunc(strData)
 }

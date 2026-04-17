@@ -3,7 +3,6 @@ package changelog
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/go-git/go-git/v5/plumbing/format/diff"
@@ -12,7 +11,7 @@ import (
 )
 
 var errSkipPatch = errors.New("skip patch")
-var getAppPathFunc = getAppPath
+var getAppPathFunc = chartGetAppPath
 var getAppVersionFunc = getAppVersion
 var getFilePatchesFunc = func(p *object.Patch) []diff.FilePatch { return p.FilePatches() }
 var getChangedFilePairFunc = getChangedFilePair
@@ -28,7 +27,7 @@ func getChangedFilePair(p diff.FilePatch) (string, oldNewPaths, error) {
 	// Get app name and check if its an active app
 	// if the new.Path() is a path outside of the apps folder,
 	// it will not be an active app anyway and so we skip the diff
-	appName := getAppName(new.Path())
+	appName := getAppNameFunc(new.Path())
 	if appName == invalidName || !activeApps.isActiveApp(appName) {
 		log.Debug().Msgf("Skipping file patch. Reason: [%s] is not an active app", new.Path())
 		return "", oldNewPaths{}, errSkipPatch
@@ -104,7 +103,7 @@ func getAppsWithSingleChangedFile(c appsWithChangedFiles) appsWithChangedFile {
 			// If the app hasn't been seen before,
 			// or the filePath is a Chart.yaml file
 			// we add the pair to the map
-			if !ok || strings.HasSuffix(paths.new.Path(), "Chart.yaml") {
+			if !ok || isPreferredFileFunc(paths.new.Path()) {
 				appsWithSingleFile[appName] = paths
 				continue
 			}
@@ -155,12 +154,12 @@ func processAppsWithSingleChangedFile(c *object.Commit, par *object.Commit, apps
 
 func addAppToChangedData(appName, version, appPath string, c *object.Commit) {
 	changedData.mu.Lock()
-	changedData.AddOrUpdateApp(appName, version, getAppTrain(appPath), c)
+	changedData.AddOrUpdateApp(appName, version, getAppTrainFunc(appPath), c)
 	changedData.mu.Unlock()
 }
 
 func addAppToStagingData(appName, version, appPath string, c *object.Commit) {
 	stagingData.mu.Lock()
-	stagingData.AddOrUpdateApp(appName, version, getAppTrain(appPath), c)
+	stagingData.AddOrUpdateApp(appName, version, getAppTrainFunc(appPath), c)
 	stagingData.mu.Unlock()
 }

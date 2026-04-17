@@ -6,13 +6,13 @@ import (
 )
 
 func TestGetAppName(t *testing.T) {
-	got := getAppName("charts/trainA/mychart/Chart.yaml")
+	got := chartGetAppName("charts/trainA/mychart/Chart.yaml")
 	if got != "mychart" {
 		t.Fatalf("expected mychart got %s", got)
 	}
 
 	// too short
-	got = getAppName("charts/only")
+	got = chartGetAppName("charts/only")
 	if got == "" || got == invalidName {
 		// expected invalidName for short paths
 	} else {
@@ -23,7 +23,7 @@ func TestGetAppName(t *testing.T) {
 func TestGetAppPath(t *testing.T) {
 	// when path already contains Chart.yaml
 	p := filepath.Join("charts", "train", "app", "Chart.yaml")
-	got, err := getAppPath(filepath.Dir(p))
+	got, err := chartGetAppPath(filepath.Dir(p))
 	if err != nil {
 		t.Fatalf("getAppPath error: %v", err)
 	}
@@ -32,7 +32,7 @@ func TestGetAppPath(t *testing.T) {
 	}
 
 	// too short
-	_, err = getAppPath(".")
+	_, err = chartGetAppPath(".")
 	if err == nil {
 		t.Fatalf("expected error for short path")
 	}
@@ -40,7 +40,7 @@ func TestGetAppPath(t *testing.T) {
 
 func TestGetVersion(t *testing.T) {
 	sample := "name: foo\nversion: 1.2.-3\nother: x"
-	v, err := getVersion(sample)
+	v, err := chartGetVersion(sample)
 	if err != nil {
 		t.Fatalf("getVersion error: %v", err)
 	}
@@ -49,17 +49,17 @@ func TestGetVersion(t *testing.T) {
 	}
 
 	// missing version
-	_, err = getVersion("no version here")
+	_, err = chartGetVersion("no version here")
 	if err == nil {
 		t.Fatalf("expected error when version missing")
 	}
 }
 
 func TestGetAppTrain(t *testing.T) {
-	if got := getAppTrain("charts/trainX/chartY/Chart.yaml"); got != "trainX" {
+	if got := chartGetAppTrain("charts/trainX/chartY/Chart.yaml"); got != "trainX" {
 		t.Fatalf("expected trainX got %s", got)
 	}
-	if got := getAppTrain("short"); got != "" {
+	if got := chartGetAppTrain("short"); got != "" {
 		t.Fatalf("expected empty train for short path, got %s", got)
 	}
 }

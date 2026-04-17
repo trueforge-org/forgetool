@@ -21,6 +21,9 @@ var renderAppChangelogFunc = func(o *ChangelogOptions, data *ChangedData, appNam
 
 func (o *ChangelogOptions) Render() error {
 	start := time.Now()
+	if err := configureForAppType(o.AppType); err != nil {
+		return err
+	}
 	log.Info().Msgf("Starting changelog render at %s", start)
 
 	changelogData := ChangedData{mu: &sync.RWMutex{}, Apps: make(map[string]*App)}
@@ -65,7 +68,7 @@ func (o *ChangelogOptions) renderAppChangelog(changelogData *ChangedData, appNam
 		return err
 	}
 
-	output := filepath.Join(o.AppsDir, train, appName)
+	output := renderOutputPathFunc(o.AppsDir, train, appName)
 	if err := os.MkdirAll(output, os.ModePerm); err != nil {
 		return err
 	}

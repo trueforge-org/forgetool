@@ -19,6 +19,7 @@ func resetChangelogGlobals() {
 	activeApps = ActiveApps{items: make(map[string]ActiveApp), mu: &sync.RWMutex{}}
 	currentStatus = status{processedCount: 0, totalCount: 0, skippedCount: 0, avgTime: 0, totalProcessingTime: 0, mu: &sync.RWMutex{}}
 	skipCommitsWithBadMessage = false
+	_ = configureForAppType(AppTypeChart)
 }
 
 func writeFile(t *testing.T, path string, data string) {

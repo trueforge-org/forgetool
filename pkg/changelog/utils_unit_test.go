@@ -6,28 +6,28 @@ import (
 )
 
 func TestGetAppNameDeeperPath(t *testing.T) {
-	got := getAppName("charts/stable/mychart/templates/deployment.yaml")
+	got := chartGetAppName("charts/stable/mychart/templates/deployment.yaml")
 	if got != "mychart" {
 		t.Fatalf("expected mychart, got %s", got)
 	}
 }
 
 func TestGetAppNameSingleSegment(t *testing.T) {
-	got := getAppName("onlyone")
+	got := chartGetAppName("onlyone")
 	if got != invalidName {
 		t.Fatalf("expected invalidName for single segment path, got %s", got)
 	}
 }
 
 func TestGetAppNameTwoSegments(t *testing.T) {
-	got := getAppName("charts/train")
+	got := chartGetAppName("charts/train")
 	if got != invalidName {
 		t.Fatalf("expected invalidName for two-segment path, got %s", got)
 	}
 }
 
 func TestGetAppPathNested(t *testing.T) {
-	p, err := getAppPath("charts/stable/mychart/templates/deployment.yaml")
+	p, err := chartGetAppPath("charts/stable/mychart/templates/deployment.yaml")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -38,7 +38,7 @@ func TestGetAppPathNested(t *testing.T) {
 }
 
 func TestGetAppPathDirectApp(t *testing.T) {
-	p, err := getAppPath("charts/stable/mychart/Chart.yaml")
+	p, err := chartGetAppPath("charts/stable/mychart/Chart.yaml")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -50,7 +50,7 @@ func TestGetAppPathDirectApp(t *testing.T) {
 
 func TestGetVersionClean(t *testing.T) {
 	sample := "name: app\nversion: 2.5.0\n"
-	v, err := getVersion(sample)
+	v, err := chartGetVersion(sample)
 	if err != nil {
 		t.Fatalf("getVersion error: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestGetVersionClean(t *testing.T) {
 
 func TestGetVersionWithSpaces(t *testing.T) {
 	sample := "name: app\nversion:   3.1.0  \n"
-	v, err := getVersion(sample)
+	v, err := chartGetVersion(sample)
 	if err != nil {
 		t.Fatalf("getVersion error: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestGetVersionWithSpaces(t *testing.T) {
 
 func TestGetVersionMultipleDashes(t *testing.T) {
 	sample := "name: app\nversion: 1.0.-2-rc\n"
-	v, err := getVersion(sample)
+	v, err := chartGetVersion(sample)
 	if err != nil {
 		t.Fatalf("getVersion error: %v", err)
 	}
@@ -82,14 +82,14 @@ func TestGetVersionMultipleDashes(t *testing.T) {
 }
 
 func TestGetAppTrainThreeSegments(t *testing.T) {
-	got := getAppTrain("charts/enterprise/app/Chart.yaml")
+	got := chartGetAppTrain("charts/enterprise/app/Chart.yaml")
 	if got != "enterprise" {
 		t.Fatalf("expected enterprise, got %s", got)
 	}
 }
 
 func TestGetAppTrainEmpty(t *testing.T) {
-	got := getAppTrain("x")
+	got := chartGetAppTrain("x")
 	if got != "" {
 		t.Fatalf("expected empty, got %s", got)
 	}

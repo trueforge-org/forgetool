@@ -14,14 +14,15 @@ import (
 )
 
 type ChangelogOptions struct {
-	RepoPath                  string // Path to the repository (eg "./apps")
-	TemplatePath              string // Path to the template file (eg "./changelog.tmpl")
-	ChangelogFileName         string // Name of the changelog file eg "CHANGELOG.md"
-	JSONOutputPath            string // Path to the JSON output file
-	PrettyJSON                bool   // If true, the JSON output will be pretty-printed
-	AppsDir                   string // Dir where the apps are located (eg "./apps/")
-	StatusUpdateInterval      int    // Interval in seconds between status updates
-	SkipCommitsWithBadMessage bool   // If true, commits with bad messages will be skipped
+	RepoPath                  string  // Path to the repository (eg "./apps")
+	TemplatePath              string  // Path to the template file (eg "./changelog.tmpl")
+	ChangelogFileName         string  // Name of the changelog file eg "CHANGELOG.md"
+	JSONOutputPath            string  // Path to the JSON output file
+	PrettyJSON                bool    // If true, the JSON output will be pretty-printed
+	AppsDir                   string  // Dir where the apps are located (eg "./apps/")
+	StatusUpdateInterval      int     // Interval in seconds between status updates
+	SkipCommitsWithBadMessage bool    // If true, commits with bad messages will be skipped
+	AppType                   AppType // Type of app: "chart" or "container"
 }
 
 func checkPath(path string, createIfNotExist bool) error {
@@ -97,6 +98,9 @@ var repoLogFunc = func(repo *git.Repository) (gitobject.CommitIter, error) {
 
 func (o *ChangelogOptions) Generate() error {
 	start := time.Now()
+	if err := configureForAppType(o.AppType); err != nil {
+		return err
+	}
 	skipCommitsWithBadMessage = o.SkipCommitsWithBadMessage
 	log.Info().Msgf("Starting changelog generation at %s", start)
 	if err := prepareGenerateFunc(o, start); err != nil {
