@@ -8,7 +8,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/spf13/cobra"
-	"github.com/trueforge-org/forgetool/pkg/charts/changelog"
+	"github.com/trueforge-org/forgetool/pkg/changelog"
 )
 
 var chartsGenChangelogLongHelp = strings.TrimSpace(`
