@@ -180,9 +180,9 @@ func GetTrain(chartPath string, chart *HelmChart) string {
 }
 
 func setMetadata(chart *HelmChart, train string) {
-	chart.Metadata.Annotations["trueforge.org/train"] = train
-	chart.Metadata.Icon = fmt.Sprintf("https://trueforge.org/img/hotlink-ok/chart-icons/%s.webp", chart.Metadata.Name)
-	chart.Metadata.Home = fmt.Sprintf("https://trueforge.org/truetech/truecharts/charts/%s/%s", train, chart.Metadata.Name)
+	chart.Metadata.Annotations["truecharts.org/train"] = train
+	chart.Metadata.Icon = fmt.Sprintf("https://truecharts.org/img/hotlink-ok/chart-icons/%s.webp", chart.Metadata.Name)
+	chart.Metadata.Home = fmt.Sprintf("https://truecharts.org/truetech/truecharts/charts/%s/%s", train, chart.Metadata.Name)
 }
 
 // UpdateSources updates the sources in Chart.yaml using Go.

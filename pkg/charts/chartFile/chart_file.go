@@ -21,12 +21,12 @@ const (
 	apiVersion         = "v2"
 	chartType          = "application"
 	maintainerName     = "TrueCharts"
-	maintainerEmail    = "info@trueforge.org"
-	maintainerURL      = "https://trueforge.org"
+	maintainerEmail    = "info@truecharts.org"
+	maintainerURL      = "https://truecharts.org"
 	defaultCategory    = "unsorted"
 	defaultAppVersion  = "unknown"
 	defaultDescription = "No description provided."
-	defaultHome        = "https://trueforge.org"
+	defaultHome        = "https://truecharts.org"
 	defaultIcon        = "https://github.com/trueforge-org/website/blob/main/public/svg/logo.svg"
 	supportUrl         = `- name: support
 url: https://discord.com/invite/tVsPTHWTtr`

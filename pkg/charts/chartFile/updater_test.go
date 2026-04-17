@@ -305,10 +305,10 @@ func TestSetMetadata(t *testing.T) {
 				Metadata: ChartMetadata{
 					Name: "test-chart",
 					Annotations: map[string]string{
-						"trueforge.org/train": "stable",
+						"truecharts.org/train": "stable",
 					},
-					Icon: "https://trueforge.org/img/hotlink-ok/chart-icons/test-chart.webp",
-					Home: "https://trueforge.org/truetech/truecharts/charts/stable/test-chart",
+					Icon: "https://truecharts.org/img/hotlink-ok/chart-icons/test-chart.webp",
+					Home: "https://truecharts.org/truetech/truecharts/charts/stable/test-chart",
 				},
 			},
 		},
