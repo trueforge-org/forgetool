@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/trueforge-org/forgetool/pkg/charts/version"
+	"github.com/trueforge-org/forgetool/pkg/version"
 )
 
 var chartsBumpLongHelp = strings.TrimSpace(`
