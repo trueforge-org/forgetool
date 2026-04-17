@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+	"github.com/trueforge-org/forgetool/pkg/version"
 )
 
 const containerManifestFile = "docker-bake.hcl"
@@ -43,7 +44,8 @@ func containerGetAppPath(path string) (string, error) {
 	}
 }
 
-// containerGetVersion parses the VERSION variable from a docker-bake.hcl content string.
+// containerGetVersion parses the VERSION variable from a docker-bake.hcl content string
+// and returns a sanitised semantic version (major.minor.patch).
 func containerGetVersion(strData string) (string, error) {
 	lines := strings.Split(strData, "\n")
 	inVersionBlock := false
@@ -54,7 +56,10 @@ func containerGetVersion(strData string) (string, error) {
 		}
 		if inVersionBlock {
 			if m := containerVersionDefaultRe.FindStringSubmatch(line); m != nil {
-				return m[1], nil
+				info := version.Sanitize(m[1])
+				log.Debug().Msgf("sanitised container version: upstream=%q semantic=%q raw=%q valid=%v",
+					info.Upstream, info.Semantic, info.Raw, info.IsValidSemver)
+				return info.Semantic, nil
 			}
 			if strings.Contains(line, "}") {
 				inVersionBlock = false

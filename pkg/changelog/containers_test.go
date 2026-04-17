@@ -72,6 +72,36 @@ func TestContainerGetVersion(t *testing.T) {
 		t.Fatalf("expected 2.0.0, got %s", v)
 	}
 
+	// With v prefix — should be stripped
+	content = "variable \"VERSION\" {\n  default = \"v3.1.0\"\n}\n"
+	v, err = containerGetVersion(content)
+	if err != nil {
+		t.Fatalf("containerGetVersion error: %v", err)
+	}
+	if v != "3.1.0" {
+		t.Fatalf("expected 3.1.0, got %s", v)
+	}
+
+	// With pre-release suffix — should be stripped
+	content = "variable \"VERSION\" {\n  default = \"4.0.0-rc1\"\n}\n"
+	v, err = containerGetVersion(content)
+	if err != nil {
+		t.Fatalf("containerGetVersion error: %v", err)
+	}
+	if v != "4.0.0" {
+		t.Fatalf("expected 4.0.0, got %s", v)
+	}
+
+	// Partial version — should be coerced to full semver
+	content = "variable \"VERSION\" {\n  default = \"5.1\"\n}\n"
+	v, err = containerGetVersion(content)
+	if err != nil {
+		t.Fatalf("containerGetVersion error: %v", err)
+	}
+	if v != "5.1.0" {
+		t.Fatalf("expected 5.1.0, got %s", v)
+	}
+
 	// Missing VERSION
 	content = "variable \"APP\" {\n  default = \"myapp\"\n}\n"
 	_, err = containerGetVersion(content)
