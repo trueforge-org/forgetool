@@ -24,12 +24,28 @@ var (
 	containersGenDocsTemplatePath        string
 	containersGenDocsComposeTemplatePath string
 	containersGenDocsIconBaseURL         string
+	containersGenDocsPrepare             bool
+	containersGenDocsChangelogsDir       string
 
 	containersGenDocsRunner  = runContainersGenDocs
 	containersGenDocsOnError = func(err error) { log.Fatal().Err(err).Msg("container docs generation failed") }
 )
 
 func runContainersGenDocs(args []string) error {
+	baseOpts := website.ContainerOptions{
+		AppsDir:             containersGenDocsAppsDir,
+		WebsiteDir:          containersGenDocsWebsiteDir,
+		TemplatePath:        containersGenDocsTemplatePath,
+		ComposeTemplatePath: containersGenDocsComposeTemplatePath,
+		IconFallbackBaseURL: containersGenDocsIconBaseURL,
+	}
+
+	if containersGenDocsPrepare {
+		if err := website.PrepareContainerWebsite(baseOpts); err != nil {
+			return fmt.Errorf("prepare website: %w", err)
+		}
+	}
+
 	apps := args
 	if len(apps) == 0 {
 		discovered, err := website.DiscoverApps(containersGenDocsAppsDir)
@@ -40,16 +56,16 @@ func runContainersGenDocs(args []string) error {
 	}
 
 	for _, app := range apps {
-		opts := website.ContainerOptions{
-			App:                 app,
-			AppsDir:             containersGenDocsAppsDir,
-			WebsiteDir:          containersGenDocsWebsiteDir,
-			TemplatePath:        containersGenDocsTemplatePath,
-			ComposeTemplatePath: containersGenDocsComposeTemplatePath,
-			IconFallbackBaseURL: containersGenDocsIconBaseURL,
-		}
+		opts := baseOpts
+		opts.App = app
 		if err := website.ProcessApp(opts); err != nil {
 			return fmt.Errorf("process %s: %w", app, err)
+		}
+	}
+
+	if containersGenDocsChangelogsDir != "" {
+		if err := website.FinalizeContainerWebsite(baseOpts, containersGenDocsChangelogsDir); err != nil {
+			return fmt.Errorf("finalize website: %w", err)
 		}
 	}
 	return nil
@@ -73,5 +89,7 @@ func init() {
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsTemplatePath, "template", "templates/README.md.tmpl", "index template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsComposeTemplatePath, "compose-template", "templates/docker-compose.yaml.tmpl", "docker-compose snippet template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsIconBaseURL, "icon-fallback-base-url", "", "base URL used to fetch icons when not present locally")
+	containersGenDocsCmd.Flags().BoolVar(&containersGenDocsPrepare, "prepare", false, "prepare the website docs/containers tree (mkdir, wipe, restore index.mdx) before processing")
+	containersGenDocsCmd.Flags().StringVar(&containersGenDocsChangelogsDir, "changelogs-dir", "", "if set, copy this directory's contents into docs/containers after processing")
 	containersCmd.AddCommand(containersGenDocsCmd)
 }

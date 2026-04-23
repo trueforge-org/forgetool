@@ -19,14 +19,27 @@ directory that has a Chart.yaml is processed; otherwise pass one or more
 `)
 
 var (
-	chartsGenDocsChartsDir  string
-	chartsGenDocsWebsiteDir string
+	chartsGenDocsChartsDir     string
+	chartsGenDocsWebsiteDir    string
+	chartsGenDocsPrepare       bool
+	chartsGenDocsChangelogsDir string
 
 	chartsGenDocsRunner  = runChartsGenDocs
 	chartsGenDocsOnError = func(err error) { log.Fatal().Err(err).Msg("chart docs generation failed") }
 )
 
 func runChartsGenDocs(args []string) error {
+	baseOpts := website.ChartOptions{
+		ChartsDir:  chartsGenDocsChartsDir,
+		WebsiteDir: chartsGenDocsWebsiteDir,
+	}
+
+	if chartsGenDocsPrepare {
+		if err := website.PrepareChartWebsite(baseOpts); err != nil {
+			return fmt.Errorf("prepare website: %w", err)
+		}
+	}
+
 	type pair struct{ train, chart string }
 	var work []pair
 	if len(args) == 0 {
@@ -48,14 +61,17 @@ func runChartsGenDocs(args []string) error {
 	}
 
 	for _, w := range work {
-		opts := website.ChartOptions{
-			Train:      w.train,
-			Chart:      w.chart,
-			ChartsDir:  chartsGenDocsChartsDir,
-			WebsiteDir: chartsGenDocsWebsiteDir,
-		}
+		opts := baseOpts
+		opts.Train = w.train
+		opts.Chart = w.chart
 		if err := website.ProcessChart(opts); err != nil {
 			return fmt.Errorf("process %s/%s: %w", w.train, w.chart, err)
+		}
+	}
+
+	if chartsGenDocsChangelogsDir != "" {
+		if err := website.FinalizeChartWebsite(baseOpts, chartsGenDocsChangelogsDir); err != nil {
+			return fmt.Errorf("finalize website: %w", err)
 		}
 	}
 	return nil
@@ -76,5 +92,7 @@ var chartsGenDocsCmd = &cobra.Command{
 func init() {
 	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsChartsDir, "charts-dir", "charts", "directory containing chart trains")
 	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsWebsiteDir, "website-dir", "website", "root of the website checkout")
+	chartsGenDocsCmd.Flags().BoolVar(&chartsGenDocsPrepare, "prepare", false, "prepare the website docs/charts tree (mkdir, wipe, restore index.mdx) before processing")
+	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsChangelogsDir, "changelogs-dir", "", "if set, copy this directory's contents into docs/charts after processing")
 	charts.AddCommand(chartsGenDocsCmd)
 }
