@@ -254,7 +254,8 @@ func mergeVersionStaging(app string, versionKey string, appItem *App, stagingApp
 		return nil
 	}
 
-	mergeVersionCommits(app, versionKey, appItem.Versions[versionKey], stagingAppItem.Versions[versionKey].Commits)
+	appVerItem := ensureAppVersion(appItem, versionKey, stagingAppItem)
+	mergeVersionCommits(app, versionKey, appVerItem, stagingAppItem.Versions[versionKey].Commits)
 	return nil
 }
 
