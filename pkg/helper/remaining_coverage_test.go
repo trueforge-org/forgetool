@@ -417,31 +417,6 @@ func TestCoverage_OtherHelperBranches(t *testing.T) {
 		t.Fatalf("RunCommand non-silent expected output, got %q err=%v", out, err)
 	}
 
-	// talhelperextract error branches
-	oldClusterPath := ClusterPath
-	oldTalEnv := TalEnv
-	ClusterPath = t.TempDir()
-	TalEnv = map[string]string{}
-	t.Cleanup(func() {
-		ClusterPath = oldClusterPath
-		TalEnv = oldTalEnv
-	})
-
-	if _, err := CreateIPHostnameMap(); err == nil {
-		t.Fatalf("expected CreateIPHostnameMap error when talconfig missing")
-	}
-
-	cfg := filepath.Join(ClusterPath, "talos", "talconfig.yaml")
-	if err := os.MkdirAll(filepath.Dir(cfg), 0o755); err != nil {
-		t.Fatalf("mkdir talos: %v", err)
-	}
-	if err := os.WriteFile(cfg, []byte("nodes: ["), 0o644); err != nil {
-		t.Fatalf("write invalid yaml: %v", err)
-	}
-	if _, err := CreateIPHostnameMap(); err == nil {
-		t.Fatalf("expected CreateIPHostnameMap yaml unmarshal error")
-	}
-
 	// tooldocs error branches
 	ToolDocs(filepath.Join(td, "missing"), filepath.Join(td, "out"))
 	toolDocsProcessFilesFn = func(string, string) error { return nil }

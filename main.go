@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-logr/zerologr"
 	"github.com/trueforge-org/forgetool/cmd"
-	"github.com/trueforge-org/forgetool/embed"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 	k8slog "sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -21,7 +20,6 @@ var noColor = false
 func main() {
 	configureLogging()
 	printBanner()
-	embed.AllToCache()
 	helper.CheckSystemTime()
 	helper.CheckReqDomains()
 	runCommand()

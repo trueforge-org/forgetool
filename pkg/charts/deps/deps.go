@@ -12,12 +12,12 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/trueforge-org/forgetool/pkg/charts/chartFile"
-	"github.com/trueforge-org/forgetool/pkg/fluxhandler"
+	"github.com/trueforge-org/forgetool/pkg/helmhandler"
 	"github.com/trueforge-org/forgetool/pkg/helper"
 )
 
 var httpGet = http.Get
-var helmPull = fluxhandler.HelmPull
+var helmPull = helmhandler.HelmPull
 
 func LoadGPGKey() error {
 	log.Info().Msg("🔑 Fetching and Loading TrueCharts PGP Public Key 🔑")
