@@ -1,0 +1,13 @@
+apiVersion: v2
+name: demochart
+description: A demo chart for testing website docs generation.
+type: application
+version: 3.4.5
+appVersion: "1.0.0"
+sources:
+  - https://example.com/demochart
+  - https://github.com/example/demochart
+maintainers:
+  - name: TrueCharts
+    email: info@truecharts.org
+    url: https://truecharts.org
