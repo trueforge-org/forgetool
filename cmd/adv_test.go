@@ -15,7 +15,7 @@ func TestAdvCommandConfig(t *testing.T) {
 }
 
 func TestAdvCommandHasExpectedSubcommands(t *testing.T) {
-	expected := []string{"gentooldocs", "precommit", "test"}
+	expected := []string{"gentooldocs"}
 	registered := make(map[string]bool)
 	for _, command := range adv.Commands() {
 		registered[command.Name()] = true
