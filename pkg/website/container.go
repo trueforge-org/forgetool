@@ -55,7 +55,7 @@ type ContainerOptions struct {
 	TemplatePath string
 	// ComposeTemplatePath is the docker-compose snippet template. Defaults to
 	// "templates/docker-compose.yaml.tmpl". When the template file is missing
-	// the {{ COMPOSE_FILE }} placeholder is left empty.
+	// no docker-compose.md page is generated.
 	ComposeTemplatePath string
 	// IconFallbackBaseURL is queried for icons when the app does not provide a
 	// local icon.webp / icon-small.webp. Defaults to the truecharts charts/stable
@@ -240,6 +240,12 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 		return fmt.Errorf("parse %s: %w", p.bake, err)
 	}
 
+	// Generate the standalone docker-compose.md page first so that it shows
+	// up in the sidebar links collected below.
+	if err := writeComposePage(opts, p, vars); err != nil {
+		return err
+	}
+
 	links, err := collectDocsLinks(p.docsDir)
 	if err != nil {
 		return err
@@ -258,11 +264,6 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 		readmeContent = "## Readme\n\n" + readme
 	}
 
-	composeFile, err := buildComposeSection(opts, p, vars)
-	if err != nil {
-		return err
-	}
-
 	tmplBytes, err := os.ReadFile(opts.TemplatePath)
 	if err != nil {
 		return fmt.Errorf("read template: %w", err)
@@ -275,7 +276,10 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 	rendered = strings.ReplaceAll(rendered, "{{ SOURCE }}", vars["SOURCE"])
 	rendered = strings.ReplaceAll(rendered, "{{ DOCS_LINKS }}", strings.TrimRight(docsLinksBuilder.String(), "\n"))
 	rendered = strings.ReplaceAll(rendered, "{{ README_CONTENT }}", readmeContent)
-	rendered = strings.ReplaceAll(rendered, "{{ COMPOSE_FILE }}", composeFile)
+	// Backwards compatibility: legacy templates may still contain the
+	// {{ COMPOSE_FILE }} placeholder; the snippet now lives on its own page,
+	// so simply strip the placeholder.
+	rendered = strings.ReplaceAll(rendered, "{{ COMPOSE_FILE }}", "")
 
 	if err := os.MkdirAll(filepath.Dir(p.indexFile), 0o755); err != nil {
 		return err
@@ -283,29 +287,48 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 	return os.WriteFile(p.indexFile, []byte(rendered), 0o644)
 }
 
-// buildComposeSection reads settings.yaml and renders a fenced code block
-// containing the docker-compose snippet. If settings.yaml is absent, or the
-// compose template is missing, it returns an empty string so the
-// {{ COMPOSE_FILE }} placeholder is simply erased.
-func buildComposeSection(opts ContainerOptions, p containerPaths, vars map[string]string) (string, error) {
+// writeComposePage renders the docker-compose snippet for the app and writes
+// it to a standalone docker-compose.md page inside the per-app docs directory.
+// When settings.yaml or the compose template are absent the page is not
+// created (and any pre-existing one is removed for cleanliness).
+func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]string) error {
+	pagePath := filepath.Join(p.docsDir, "docker-compose.md")
+
 	settings, ok, err := parseSettings(p.settings)
 	if err != nil {
-		return "", fmt.Errorf("parse settings.yaml: %w", err)
+		return fmt.Errorf("parse settings.yaml: %w", err)
 	}
 	if !ok {
-		return "", nil
+		_ = os.Remove(pagePath)
+		return nil
 	}
 
 	snippet, err := renderComposeSnippet(opts.App, vars["VERSION"], settings, opts.ComposeTemplatePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			log.Info().Msgf("compose template not found for %s, skipping", opts.App)
-			return "", nil
+			_ = os.Remove(pagePath)
+			return nil
 		}
-		return "", err
+		return err
 	}
 
-	return "## Docker Compose\n\n```yaml\n" + snippet + "```\n", nil
+	var b strings.Builder
+	b.WriteString("---\n")
+	b.WriteString("title: Docker Compose\n")
+	b.WriteString("---\n\n")
+	fmt.Fprintf(&b, "Example `docker-compose.yaml` for **%s**:\n\n", opts.App)
+	b.WriteString("```yaml\n")
+	b.WriteString(snippet)
+	if !strings.HasSuffix(snippet, "\n") {
+		b.WriteString("\n")
+	}
+	b.WriteString("```\n")
+
+	if err := os.MkdirAll(p.docsDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(pagePath, []byte(b.String()), 0o644)
 }
 
 // parseSettings reads an app's settings.yaml file. It returns (settings, true,

@@ -372,9 +372,8 @@ func TestProcessApp_WithCompose(t *testing.T) {
 	composeTmplPath := filepath.Join(root, "templates", "docker-compose.yaml.tmpl")
 	writeFile(t, composeTmplPath, sampleComposeTmpl)
 
-	readmeTmpl := sampleTemplate + "\n{{ COMPOSE_FILE }}\n"
 	tmplPath := filepath.Join(root, "templates", "README.md.tmpl")
-	writeFile(t, tmplPath, readmeTmpl)
+	writeFile(t, tmplPath, sampleTemplate)
 
 	prev, _ := os.Getwd()
 	t.Cleanup(func() { _ = os.Chdir(prev) })
@@ -394,19 +393,30 @@ func TestProcessApp_WithCompose(t *testing.T) {
 	}
 
 	docsBase := filepath.Join(root, "website", "containerforge", "src", "content", "docs", "containers")
-	idx := readFile(t, filepath.Join(docsBase, app, "index.md"))
 
-	if !strings.Contains(idx, "## Docker Compose") {
-		t.Errorf("index.md missing Docker Compose section:\n%s", idx)
+	// The compose snippet now lives on its own page.
+	composePath := filepath.Join(docsBase, app, "docker-compose.md")
+	compose := readFile(t, composePath)
+	if !strings.Contains(compose, "title: Docker Compose") {
+		t.Errorf("docker-compose.md missing front matter title:\n%s", compose)
 	}
-	if !strings.Contains(idx, "```yaml") {
-		t.Errorf("index.md missing yaml code block:\n%s", idx)
+	if !strings.Contains(compose, "```yaml") {
+		t.Errorf("docker-compose.md missing yaml code block:\n%s", compose)
 	}
-	if !strings.Contains(idx, "ghcr.io/trueforge-org/myapp:1.2.3") {
-		t.Errorf("index.md missing image reference:\n%s", idx)
+	if !strings.Contains(compose, "ghcr.io/trueforge-org/myapp:1.2.3") {
+		t.Errorf("docker-compose.md missing image reference:\n%s", compose)
 	}
-	if !strings.Contains(idx, `"8080:8080"`) {
-		t.Errorf("index.md missing port mapping:\n%s", idx)
+	if !strings.Contains(compose, `"8080:8080"`) {
+		t.Errorf("docker-compose.md missing port mapping:\n%s", compose)
+	}
+
+	// The index page should link to it but not embed the snippet.
+	idx := readFile(t, filepath.Join(docsBase, app, "index.md"))
+	if strings.Contains(idx, "```yaml") {
+		t.Errorf("index.md should not embed compose yaml:\n%s", idx)
+	}
+	if !strings.Contains(idx, "[**Docker Compose**](./docker-compose)") {
+		t.Errorf("index.md missing docker-compose sidebar link:\n%s", idx)
 	}
 }
 
@@ -416,9 +426,8 @@ func TestProcessApp_NoSettings_NoComposeTmpl(t *testing.T) {
 	appDir := filepath.Join(root, "apps", app)
 	writeFile(t, filepath.Join(appDir, "docker-bake.hcl"), sampleBake)
 
-	readmeTmpl := sampleTemplate + "\n{{ COMPOSE_FILE }}\n"
 	tmplPath := filepath.Join(root, "templates", "README.md.tmpl")
-	writeFile(t, tmplPath, readmeTmpl)
+	writeFile(t, tmplPath, sampleTemplate)
 
 	prev, _ := os.Getwd()
 	t.Cleanup(func() { _ = os.Chdir(prev) })
@@ -426,7 +435,7 @@ func TestProcessApp_NoSettings_NoComposeTmpl(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No settings.yaml → compose section is empty (no error).
+	// No settings.yaml → no docker-compose.md page is generated.
 	if err := ProcessApp(ContainerOptions{
 		App:                 app,
 		AppsDir:             "apps",
@@ -439,8 +448,11 @@ func TestProcessApp_NoSettings_NoComposeTmpl(t *testing.T) {
 	}
 
 	docsBase := filepath.Join(root, "website", "containerforge", "src", "content", "docs", "containers")
+	if _, err := os.Stat(filepath.Join(docsBase, app, "docker-compose.md")); !os.IsNotExist(err) {
+		t.Errorf("expected no docker-compose.md when settings.yaml absent, err=%v", err)
+	}
 	idx := readFile(t, filepath.Join(docsBase, app, "index.md"))
-	if strings.Contains(idx, "## Docker Compose") {
-		t.Errorf("expected no Docker Compose section when settings.yaml absent:\n%s", idx)
+	if strings.Contains(idx, "docker-compose") {
+		t.Errorf("expected no docker-compose link when settings.yaml absent:\n%s", idx)
 	}
 }
