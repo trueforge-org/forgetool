@@ -21,7 +21,6 @@ directory that has a Chart.yaml is processed; otherwise pass one or more
 var (
 	chartsGenDocsChartsDir     string
 	chartsGenDocsWebsiteDir    string
-	chartsGenDocsPrepare       bool
 	chartsGenDocsChangelogsDir string
 
 	chartsGenDocsRunner  = runChartsGenDocs
@@ -34,10 +33,8 @@ func runChartsGenDocs(args []string) error {
 		WebsiteDir: chartsGenDocsWebsiteDir,
 	}
 
-	if chartsGenDocsPrepare {
-		if err := website.PrepareChartWebsite(baseOpts); err != nil {
-			return fmt.Errorf("prepare website: %w", err)
-		}
+	if err := website.PrepareChartWebsite(baseOpts); err != nil {
+		return fmt.Errorf("prepare website: %w", err)
 	}
 
 	type pair struct{ train, chart string }
@@ -69,10 +66,8 @@ func runChartsGenDocs(args []string) error {
 		}
 	}
 
-	if chartsGenDocsChangelogsDir != "" {
-		if err := website.FinalizeChartWebsite(baseOpts, chartsGenDocsChangelogsDir); err != nil {
-			return fmt.Errorf("finalize website: %w", err)
-		}
+	if err := website.FinalizeChartWebsite(baseOpts, chartsGenDocsChangelogsDir); err != nil {
+		return fmt.Errorf("finalize website: %w", err)
 	}
 	return nil
 }
@@ -92,7 +87,6 @@ var chartsGenDocsCmd = &cobra.Command{
 func init() {
 	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsChartsDir, "charts-dir", "charts", "directory containing chart trains")
 	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsWebsiteDir, "website-dir", "website", "root of the website checkout")
-	chartsGenDocsCmd.Flags().BoolVar(&chartsGenDocsPrepare, "prepare", false, "prepare the website docs/charts tree (mkdir, wipe, restore index.mdx) before processing")
-	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsChangelogsDir, "changelogs-dir", "", "if set, copy this directory's contents into docs/charts after processing")
+	chartsGenDocsCmd.Flags().StringVar(&chartsGenDocsChangelogsDir, "changelogs-dir", "changelogs", "directory whose contents are copied into docs/charts after processing (no-op if missing/empty)")
 	charts.AddCommand(chartsGenDocsCmd)
 }

@@ -24,7 +24,6 @@ var (
 	containersGenDocsTemplatePath        string
 	containersGenDocsComposeTemplatePath string
 	containersGenDocsIconBaseURL         string
-	containersGenDocsPrepare             bool
 	containersGenDocsChangelogsDir       string
 
 	containersGenDocsRunner  = runContainersGenDocs
@@ -40,10 +39,8 @@ func runContainersGenDocs(args []string) error {
 		IconFallbackBaseURL: containersGenDocsIconBaseURL,
 	}
 
-	if containersGenDocsPrepare {
-		if err := website.PrepareContainerWebsite(baseOpts); err != nil {
-			return fmt.Errorf("prepare website: %w", err)
-		}
+	if err := website.PrepareContainerWebsite(baseOpts); err != nil {
+		return fmt.Errorf("prepare website: %w", err)
 	}
 
 	apps := args
@@ -63,10 +60,8 @@ func runContainersGenDocs(args []string) error {
 		}
 	}
 
-	if containersGenDocsChangelogsDir != "" {
-		if err := website.FinalizeContainerWebsite(baseOpts, containersGenDocsChangelogsDir); err != nil {
-			return fmt.Errorf("finalize website: %w", err)
-		}
+	if err := website.FinalizeContainerWebsite(baseOpts, containersGenDocsChangelogsDir); err != nil {
+		return fmt.Errorf("finalize website: %w", err)
 	}
 	return nil
 }
@@ -89,7 +84,6 @@ func init() {
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsTemplatePath, "template", "templates/README.md.tmpl", "index template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsComposeTemplatePath, "compose-template", "templates/docker-compose.yaml.tmpl", "docker-compose snippet template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsIconBaseURL, "icon-fallback-base-url", "", "base URL used to fetch icons when not present locally")
-	containersGenDocsCmd.Flags().BoolVar(&containersGenDocsPrepare, "prepare", false, "prepare the website docs/containers tree (mkdir, wipe, restore index.mdx) before processing")
-	containersGenDocsCmd.Flags().StringVar(&containersGenDocsChangelogsDir, "changelogs-dir", "", "if set, copy this directory's contents into docs/containers after processing")
+	containersGenDocsCmd.Flags().StringVar(&containersGenDocsChangelogsDir, "changelogs-dir", "changelogs", "directory whose contents are copied into docs/containers after processing (no-op if missing/empty)")
 	containersCmd.AddCommand(containersGenDocsCmd)
 }
