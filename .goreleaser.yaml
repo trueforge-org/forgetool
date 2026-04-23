@@ -49,11 +49,6 @@ universal_binaries:
 
 report_sizes: true
 
-before:
-  hooks:
-    - chmod +x ./partial_builds/partial_build.sh
-    - bash ./partial_builds/partial_build.sh
-
 # sboms:
 #   - artifacts: archive
 #   - id: source

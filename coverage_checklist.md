@@ -38,7 +38,6 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (62/62) - cmd/talosctl.go
 - [ ] 100.00% (32/32) - embed/embed.go
 - [ ] 100.00% (26/26) - main.go
-- [ ] 100.00% (2/2) - partial_builds/precommit/main.go
 - [ ] 100.00% (22/22) - pkg/charts/changelog/active_charts.go
 - [ ] 100.00% (68/68) - pkg/charts/changelog/changed_data.go
 - [ ] 100.00% (137/137) - pkg/charts/changelog/changelog.go
