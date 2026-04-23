@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../../../../schemas/container-settings.schema.json
+schema_version: 1
+upstream_env_url: "https://example.com/demoapp/env"
+ports:
+  - port: 8080
+    protocol: tcp
+    required: false
+env:
+  - name: DEMOAPP_DATA_DIR
+    default: "/config"
+    required: false
+  - name: DEMOAPP_LOG_LEVEL
+    default: "info"
+    required: false
+volumes:
+  - path: /config
+    required: true

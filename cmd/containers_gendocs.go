@@ -19,10 +19,11 @@ named apps are processed.
 `)
 
 var (
-	containersGenDocsAppsDir      string
-	containersGenDocsWebsiteDir   string
-	containersGenDocsTemplatePath string
-	containersGenDocsIconBaseURL  string
+	containersGenDocsAppsDir             string
+	containersGenDocsWebsiteDir          string
+	containersGenDocsTemplatePath        string
+	containersGenDocsComposeTemplatePath string
+	containersGenDocsIconBaseURL         string
 
 	containersGenDocsRunner  = runContainersGenDocs
 	containersGenDocsOnError = func(err error) { log.Fatal().Err(err).Msg("container docs generation failed") }
@@ -44,6 +45,7 @@ func runContainersGenDocs(args []string) error {
 			AppsDir:             containersGenDocsAppsDir,
 			WebsiteDir:          containersGenDocsWebsiteDir,
 			TemplatePath:        containersGenDocsTemplatePath,
+			ComposeTemplatePath: containersGenDocsComposeTemplatePath,
 			IconFallbackBaseURL: containersGenDocsIconBaseURL,
 		}
 		if err := website.ProcessApp(opts); err != nil {
@@ -69,6 +71,7 @@ func init() {
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsAppsDir, "apps-dir", "apps", "directory containing app sources")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsWebsiteDir, "website-dir", "website", "root of the website checkout")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsTemplatePath, "template", "templates/README.md.tmpl", "index template path")
+	containersGenDocsCmd.Flags().StringVar(&containersGenDocsComposeTemplatePath, "compose-template", "templates/docker-compose.yaml.tmpl", "docker-compose snippet template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsIconBaseURL, "icon-fallback-base-url", "", "base URL used to fetch icons when not present locally")
 	containersCmd.AddCommand(containersGenDocsCmd)
 }

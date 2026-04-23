@@ -10,7 +10,37 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 )
+
+// AppSettings represents the contents of an app's settings.yaml file.
+type AppSettings struct {
+	SchemaVersion  int             `yaml:"schema_version"`
+	UpstreamEnvURL string          `yaml:"upstream_env_url"`
+	Ports          []PortSetting   `yaml:"ports"`
+	Env            []EnvSetting    `yaml:"env"`
+	Volumes        []VolumeSetting `yaml:"volumes"`
+}
+
+// PortSetting is a single port entry in settings.yaml.
+type PortSetting struct {
+	Port     int    `yaml:"port"`
+	Protocol string `yaml:"protocol"`
+	Required bool   `yaml:"required"`
+}
+
+// EnvSetting is a single environment variable entry in settings.yaml.
+type EnvSetting struct {
+	Name     string `yaml:"name"`
+	Default  string `yaml:"default"`
+	Required bool   `yaml:"required"`
+}
+
+// VolumeSetting is a single volume entry in settings.yaml.
+type VolumeSetting struct {
+	Path     string `yaml:"path"`
+	Required bool   `yaml:"required"`
+}
 
 // ContainerOptions configures a single container app docs build.
 type ContainerOptions struct {
@@ -23,6 +53,10 @@ type ContainerOptions struct {
 	// TemplatePath is the README/index template. Defaults to
 	// "templates/README.md.tmpl".
 	TemplatePath string
+	// ComposeTemplatePath is the docker-compose snippet template. Defaults to
+	// "templates/docker-compose.yaml.tmpl". When the template file is missing
+	// the {{ COMPOSE_FILE }} placeholder is left empty.
+	ComposeTemplatePath string
 	// IconFallbackBaseURL is queried for icons when the app does not provide a
 	// local icon.webp / icon-small.webp. Defaults to the truecharts charts/stable
 	// raw URL used by the legacy script.
@@ -41,6 +75,9 @@ func (o *ContainerOptions) applyDefaults() {
 	if o.TemplatePath == "" {
 		o.TemplatePath = "templates/README.md.tmpl"
 	}
+	if o.ComposeTemplatePath == "" {
+		o.ComposeTemplatePath = "templates/docker-compose.yaml.tmpl"
+	}
 	if o.IconFallbackBaseURL == "" {
 		o.IconFallbackBaseURL = defaultIconFallbackBaseURL
 	}
@@ -53,6 +90,7 @@ type containerPaths struct {
 	docsSrc     string
 	readme      string
 	screenshots string
+	settings    string
 
 	docsBase    string
 	tmpDocsBase string
@@ -74,6 +112,7 @@ func (o *ContainerOptions) paths() containerPaths {
 		docsSrc:        filepath.Join(appDir, "docs"),
 		readme:         filepath.Join(appDir, "README.md"),
 		screenshots:    filepath.Join(appDir, "screenshots"),
+		settings:       filepath.Join(appDir, "settings.yaml"),
 		docsBase:       docsBase,
 		tmpDocsBase:    tmpDocsBase,
 		docsDir:        filepath.Join(docsBase, o.App),
@@ -219,6 +258,11 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 		readmeContent = "## Readme\n\n" + readme
 	}
 
+	composeFile, err := buildComposeSection(opts, p, vars)
+	if err != nil {
+		return err
+	}
+
 	tmplBytes, err := os.ReadFile(opts.TemplatePath)
 	if err != nil {
 		return fmt.Errorf("read template: %w", err)
@@ -231,11 +275,169 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 	rendered = strings.ReplaceAll(rendered, "{{ SOURCE }}", vars["SOURCE"])
 	rendered = strings.ReplaceAll(rendered, "{{ DOCS_LINKS }}", strings.TrimRight(docsLinksBuilder.String(), "\n"))
 	rendered = strings.ReplaceAll(rendered, "{{ README_CONTENT }}", readmeContent)
+	rendered = strings.ReplaceAll(rendered, "{{ COMPOSE_FILE }}", composeFile)
 
 	if err := os.MkdirAll(filepath.Dir(p.indexFile), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(p.indexFile, []byte(rendered), 0o644)
+}
+
+// buildComposeSection reads settings.yaml and renders a fenced code block
+// containing the docker-compose snippet. If settings.yaml is absent, or the
+// compose template is missing, it returns an empty string so the
+// {{ COMPOSE_FILE }} placeholder is simply erased.
+func buildComposeSection(opts ContainerOptions, p containerPaths, vars map[string]string) (string, error) {
+	settings, ok, err := parseSettings(p.settings)
+	if err != nil {
+		return "", fmt.Errorf("parse settings.yaml: %w", err)
+	}
+	if !ok {
+		return "", nil
+	}
+
+	snippet, err := renderComposeSnippet(opts.App, vars["VERSION"], settings, opts.ComposeTemplatePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			log.Info().Msgf("compose template not found for %s, skipping", opts.App)
+			return "", nil
+		}
+		return "", err
+	}
+
+	return "## Docker Compose\n\n```yaml\n" + snippet + "```\n", nil
+}
+
+// parseSettings reads an app's settings.yaml file. It returns (settings, true,
+// nil) on success, (zero, false, nil) if the file does not exist, or an error
+// on any other failure.
+func parseSettings(path string) (AppSettings, bool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return AppSettings{}, false, nil
+		}
+		return AppSettings{}, false, err
+	}
+	var s AppSettings
+	if err := yaml.Unmarshal(data, &s); err != nil {
+		return AppSettings{}, false, fmt.Errorf("unmarshal %s: %w", path, err)
+	}
+	return s, true, nil
+}
+
+// renderComposeSnippet generates a docker-compose YAML string from the
+// docker-compose.yaml.tmpl template and the app's settings. The template uses
+// ${TOKEN} scalar substitutions and # BEGIN_X / # END_X comment blocks to
+// delimit repeated sections.
+func renderComposeSnippet(app, version string, settings AppSettings, tmplPath string) (string, error) {
+	tmplBytes, err := os.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Strip leading header comment lines (before the first non-comment line)
+	// and all BEGIN_*/END_* comment blocks.
+	lines := strings.Split(string(tmplBytes), "\n")
+	var kept []string
+	inBlock := false
+	headerDone := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "# BEGIN_") {
+			inBlock = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "# END_") {
+			inBlock = false
+			continue
+		}
+		if inBlock {
+			continue
+		}
+		// Skip leading top-level comment lines before services:
+		if !headerDone {
+			if strings.HasPrefix(trimmed, "#") || trimmed == "" {
+				continue
+			}
+			headerDone = true
+		}
+		kept = append(kept, line)
+	}
+	result := strings.Join(kept, "\n")
+
+	// Scalar token substitutions.
+	// Use the version from the bake file when available; fall back to "rolling"
+	// so the image reference is always usable. Never emit a bare image name
+	// (no tag) or the mutable "latest" tag.
+	tag := version
+	if tag == "" || strings.EqualFold(tag, "latest") {
+		tag = "rolling"
+	}
+	image := "ghcr.io/trueforge-org/" + app + ":" + tag
+	result = strings.ReplaceAll(result, "${SERVICE_NAME}", app)
+	result = strings.ReplaceAll(result, "${IMAGE}", image)
+	result = strings.ReplaceAll(result, "${CONTAINER_NAME}", app)
+	result = strings.ReplaceAll(result, "${RESTART_POLICY:-unless-stopped}", "unless-stopped")
+
+	// Replace ports placeholder.
+	result = replacePortsSection(result, settings.Ports)
+
+	// Replace environment placeholder.
+	result = replaceEnvSection(result, settings.Env)
+
+	// Replace volumes placeholder.
+	result = replaceVolumesSection(result, settings.Volumes)
+
+	return strings.TrimSpace(result) + "\n", nil
+}
+
+// replacePortsSection rewrites the static "ports:\n      []" placeholder with
+// actual port mappings derived from settings, or leaves it as "ports: []" when
+// there are no ports.
+func replacePortsSection(result string, ports []PortSetting) string {
+	if len(ports) == 0 {
+		return strings.ReplaceAll(result, "    ports:\n      []", "    ports: []")
+	}
+	var b strings.Builder
+	b.WriteString("    ports:\n")
+	for _, p := range ports {
+		if strings.EqualFold(p.Protocol, "tcp") {
+			fmt.Fprintf(&b, "      - \"%d:%d\"\n", p.Port, p.Port)
+		} else {
+			fmt.Fprintf(&b, "      - \"%d:%d/%s\"\n", p.Port, p.Port, strings.ToLower(p.Protocol))
+		}
+	}
+	return strings.ReplaceAll(result, "    ports:\n      []", strings.TrimRight(b.String(), "\n"))
+}
+
+// replaceEnvSection rewrites the static "environment: {}" placeholder with
+// actual environment variables derived from settings.
+func replaceEnvSection(result string, env []EnvSetting) string {
+	if len(env) == 0 {
+		return result
+	}
+	var b strings.Builder
+	b.WriteString("    environment:\n")
+	for _, e := range env {
+		fmt.Fprintf(&b, "      %s: %q\n", e.Name, e.Default)
+	}
+	return strings.ReplaceAll(result, "    environment: {}", strings.TrimRight(b.String(), "\n"))
+}
+
+// replaceVolumesSection rewrites the default "./config:/config:rw" placeholder
+// with actual volume mount lines derived from settings.
+func replaceVolumesSection(result string, volumes []VolumeSetting) string {
+	if len(volumes) == 0 {
+		return result
+	}
+	var b strings.Builder
+	b.WriteString("    volumes:\n")
+	for _, v := range volumes {
+		hostName := filepath.Base(v.Path)
+		fmt.Fprintf(&b, "      - ./%s:%s\n", hostName, v.Path)
+	}
+	return strings.ReplaceAll(result, "    volumes:\n      - ./config:/config:rw", strings.TrimRight(b.String(), "\n"))
 }
 
 // DiscoverApps lists the apps under appsDir that contain a docker-bake.hcl
