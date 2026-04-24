@@ -27,6 +27,10 @@ type VersionInfo struct {
 // numeric groups at the start of the string.
 var strictSemverPrefix = regexp.MustCompile(`^v?(\d+(?:\.\d+)?(?:\.\d+)?)`)
 
+// semverNewVersion is overridable in tests to exercise the defensive error
+// branch in SanitizeAt where coercion fails despite a regex match.
+var semverNewVersion = semver.NewVersion
+
 // Sanitize takes an upstream version string and returns a VersionInfo with
 // normalised semantic and raw representations.
 //
@@ -50,7 +54,7 @@ func SanitizeAt(upstream string, now time.Time) VersionInfo {
 	}
 
 	if isValid {
-		coerced, err := semver.NewVersion(match[1])
+		coerced, err := semverNewVersion(match[1])
 		if err != nil {
 			// Should not happen given the regex, but handle gracefully.
 			info.IsValidSemver = false

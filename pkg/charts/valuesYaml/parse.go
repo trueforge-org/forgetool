@@ -82,9 +82,6 @@ func (v *ValuesFile) LoadFromFile(filename string) error {
 	// loadedData, _ := v.K.Marshal(yaml.Parser())
 	// log.Info().Msgf("Loaded struct data:\n%s\n", loadedData)
 
-	// Set default values for fields if they are not set or empty
-	v.setDefaultValues()
-
 	// TODO: enable validation
 	// Validate the loaded data
 	// if err := validate.Struct(v.Values); err != nil {
@@ -92,11 +89,6 @@ func (v *ValuesFile) LoadFromFile(filename string) error {
 	// }
 
 	return nil
-}
-
-// setDefaultValues sets default values for fields in valuesMetadata if they are not set or empty.
-func (v *ValuesFile) setDefaultValues() {
-	// Set default values for other fields as needed
 }
 
 // SaveToFile saves the Helm values metadata back to the values.yaml file.
