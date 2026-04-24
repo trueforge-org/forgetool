@@ -10,37 +10,9 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"gopkg.in/yaml.v3"
+
+	"github.com/trueforge-org/forgetool/pkg/containers"
 )
-
-// AppSettings represents the contents of an app's settings.yaml file.
-type AppSettings struct {
-	SchemaVersion  int             `yaml:"schema_version"`
-	UpstreamEnvURL string          `yaml:"upstream_env_url"`
-	Ports          []PortSetting   `yaml:"ports"`
-	Env            []EnvSetting    `yaml:"env"`
-	Volumes        []VolumeSetting `yaml:"volumes"`
-}
-
-// PortSetting is a single port entry in settings.yaml.
-type PortSetting struct {
-	Port     int    `yaml:"port"`
-	Protocol string `yaml:"protocol"`
-	Required bool   `yaml:"required"`
-}
-
-// EnvSetting is a single environment variable entry in settings.yaml.
-type EnvSetting struct {
-	Name     string `yaml:"name"`
-	Default  string `yaml:"default"`
-	Required bool   `yaml:"required"`
-}
-
-// VolumeSetting is a single volume entry in settings.yaml.
-type VolumeSetting struct {
-	Path     string `yaml:"path"`
-	Required bool   `yaml:"required"`
-}
 
 // ContainerOptions configures a single container app docs build.
 type ContainerOptions struct {
@@ -300,7 +272,7 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]string) error {
 	pagePath := filepath.Join(p.docsDir, "docker-compose.md")
 
-	settings, ok, err := parseSettings(p.settings)
+	settings, ok, err := containers.ParseSettings(p.settings)
 	if err != nil {
 		return fmt.Errorf("parse settings.yaml: %w", err)
 	}
@@ -319,7 +291,10 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 		return err
 	}
 
-	composeYAML := buildComposeYAML(opts.App, vars["VERSION"], settings)
+	composeYAML, err := containers.BuildComposeYAML(opts.App, vars["VERSION"], settings)
+	if err != nil {
+		return err
+	}
 
 	var fenced strings.Builder
 	fenced.WriteString("```yaml\n")
@@ -339,125 +314,6 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 		return err
 	}
 	return os.WriteFile(pagePath, []byte(rendered), 0o644)
-}
-
-// parseSettings reads an app's settings.yaml file. It returns (settings, true,
-// nil) on success, (zero, false, nil) if the file does not exist, or an error
-// on any other failure.
-func parseSettings(path string) (AppSettings, bool, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return AppSettings{}, false, nil
-		}
-		return AppSettings{}, false, err
-	}
-	var s AppSettings
-	if err := yaml.Unmarshal(data, &s); err != nil {
-		return AppSettings{}, false, fmt.Errorf("unmarshal %s: %w", path, err)
-	}
-	return s, true, nil
-}
-
-// composeEnvVar is a single ordered environment variable entry rendered in
-// map form (KEY: "value") to keep the generated YAML easy to read.
-type composeEnvVar struct {
-	Name  string
-	Value string
-}
-
-// composeService models the subset of a docker-compose service that
-// forgetool generates for an app.
-type composeService struct {
-	Image         string
-	ContainerName string
-	Restart       string
-	Ports         []string
-	Environment   []composeEnvVar
-	Volumes       []string
-}
-
-// composeFile models a docker-compose.yaml file with a single service.
-type composeFile struct {
-	ServiceName string
-	Service     composeService
-}
-
-// Render produces a deterministic YAML representation of the compose file.
-// The output preserves field and entry order so diffs stay clean across
-// regenerations.
-func (c composeFile) Render() string {
-	var b strings.Builder
-	b.WriteString("services:\n")
-	fmt.Fprintf(&b, "  %s:\n", c.ServiceName)
-	fmt.Fprintf(&b, "    image: %s\n", c.Service.Image)
-	fmt.Fprintf(&b, "    container_name: %s\n", c.Service.ContainerName)
-	fmt.Fprintf(&b, "    restart: %s\n", c.Service.Restart)
-
-	if len(c.Service.Ports) == 0 {
-		b.WriteString("    ports: []\n")
-	} else {
-		b.WriteString("    ports:\n")
-		for _, p := range c.Service.Ports {
-			fmt.Fprintf(&b, "      - %q\n", p)
-		}
-	}
-
-	if len(c.Service.Environment) == 0 {
-		b.WriteString("    environment: {}\n")
-	} else {
-		b.WriteString("    environment:\n")
-		for _, e := range c.Service.Environment {
-			fmt.Fprintf(&b, "      %s: %q\n", e.Name, e.Value)
-		}
-	}
-
-	if len(c.Service.Volumes) == 0 {
-		b.WriteString("    volumes: []\n")
-	} else {
-		b.WriteString("    volumes:\n")
-		for _, v := range c.Service.Volumes {
-			fmt.Fprintf(&b, "      - %s\n", v)
-		}
-	}
-
-	return b.String()
-}
-
-// buildComposeYAML assembles a composeFile from the app settings and renders
-// it as YAML. The image tag falls back to "rolling" when the bake file does
-// not provide a usable version (empty or "latest"), so the snippet is always
-// runnable.
-func buildComposeYAML(app, version string, settings AppSettings) string {
-	tag := version
-	if tag == "" || strings.EqualFold(tag, "latest") {
-		tag = "rolling"
-	}
-
-	svc := composeService{
-		Image:         "ghcr.io/trueforge-org/" + app + ":" + tag,
-		ContainerName: app,
-		Restart:       "unless-stopped",
-	}
-
-	for _, p := range settings.Ports {
-		if strings.EqualFold(p.Protocol, "tcp") || p.Protocol == "" {
-			svc.Ports = append(svc.Ports, fmt.Sprintf("%d:%d", p.Port, p.Port))
-		} else {
-			svc.Ports = append(svc.Ports, fmt.Sprintf("%d:%d/%s", p.Port, p.Port, strings.ToLower(p.Protocol)))
-		}
-	}
-
-	for _, e := range settings.Env {
-		svc.Environment = append(svc.Environment, composeEnvVar{Name: e.Name, Value: e.Default})
-	}
-
-	for _, v := range settings.Volumes {
-		hostName := filepath.Base(v.Path)
-		svc.Volumes = append(svc.Volumes, fmt.Sprintf("./%s:%s", hostName, v.Path))
-	}
-
-	return composeFile{ServiceName: app, Service: svc}.Render()
 }
 
 // DiscoverApps lists the apps under appsDir that contain a docker-bake.hcl

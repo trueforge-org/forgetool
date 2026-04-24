@@ -242,97 +242,6 @@ title: Docker-Compose
 {{COMPOSE}}
 `
 
-func TestParseSettings(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "settings.yaml")
-	writeFile(t, path, sampleSettings)
-
-	settings, ok, err := parseSettings(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected ok=true")
-	}
-	if settings.SchemaVersion != 1 {
-		t.Fatalf("schema_version: got %d, want 1", settings.SchemaVersion)
-	}
-	if len(settings.Ports) != 2 {
-		t.Fatalf("ports: got %d, want 2", len(settings.Ports))
-	}
-	if settings.Ports[0].Port != 8080 || settings.Ports[0].Protocol != "tcp" {
-		t.Fatalf("port[0]: got %+v", settings.Ports[0])
-	}
-	if len(settings.Env) != 2 {
-		t.Fatalf("env: got %d, want 2", len(settings.Env))
-	}
-	if settings.Env[0].Name != "APP_HOME" || settings.Env[0].Default != "/config" {
-		t.Fatalf("env[0]: got %+v", settings.Env[0])
-	}
-	if len(settings.Volumes) != 2 {
-		t.Fatalf("volumes: got %d, want 2", len(settings.Volumes))
-	}
-}
-
-func TestParseSettings_Missing(t *testing.T) {
-	_, ok, err := parseSettings("/nonexistent/settings.yaml")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ok {
-		t.Fatal("expected ok=false for missing file")
-	}
-}
-
-func TestBuildComposeYAML(t *testing.T) {
-	dir := t.TempDir()
-	settings, _, _ := parseSettings(func() string {
-		p := filepath.Join(dir, "settings.yaml")
-		writeFile(t, p, sampleSettings)
-		return p
-	}())
-
-	snippet := buildComposeYAML("myapp", "1.2.3", settings)
-
-	checks := []string{
-		"services:",
-		"  myapp:",
-		"image: ghcr.io/trueforge-org/myapp:1.2.3",
-		"container_name: myapp",
-		"restart: unless-stopped",
-		`"8080:8080"`,
-		`"9090:9090/udp"`,
-		"APP_HOME:",
-		"APP_LOG:",
-		"./config:/config",
-		"./data:/data",
-	}
-	for _, want := range checks {
-		if !strings.Contains(snippet, want) {
-			t.Errorf("snippet missing %q\ngot:\n%s", want, snippet)
-		}
-	}
-}
-
-func TestBuildComposeYAML_NoPorts(t *testing.T) {
-	settings := AppSettings{
-		Volumes: []VolumeSetting{{Path: "/config", Required: true}},
-	}
-	snippet := buildComposeYAML("svc", "2.0.0", settings)
-	if !strings.Contains(snippet, "ports: []") {
-		t.Errorf("expected 'ports: []' for no ports, got:\n%s", snippet)
-	}
-}
-
-func TestBuildComposeYAML_VersionFallback(t *testing.T) {
-	for _, ver := range []string{"", "latest", "LATEST"} {
-		snippet := buildComposeYAML("svc", ver, AppSettings{})
-		if !strings.Contains(snippet, "ghcr.io/trueforge-org/svc:rolling") {
-			t.Errorf("version %q: expected rolling tag fallback, got:\n%s", ver, snippet)
-		}
-	}
-}
-
 func TestProcessApp_WithCompose(t *testing.T) {
 	root := t.TempDir()
 	app := "myapp"
@@ -379,7 +288,7 @@ func TestProcessApp_WithCompose(t *testing.T) {
 	if !strings.Contains(compose, "ghcr.io/trueforge-org/myapp:1.2.3") {
 		t.Errorf("docker-compose.md missing image reference:\n%s", compose)
 	}
-	if !strings.Contains(compose, `"8080:8080"`) {
+	if !strings.Contains(compose, "target: 8080") {
 		t.Errorf("docker-compose.md missing port mapping:\n%s", compose)
 	}
 
