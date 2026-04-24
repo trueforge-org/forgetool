@@ -23,8 +23,12 @@ var (
 	chartsGenDocsWebsiteDir    string
 	chartsGenDocsChangelogsDir string
 
-	chartsGenDocsRunner  = runChartsGenDocs
-	chartsGenDocsOnError = func(err error) { log.Fatal().Err(err).Msg("chart docs generation failed") }
+	chartsGenDocsRunner          = runChartsGenDocs
+	chartsGenDocsOnError         = func(err error) { log.Fatal().Err(err).Msg("chart docs generation failed") }
+	chartsGenDocsPrepareWebsite  = website.PrepareChartWebsite
+	chartsGenDocsDiscoverCharts  = website.DiscoverCharts
+	chartsGenDocsProcessChart    = website.ProcessChart
+	chartsGenDocsFinalizeWebsite = website.FinalizeChartWebsite
 )
 
 func runChartsGenDocs(args []string) error {
@@ -33,14 +37,14 @@ func runChartsGenDocs(args []string) error {
 		WebsiteDir: chartsGenDocsWebsiteDir,
 	}
 
-	if err := website.PrepareChartWebsite(baseOpts); err != nil {
+	if err := chartsGenDocsPrepareWebsite(baseOpts); err != nil {
 		return fmt.Errorf("prepare website: %w", err)
 	}
 
 	type pair struct{ train, chart string }
 	var work []pair
 	if len(args) == 0 {
-		discovered, err := website.DiscoverCharts(chartsGenDocsChartsDir)
+		discovered, err := chartsGenDocsDiscoverCharts(chartsGenDocsChartsDir)
 		if err != nil {
 			return fmt.Errorf("discover charts: %w", err)
 		}
@@ -61,12 +65,12 @@ func runChartsGenDocs(args []string) error {
 		opts := baseOpts
 		opts.Train = w.train
 		opts.Chart = w.chart
-		if err := website.ProcessChart(opts); err != nil {
+		if err := chartsGenDocsProcessChart(opts); err != nil {
 			return fmt.Errorf("process %s/%s: %w", w.train, w.chart, err)
 		}
 	}
 
-	if err := website.FinalizeChartWebsite(baseOpts, chartsGenDocsChangelogsDir); err != nil {
+	if err := chartsGenDocsFinalizeWebsite(baseOpts, chartsGenDocsChangelogsDir); err != nil {
 		return fmt.Errorf("finalize website: %w", err)
 	}
 	return nil

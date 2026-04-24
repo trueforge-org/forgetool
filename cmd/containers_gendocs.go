@@ -26,8 +26,12 @@ var (
 	containersGenDocsIconBaseURL         string
 	containersGenDocsChangelogsDir       string
 
-	containersGenDocsRunner  = runContainersGenDocs
-	containersGenDocsOnError = func(err error) { log.Fatal().Err(err).Msg("container docs generation failed") }
+	containersGenDocsRunner          = runContainersGenDocs
+	containersGenDocsOnError         = func(err error) { log.Fatal().Err(err).Msg("container docs generation failed") }
+	containersGenDocsPrepareWebsite  = website.PrepareContainerWebsite
+	containersGenDocsDiscoverApps    = website.DiscoverApps
+	containersGenDocsProcessApp      = website.ProcessApp
+	containersGenDocsFinalizeWebsite = website.FinalizeContainerWebsite
 )
 
 func runContainersGenDocs(args []string) error {
@@ -39,13 +43,13 @@ func runContainersGenDocs(args []string) error {
 		IconFallbackBaseURL: containersGenDocsIconBaseURL,
 	}
 
-	if err := website.PrepareContainerWebsite(baseOpts); err != nil {
+	if err := containersGenDocsPrepareWebsite(baseOpts); err != nil {
 		return fmt.Errorf("prepare website: %w", err)
 	}
 
 	apps := args
 	if len(apps) == 0 {
-		discovered, err := website.DiscoverApps(containersGenDocsAppsDir)
+		discovered, err := containersGenDocsDiscoverApps(containersGenDocsAppsDir)
 		if err != nil {
 			return fmt.Errorf("discover apps: %w", err)
 		}
@@ -55,12 +59,12 @@ func runContainersGenDocs(args []string) error {
 	for _, app := range apps {
 		opts := baseOpts
 		opts.App = app
-		if err := website.ProcessApp(opts); err != nil {
+		if err := containersGenDocsProcessApp(opts); err != nil {
 			return fmt.Errorf("process %s: %w", app, err)
 		}
 	}
 
-	if err := website.FinalizeContainerWebsite(baseOpts, containersGenDocsChangelogsDir); err != nil {
+	if err := containersGenDocsFinalizeWebsite(baseOpts, containersGenDocsChangelogsDir); err != nil {
 		return fmt.Errorf("finalize website: %w", err)
 	}
 	return nil

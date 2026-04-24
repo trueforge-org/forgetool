@@ -2,11 +2,6 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]   0.00% (0/8) - cmd/root.go
-- [ ]  10.00% (16/160) - pkg/helmhandler/helm.go
-- [ ]  12.50% (4/32) - cmd/charts_gendocs.go
-- [ ]  25.93% (7/27) - cmd/containers_gendocs.go
-- [ ]  40.82% (40/98) - pkg/helmhandler/helm_pull.go
 - [ ]  73.65% (123/167) - pkg/website/container.go
 - [ ]  76.99% (87/113) - pkg/website/chart.go
 - [ ]  77.38% (130/168) - pkg/website/common.go
@@ -23,9 +18,13 @@ Sorted from lowest to highest coverage.
 - [ ]  90.91% (10/11) - pkg/helper/dns.go
 - [ ]  92.31% (12/13) - cmd/charts_genchartlist.go
 - [ ]  92.31% (12/13) - cmd/charts_genmeta.go
+- [ ]  92.50% (148/160) - pkg/helmhandler/helm.go
 - [ ]  92.86% (13/14) - cmd/containers_genchangelog.go
 - [ ]  95.92% (47/49) - pkg/containers/website/container_list.go
+- [ ]  95.92% (94/98) - pkg/helmhandler/helm_pull.go
 - [ ]  96.15% (75/78) - pkg/changelog/changed_data.go
+- [ ]  96.30% (26/27) - cmd/containers_gendocs.go
+- [ ]  96.88% (31/32) - cmd/charts_gendocs.go
 - [ ]  97.80% (621/635) - pkg/containers/test/testhelpers.go
 - [ ]  98.04% (50/51) - pkg/changelog/render.go
 - [ ]  99.29% (139/140) - pkg/changelog/changelog.go
@@ -35,6 +34,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (1/1) - cmd/containers.go
 - [ ] 100.00% (23/23) - cmd/containers_testcmd.go
 - [ ] 100.00% (2/2) - cmd/info.go
+- [ ] 100.00% (8/8) - cmd/root.go
 - [ ] 100.00% (9/9) - pkg/changelog/active_apps.go
 - [ ] 100.00% (19/19) - pkg/changelog/app_type.go
 - [ ] 100.00% (41/41) - pkg/changelog/charts.go
