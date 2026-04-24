@@ -299,9 +299,6 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 	var fenced strings.Builder
 	fenced.WriteString("```yaml\n")
 	fenced.WriteString(composeYAML)
-	if !strings.HasSuffix(composeYAML, "\n") {
-		fenced.WriteString("\n")
-	}
 	fenced.WriteString("```")
 
 	rendered := string(tmplBytes)

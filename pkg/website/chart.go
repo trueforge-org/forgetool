@@ -201,10 +201,7 @@ func processChartIndex(opts ChartOptions, p chartPaths) error {
 
 	sb.WriteString("## Chart Sources\n\n")
 	if len(meta.Sources) > 0 {
-		out, err := yaml.Marshal(meta.Sources)
-		if err != nil {
-			return err
-		}
+		out, _ := yaml.Marshal(meta.Sources)
 		sb.Write(out)
 		sb.WriteString("\n")
 	}

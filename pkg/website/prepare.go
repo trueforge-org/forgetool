@@ -28,9 +28,6 @@ var preservedIndexNames = []string{"index.mdx", "index.md"}
 func PrepareContainerWebsite(opts ContainerOptions) error {
 	opts.applyDefaults()
 	root := opts.WebsiteDir
-	if root == "" {
-		return errors.New("website: WebsiteDir must be set")
-	}
 
 	for _, sub := range []string{
 		filepath.Join("containerforge", "public", "img", "hotlink-ok", "container-icons"),
@@ -76,9 +73,6 @@ func FinalizeContainerWebsite(opts ContainerOptions, changelogsDir string) error
 func PrepareChartWebsite(opts ChartOptions) error {
 	opts.applyDefaults()
 	root := opts.WebsiteDir
-	if root == "" {
-		return errors.New("website: WebsiteDir must be set")
-	}
 
 	for _, sub := range []string{
 		filepath.Join("truecharts", "public", "img", "hotlink-ok", "chart-icons"),

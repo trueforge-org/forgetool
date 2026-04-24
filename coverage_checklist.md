@@ -2,24 +2,21 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]  80.00% (4/5) - cmd/charts_bump.go
-- [ ]  83.33% (5/6) - cmd/charts_tagclean.go
-- [ ]  89.47% (17/19) - cmd/containers_genlist.go
-- [ ]  90.00% (9/10) - cmd/charts_deps.go
-- [ ]  90.91% (10/11) - cmd/adv_gentooldocs.go
-- [ ]  92.31% (12/13) - cmd/charts_genchartlist.go
-- [ ]  92.31% (12/13) - cmd/charts_genmeta.go
-- [ ]  92.86% (13/14) - cmd/containers_genchangelog.go
-- [ ]  96.30% (26/27) - cmd/containers_gendocs.go
-- [ ]  96.55% (56/58) - pkg/website/prepare.go
-- [ ]  96.88% (31/32) - cmd/charts_gendocs.go
-- [ ]  98.47% (129/131) - pkg/containers/compose.go
-- [ ]  99.12% (112/113) - pkg/website/chart.go
-- [ ]  99.40% (166/167) - pkg/website/container.go
+- [ ]  99.22% (128/129) - pkg/containers/compose.go
 - [ ] 100.00% (1/1) - cmd/adv.go
+- [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (1/1) - cmd/charts.go
+- [ ] 100.00% (5/5) - cmd/charts_bump.go
+- [ ] 100.00% (10/10) - cmd/charts_deps.go
 - [ ] 100.00% (14/14) - cmd/charts_genchangelog.go
+- [ ] 100.00% (13/13) - cmd/charts_genchartlist.go
+- [ ] 100.00% (32/32) - cmd/charts_gendocs.go
+- [ ] 100.00% (13/13) - cmd/charts_genmeta.go
+- [ ] 100.00% (6/6) - cmd/charts_tagclean.go
 - [ ] 100.00% (1/1) - cmd/containers.go
+- [ ] 100.00% (14/14) - cmd/containers_genchangelog.go
+- [ ] 100.00% (27/27) - cmd/containers_gendocs.go
+- [ ] 100.00% (19/19) - cmd/containers_genlist.go
 - [ ] 100.00% (23/23) - cmd/containers_testcmd.go
 - [ ] 100.00% (2/2) - cmd/info.go
 - [ ] 100.00% (8/8) - cmd/root.go
@@ -61,7 +58,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (26/26) - pkg/helper/runcmd.go
 - [ ] 100.00% (17/17) - pkg/helper/time.go
 - [ ] 100.00% (95/95) - pkg/helper/tooldocs.go
-- [ ] 100.00% (7/7) - pkg/helper/var2file.go
+- [ ] 100.00% (6/6) - pkg/helper/var2file.go
 - [ ] 100.00% (14/14) - pkg/helper/walker.go
 - [ ] 100.00% (15/15) - pkg/helper/yamlutil.go
 - [ ] 100.00% (12/12) - pkg/info/info.go
@@ -75,4 +72,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (12/12) - pkg/readme/readme.go
 - [ ] 100.00% (21/21) - pkg/version/bump.go
 - [ ] 100.00% (23/23) - pkg/version/sanitize.go
+- [ ] 100.00% (111/111) - pkg/website/chart.go
 - [ ] 100.00% (168/168) - pkg/website/common.go
+- [ ] 100.00% (165/165) - pkg/website/container.go
+- [ ] 100.00% (54/54) - pkg/website/prepare.go

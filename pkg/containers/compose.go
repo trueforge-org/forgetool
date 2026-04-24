@@ -125,9 +125,6 @@ func BuildComposeYAML(app, version string, settings AppSettings, resolve Depende
 			commented.WriteString(commentOutServiceBlock(depYAML))
 		}
 		if commented.Len() > 0 {
-			if !strings.HasSuffix(rendered, "\n") {
-				rendered += "\n"
-			}
 			rendered += commented.String()
 		}
 	}
@@ -215,6 +212,12 @@ func isEmptyService(svc composetypes.ServiceConfig) bool {
 	return trimmed == "" || trimmed == "{}"
 }
 
+// projectMarshalYAMLFn is an indirection seam to enable testing the
+// post-merge marshal error branch in mergeAndMarshal.
+var projectMarshalYAMLFn = func(p *composetypes.Project) ([]byte, error) {
+	return p.MarshalYAML()
+}
+
 // mergeAndMarshal merges the given base services with zero or more override
 // layers using the compose-go loader (which implements the canonical
 // compose-spec merge semantics) and returns the resulting YAML document.
@@ -260,7 +263,7 @@ func mergeAndMarshal(projectName string, baseServices composetypes.Services, ove
 		return "", fmt.Errorf("merge compose configs: %w", err)
 	}
 
-	out, err := project.MarshalYAML()
+	out, err := projectMarshalYAMLFn(project)
 	if err != nil {
 		return "", fmt.Errorf("marshal merged compose: %w", err)
 	}

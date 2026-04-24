@@ -199,9 +199,14 @@ func TestMergeAndMarshal_LoaderError(t *testing.T) {
 }
 
 func TestMergeAndMarshal_ProjectMarshalError(t *testing.T) {
-	// Skip this branch — project.MarshalYAML on a typed Project rarely
-	// returns an error in practice and we cannot easily inject one.
-	t.Skip("project.MarshalYAML failure not reachable without invasive changes")
+	orig := projectMarshalYAMLFn
+	t.Cleanup(func() { projectMarshalYAMLFn = orig })
+	projectMarshalYAMLFn = func(*composetypes.Project) ([]byte, error) {
+		return nil, errors.New("project marshal boom")
+	}
+	if _, err := mergeAndMarshal("p", composetypes.Services{}); err == nil {
+		t.Fatalf("expected project marshal error")
+	}
 }
 
 func TestCommentOutServiceBlock_NoServicesHeader(t *testing.T) {
