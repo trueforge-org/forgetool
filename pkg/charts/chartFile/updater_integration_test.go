@@ -56,8 +56,8 @@ sources: []
 	if hc.Metadata.AppVersion == "" {
 		t.Fatalf("expected appVersion to be set from image")
 	}
-	if hc.Metadata.Annotations["trueforge.org/train"] != "stable" {
-		t.Fatalf("expected train annotation stable, got %s", hc.Metadata.Annotations["trueforge.org/train"])
+	if hc.Metadata.Annotations["truecharts.org/train"] != "stable" {
+		t.Fatalf("expected train annotation stable, got %s", hc.Metadata.Annotations["truecharts.org/train"])
 	}
 	if len(hc.Metadata.Sources) == 0 {
 		t.Fatalf("expected non-empty sources")
