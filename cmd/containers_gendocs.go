@@ -82,7 +82,7 @@ func init() {
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsAppsDir, "apps-dir", "apps", "directory containing app sources")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsWebsiteDir, "website-dir", "website", "root of the website checkout")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsTemplatePath, "template", "templates/README.md.tmpl", "index template path")
-	containersGenDocsCmd.Flags().StringVar(&containersGenDocsComposeTemplatePath, "compose-template", "templates/docker-compose.yaml.tmpl", "docker-compose snippet template path")
+	containersGenDocsCmd.Flags().StringVar(&containersGenDocsComposeTemplatePath, "compose-template", "templates/docker-compose.md.tmpl", "docker-compose page template path")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsIconBaseURL, "icon-fallback-base-url", "", "base URL used to fetch icons when not present locally")
 	containersGenDocsCmd.Flags().StringVar(&containersGenDocsChangelogsDir, "changelogs-dir", "changelogs", "directory whose contents are copied into docs/containers after processing (no-op if missing/empty)")
 	containersCmd.AddCommand(containersGenDocsCmd)

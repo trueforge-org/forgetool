@@ -53,9 +53,12 @@ type ContainerOptions struct {
 	// TemplatePath is the README/index template. Defaults to
 	// "templates/README.md.tmpl".
 	TemplatePath string
-	// ComposeTemplatePath is the docker-compose snippet template. Defaults to
-	// "templates/docker-compose.yaml.tmpl". When the template file is missing
-	// no docker-compose.md page is generated.
+	// ComposeTemplatePath is the markdown page template used to render the
+	// per-app docker-compose.md page. Defaults to
+	// "templates/docker-compose.md.tmpl". The template supports the
+	// placeholders "{{ APP }}" and "{{COMPOSE}}"; the latter is replaced with
+	// a fenced YAML code block containing the generated compose file. When the
+	// template file is missing no docker-compose.md page is generated.
 	ComposeTemplatePath string
 	// IconFallbackBaseURL is queried for icons when the app does not provide a
 	// local icon.webp / icon-small.webp. Defaults to the truecharts charts/stable
@@ -76,7 +79,7 @@ func (o *ContainerOptions) applyDefaults() {
 		o.TemplatePath = "templates/README.md.tmpl"
 	}
 	if o.ComposeTemplatePath == "" {
-		o.ComposeTemplatePath = "templates/docker-compose.yaml.tmpl"
+		o.ComposeTemplatePath = "templates/docker-compose.md.tmpl"
 	}
 	if o.IconFallbackBaseURL == "" {
 		o.IconFallbackBaseURL = defaultIconFallbackBaseURL
@@ -289,8 +292,11 @@ func processContainerIndex(opts ContainerOptions, p containerPaths) error {
 
 // writeComposePage renders the docker-compose snippet for the app and writes
 // it to a standalone docker-compose.md page inside the per-app docs directory.
-// When settings.yaml or the compose template are absent the page is not
-// created (and any pre-existing one is removed for cleanliness).
+// The compose YAML is generated from the AppSettings using Go structs and
+// embedded as a fenced code block under the "{{COMPOSE}}" placeholder of the
+// page template (templates/docker-compose.md.tmpl by default). When
+// settings.yaml or the page template are absent the page is not created (and
+// any pre-existing one is removed for cleanliness).
 func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]string) error {
 	pagePath := filepath.Join(p.docsDir, "docker-compose.md")
 
@@ -303,32 +309,36 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 		return nil
 	}
 
-	snippet, err := renderComposeSnippet(opts.App, vars["VERSION"], settings, opts.ComposeTemplatePath)
+	tmplBytes, err := os.ReadFile(opts.ComposeTemplatePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			log.Info().Msgf("compose template not found for %s, skipping", opts.App)
+			log.Info().Msgf("compose page template not found for %s, skipping", opts.App)
 			_ = os.Remove(pagePath)
 			return nil
 		}
 		return err
 	}
 
-	var b strings.Builder
-	b.WriteString("---\n")
-	b.WriteString("title: Docker Compose\n")
-	b.WriteString("---\n\n")
-	fmt.Fprintf(&b, "Example `docker-compose.yaml` for **%s**:\n\n", opts.App)
-	b.WriteString("```yaml\n")
-	b.WriteString(snippet)
-	if !strings.HasSuffix(snippet, "\n") {
-		b.WriteString("\n")
+	composeYAML := buildComposeYAML(opts.App, vars["VERSION"], settings)
+
+	var fenced strings.Builder
+	fenced.WriteString("```yaml\n")
+	fenced.WriteString(composeYAML)
+	if !strings.HasSuffix(composeYAML, "\n") {
+		fenced.WriteString("\n")
 	}
-	b.WriteString("```\n")
+	fenced.WriteString("```")
+
+	rendered := string(tmplBytes)
+	rendered = strings.ReplaceAll(rendered, "{{ APP }}", opts.App)
+	rendered = strings.ReplaceAll(rendered, "{{APP}}", opts.App)
+	rendered = strings.ReplaceAll(rendered, "{{COMPOSE}}", fenced.String())
+	rendered = strings.ReplaceAll(rendered, "{{ COMPOSE }}", fenced.String())
 
 	if err := os.MkdirAll(p.docsDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(pagePath, []byte(b.String()), 0o644)
+	return os.WriteFile(pagePath, []byte(rendered), 0o644)
 }
 
 // parseSettings reads an app's settings.yaml file. It returns (settings, true,
@@ -349,118 +359,105 @@ func parseSettings(path string) (AppSettings, bool, error) {
 	return s, true, nil
 }
 
-// renderComposeSnippet generates a docker-compose YAML string from the
-// docker-compose.yaml.tmpl template and the app's settings. The template uses
-// ${TOKEN} scalar substitutions and # BEGIN_X / # END_X comment blocks to
-// delimit repeated sections.
-func renderComposeSnippet(app, version string, settings AppSettings, tmplPath string) (string, error) {
-	tmplBytes, err := os.ReadFile(tmplPath)
-	if err != nil {
-		return "", err
+// composeEnvVar is a single ordered environment variable entry rendered in
+// map form (KEY: "value") to keep the generated YAML easy to read.
+type composeEnvVar struct {
+	Name  string
+	Value string
+}
+
+// composeService models the subset of a docker-compose service that
+// forgetool generates for an app.
+type composeService struct {
+	Image         string
+	ContainerName string
+	Restart       string
+	Ports         []string
+	Environment   []composeEnvVar
+	Volumes       []string
+}
+
+// composeFile models a docker-compose.yaml file with a single service.
+type composeFile struct {
+	ServiceName string
+	Service     composeService
+}
+
+// Render produces a deterministic YAML representation of the compose file.
+// The output preserves field and entry order so diffs stay clean across
+// regenerations.
+func (c composeFile) Render() string {
+	var b strings.Builder
+	b.WriteString("services:\n")
+	fmt.Fprintf(&b, "  %s:\n", c.ServiceName)
+	fmt.Fprintf(&b, "    image: %s\n", c.Service.Image)
+	fmt.Fprintf(&b, "    container_name: %s\n", c.Service.ContainerName)
+	fmt.Fprintf(&b, "    restart: %s\n", c.Service.Restart)
+
+	if len(c.Service.Ports) == 0 {
+		b.WriteString("    ports: []\n")
+	} else {
+		b.WriteString("    ports:\n")
+		for _, p := range c.Service.Ports {
+			fmt.Fprintf(&b, "      - %q\n", p)
+		}
 	}
 
-	// Strip leading header comment lines (before the first non-comment line)
-	// and all BEGIN_*/END_* comment blocks.
-	lines := strings.Split(string(tmplBytes), "\n")
-	var kept []string
-	inBlock := false
-	headerDone := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "# BEGIN_") {
-			inBlock = true
-			continue
+	if len(c.Service.Environment) == 0 {
+		b.WriteString("    environment: {}\n")
+	} else {
+		b.WriteString("    environment:\n")
+		for _, e := range c.Service.Environment {
+			fmt.Fprintf(&b, "      %s: %q\n", e.Name, e.Value)
 		}
-		if strings.HasPrefix(trimmed, "# END_") {
-			inBlock = false
-			continue
-		}
-		if inBlock {
-			continue
-		}
-		// Skip leading top-level comment lines before services:
-		if !headerDone {
-			if strings.HasPrefix(trimmed, "#") || trimmed == "" {
-				continue
-			}
-			headerDone = true
-		}
-		kept = append(kept, line)
 	}
-	result := strings.Join(kept, "\n")
 
-	// Scalar token substitutions.
-	// Use the version from the bake file when available; fall back to "rolling"
-	// so the image reference is always usable. Never emit a bare image name
-	// (no tag) or the mutable "latest" tag.
+	if len(c.Service.Volumes) == 0 {
+		b.WriteString("    volumes: []\n")
+	} else {
+		b.WriteString("    volumes:\n")
+		for _, v := range c.Service.Volumes {
+			fmt.Fprintf(&b, "      - %s\n", v)
+		}
+	}
+
+	return b.String()
+}
+
+// buildComposeYAML assembles a composeFile from the app settings and renders
+// it as YAML. The image tag falls back to "rolling" when the bake file does
+// not provide a usable version (empty or "latest"), so the snippet is always
+// runnable.
+func buildComposeYAML(app, version string, settings AppSettings) string {
 	tag := version
 	if tag == "" || strings.EqualFold(tag, "latest") {
 		tag = "rolling"
 	}
-	image := "ghcr.io/trueforge-org/" + app + ":" + tag
-	result = strings.ReplaceAll(result, "${SERVICE_NAME}", app)
-	result = strings.ReplaceAll(result, "${IMAGE}", image)
-	result = strings.ReplaceAll(result, "${CONTAINER_NAME}", app)
-	result = strings.ReplaceAll(result, "${RESTART_POLICY:-unless-stopped}", "unless-stopped")
 
-	// Replace ports placeholder.
-	result = replacePortsSection(result, settings.Ports)
-
-	// Replace environment placeholder.
-	result = replaceEnvSection(result, settings.Env)
-
-	// Replace volumes placeholder.
-	result = replaceVolumesSection(result, settings.Volumes)
-
-	return strings.TrimSpace(result) + "\n", nil
-}
-
-// replacePortsSection rewrites the static "ports:\n      []" placeholder with
-// actual port mappings derived from settings, or leaves it as "ports: []" when
-// there are no ports.
-func replacePortsSection(result string, ports []PortSetting) string {
-	if len(ports) == 0 {
-		return strings.ReplaceAll(result, "    ports:\n      []", "    ports: []")
+	svc := composeService{
+		Image:         "ghcr.io/trueforge-org/" + app + ":" + tag,
+		ContainerName: app,
+		Restart:       "unless-stopped",
 	}
-	var b strings.Builder
-	b.WriteString("    ports:\n")
-	for _, p := range ports {
-		if strings.EqualFold(p.Protocol, "tcp") {
-			fmt.Fprintf(&b, "      - \"%d:%d\"\n", p.Port, p.Port)
+
+	for _, p := range settings.Ports {
+		if strings.EqualFold(p.Protocol, "tcp") || p.Protocol == "" {
+			svc.Ports = append(svc.Ports, fmt.Sprintf("%d:%d", p.Port, p.Port))
 		} else {
-			fmt.Fprintf(&b, "      - \"%d:%d/%s\"\n", p.Port, p.Port, strings.ToLower(p.Protocol))
+			svc.Ports = append(svc.Ports, fmt.Sprintf("%d:%d/%s", p.Port, p.Port, strings.ToLower(p.Protocol)))
 		}
 	}
-	return strings.ReplaceAll(result, "    ports:\n      []", strings.TrimRight(b.String(), "\n"))
-}
 
-// replaceEnvSection rewrites the static "environment: {}" placeholder with
-// actual environment variables derived from settings.
-func replaceEnvSection(result string, env []EnvSetting) string {
-	if len(env) == 0 {
-		return result
+	for _, e := range settings.Env {
+		svc.Environment = append(svc.Environment, composeEnvVar{Name: e.Name, Value: e.Default})
 	}
-	var b strings.Builder
-	b.WriteString("    environment:\n")
-	for _, e := range env {
-		fmt.Fprintf(&b, "      %s: %q\n", e.Name, e.Default)
-	}
-	return strings.ReplaceAll(result, "    environment: {}", strings.TrimRight(b.String(), "\n"))
-}
 
-// replaceVolumesSection rewrites the default "./config:/config:rw" placeholder
-// with actual volume mount lines derived from settings.
-func replaceVolumesSection(result string, volumes []VolumeSetting) string {
-	if len(volumes) == 0 {
-		return result
-	}
-	var b strings.Builder
-	b.WriteString("    volumes:\n")
-	for _, v := range volumes {
+	for _, v := range settings.Volumes {
 		hostName := filepath.Base(v.Path)
-		fmt.Fprintf(&b, "      - ./%s:%s\n", hostName, v.Path)
+		svc.Volumes = append(svc.Volumes, fmt.Sprintf("./%s:%s", hostName, v.Path))
 	}
-	return strings.ReplaceAll(result, "    volumes:\n      - ./config:/config:rw", strings.TrimRight(b.String(), "\n"))
+
+	return composeFile{ServiceName: app, Service: svc}.Render()
 }
 
 // DiscoverApps lists the apps under appsDir that contain a docker-bake.hcl

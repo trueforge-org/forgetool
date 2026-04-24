@@ -88,7 +88,7 @@ func TestIntegration_ContainerDocs(t *testing.T) {
 	for _, app := range apps {
 		if err := website.ProcessApp(website.ContainerOptions{
 			App:                 app,
-			ComposeTemplatePath: "templates/docker-compose.yaml.tmpl",
+			ComposeTemplatePath: "templates/docker-compose.md.tmpl",
 		}); err != nil {
 			t.Fatalf("ProcessApp(%s): %v", app, err)
 		}

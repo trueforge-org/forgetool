@@ -235,28 +235,11 @@ volumes:
     required: false
 `
 
-const sampleComposeTmpl = `# Template comment header
-# - SERVICE_NAME: string
+const sampleComposePageTmpl = `---
+title: Docker-Compose
+---
 
-services:
-  ${SERVICE_NAME}:
-    image: ${IMAGE}
-    container_name: ${CONTAINER_NAME}
-    restart: ${RESTART_POLICY:-unless-stopped}
-    # BEGIN_PORTS
-    # - "${host_port}:${container_port}/${protocol}"
-    # END_PORTS
-    ports:
-      []
-    # BEGIN_ENV
-    # ${name}: "${value}"
-    # END_ENV
-    environment: {}
-    # BEGIN_VOLUMES
-    # - ${host_path}:${container_path}:${mode}
-    # END_VOLUMES
-    volumes:
-      - ./config:/config:rw
+{{COMPOSE}}
 `
 
 func TestParseSettings(t *testing.T) {
@@ -301,25 +284,19 @@ func TestParseSettings_Missing(t *testing.T) {
 	}
 }
 
-func TestRenderComposeSnippet(t *testing.T) {
+func TestBuildComposeYAML(t *testing.T) {
 	dir := t.TempDir()
-	tmplPath := filepath.Join(dir, "docker-compose.yaml.tmpl")
-	writeFile(t, tmplPath, sampleComposeTmpl)
-
 	settings, _, _ := parseSettings(func() string {
 		p := filepath.Join(dir, "settings.yaml")
 		writeFile(t, p, sampleSettings)
 		return p
 	}())
 
-	snippet, err := renderComposeSnippet("myapp", "1.2.3", settings, tmplPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	snippet := buildComposeYAML("myapp", "1.2.3", settings)
 
 	checks := []string{
 		"services:",
-		"myapp:",
+		"  myapp:",
 		"image: ghcr.io/trueforge-org/myapp:1.2.3",
 		"container_name: myapp",
 		"restart: unless-stopped",
@@ -335,29 +312,24 @@ func TestRenderComposeSnippet(t *testing.T) {
 			t.Errorf("snippet missing %q\ngot:\n%s", want, snippet)
 		}
 	}
-
-	// Template comment markers should be stripped.
-	for _, bad := range []string{"BEGIN_PORTS", "END_PORTS", "BEGIN_ENV", "END_ENV", "BEGIN_VOLUMES", "END_VOLUMES", "Template comment header"} {
-		if strings.Contains(snippet, bad) {
-			t.Errorf("snippet should not contain %q\ngot:\n%s", bad, snippet)
-		}
-	}
 }
 
-func TestRenderComposeSnippet_NoPorts(t *testing.T) {
-	dir := t.TempDir()
-	tmplPath := filepath.Join(dir, "docker-compose.yaml.tmpl")
-	writeFile(t, tmplPath, sampleComposeTmpl)
-
+func TestBuildComposeYAML_NoPorts(t *testing.T) {
 	settings := AppSettings{
 		Volumes: []VolumeSetting{{Path: "/config", Required: true}},
 	}
-	snippet, err := renderComposeSnippet("svc", "2.0.0", settings, tmplPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	snippet := buildComposeYAML("svc", "2.0.0", settings)
 	if !strings.Contains(snippet, "ports: []") {
 		t.Errorf("expected 'ports: []' for no ports, got:\n%s", snippet)
+	}
+}
+
+func TestBuildComposeYAML_VersionFallback(t *testing.T) {
+	for _, ver := range []string{"", "latest", "LATEST"} {
+		snippet := buildComposeYAML("svc", ver, AppSettings{})
+		if !strings.Contains(snippet, "ghcr.io/trueforge-org/svc:rolling") {
+			t.Errorf("version %q: expected rolling tag fallback, got:\n%s", ver, snippet)
+		}
 	}
 }
 
@@ -369,8 +341,8 @@ func TestProcessApp_WithCompose(t *testing.T) {
 	writeFile(t, filepath.Join(appDir, "docker-bake.hcl"), sampleBake)
 	writeFile(t, filepath.Join(appDir, "settings.yaml"), sampleSettings)
 
-	composeTmplPath := filepath.Join(root, "templates", "docker-compose.yaml.tmpl")
-	writeFile(t, composeTmplPath, sampleComposeTmpl)
+	composeTmplPath := filepath.Join(root, "templates", "docker-compose.md.tmpl")
+	writeFile(t, composeTmplPath, sampleComposePageTmpl)
 
 	tmplPath := filepath.Join(root, "templates", "README.md.tmpl")
 	writeFile(t, tmplPath, sampleTemplate)
@@ -386,7 +358,7 @@ func TestProcessApp_WithCompose(t *testing.T) {
 		AppsDir:             "apps",
 		WebsiteDir:          "website",
 		TemplatePath:        "templates/README.md.tmpl",
-		ComposeTemplatePath: "templates/docker-compose.yaml.tmpl",
+		ComposeTemplatePath: "templates/docker-compose.md.tmpl",
 		IconFallbackBaseURL: "http://127.0.0.1:1",
 	}); err != nil {
 		t.Fatalf("ProcessApp: %v", err)
@@ -394,10 +366,11 @@ func TestProcessApp_WithCompose(t *testing.T) {
 
 	docsBase := filepath.Join(root, "website", "containerforge", "src", "content", "docs", "containers")
 
-	// The compose snippet now lives on its own page.
+	// The compose snippet now lives on its own page rendered via the
+	// docker-compose.md.tmpl page template.
 	composePath := filepath.Join(docsBase, app, "docker-compose.md")
 	compose := readFile(t, composePath)
-	if !strings.Contains(compose, "title: Docker Compose") {
+	if !strings.Contains(compose, "title: Docker-Compose") {
 		t.Errorf("docker-compose.md missing front matter title:\n%s", compose)
 	}
 	if !strings.Contains(compose, "```yaml") {
@@ -415,7 +388,7 @@ func TestProcessApp_WithCompose(t *testing.T) {
 	if strings.Contains(idx, "```yaml") {
 		t.Errorf("index.md should not embed compose yaml:\n%s", idx)
 	}
-	if !strings.Contains(idx, "[**Docker Compose**](./docker-compose)") {
+	if !strings.Contains(idx, "[**Docker-Compose**](./docker-compose)") {
 		t.Errorf("index.md missing docker-compose sidebar link:\n%s", idx)
 	}
 }
@@ -441,7 +414,7 @@ func TestProcessApp_NoSettings_NoComposeTmpl(t *testing.T) {
 		AppsDir:             "apps",
 		WebsiteDir:          "website",
 		TemplatePath:        "templates/README.md.tmpl",
-		ComposeTemplatePath: "templates/docker-compose.yaml.tmpl",
+		ComposeTemplatePath: "templates/docker-compose.md.tmpl",
 		IconFallbackBaseURL: "http://127.0.0.1:1",
 	}); err != nil {
 		t.Fatalf("ProcessApp: %v", err)
