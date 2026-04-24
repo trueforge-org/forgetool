@@ -2,7 +2,6 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]  99.22% (128/129) - pkg/containers/compose.go
 - [ ] 100.00% (1/1) - cmd/adv.go
 - [ ] 100.00% (11/11) - cmd/adv_gentooldocs.go
 - [ ] 100.00% (1/1) - cmd/charts.go
@@ -39,6 +38,7 @@ Sorted from lowest to highest coverage.
 - [ ] 100.00% (19/19) - pkg/charts/valuesYaml/parse.go
 - [ ] 100.00% (18/18) - pkg/charts/valuesYaml/updater.go
 - [ ] 100.00% (38/38) - pkg/charts/website/chart_list.go
+- [ ] 100.00% (130/130) - pkg/containers/compose.go
 - [ ] 100.00% (38/38) - pkg/containers/settings.go
 - [ ] 100.00% (635/635) - pkg/containers/test/testhelpers.go
 - [ ] 100.00% (135/135) - pkg/containers/test/yaml_runner.go
