@@ -105,6 +105,35 @@
     "upstream_env_url": {
       "type": "string",
       "description": "URL to upstream environment variable documentation"
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Other containers in this repository that this container depends on at runtime",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "opt_dependencies": {
+      "type": "array",
+      "description": "Other containers in this repository that this container can optionally use at runtime",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    }
+  },
+  "$defs": {
+    "dependency": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        }
+      }
     }
   }
 }
