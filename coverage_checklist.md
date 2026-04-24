@@ -2,11 +2,7 @@
 
 Sorted from lowest to highest coverage.
 
-- [ ]  73.65% (123/167) - pkg/website/container.go
-- [ ]  76.99% (87/113) - pkg/website/chart.go
-- [ ]  77.38% (130/168) - pkg/website/common.go
 - [ ]  80.00% (4/5) - cmd/charts_bump.go
-- [ ]  82.76% (48/58) - pkg/website/prepare.go
 - [ ]  83.33% (5/6) - cmd/charts_tagclean.go
 - [ ]  89.47% (17/19) - cmd/containers_genlist.go
 - [ ]  89.63% (121/135) - pkg/containers/test/yaml_runner.go
@@ -15,6 +11,10 @@ Sorted from lowest to highest coverage.
 - [ ]  92.31% (12/13) - cmd/charts_genchartlist.go
 - [ ]  92.31% (12/13) - cmd/charts_genmeta.go
 - [ ]  92.86% (13/14) - cmd/containers_genchangelog.go
+- [ ]  92.92% (105/113) - pkg/website/chart.go
+- [ ]  93.10% (54/58) - pkg/website/prepare.go
+- [ ]  94.01% (157/167) - pkg/website/container.go
+- [ ]  95.83% (161/168) - pkg/website/common.go
 - [ ]  96.30% (26/27) - cmd/containers_gendocs.go
 - [ ]  96.88% (31/32) - cmd/charts_gendocs.go
 - [ ]  97.96% (48/49) - pkg/containers/website/container_list.go
