@@ -1,0 +1,11 @@
+name: myapp
+services:
+  myapp:
+    container_name: myapp
+    image: ghcr.io/trueforge-org/myapp:rolling
+    ports:
+      - mode: ingress
+        target: 8080
+        published: "8080"
+        protocol: tcp
+    restart: unless-stopped

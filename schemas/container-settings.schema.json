@@ -124,14 +124,20 @@
   "$defs": {
     "dependency": {
       "type": "object",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "required": [
-        "image"
+        "name"
       ],
       "properties": {
-        "image": {
+        "name": {
           "type": "string",
+          "description": "Name of another container in this repository (its directory under apps/). Used to look up the dependency's settings.yaml and as the docker-compose service name.",
           "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "compose": {
+          "type": "object",
+          "description": "Optional docker-compose service-spec fragment. Merged on top of the service generated from the dependency's own settings.yaml using compose-spec merge semantics. The 'image' field, if set, overrides the generated ghcr.io/trueforge-org/<name>:<version> reference.",
+          "additionalProperties": true
         }
       }
     }

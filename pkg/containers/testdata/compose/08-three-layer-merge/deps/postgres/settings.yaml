@@ -1,0 +1,14 @@
+schema_version: 1
+env:
+  - name: LAYER_A
+    default: from-base-settings
+  - name: LAYER_BASE_ONLY
+    default: base
+volumes:
+  - path: /var/lib/postgresql/data
+    required: true
+compose:
+  restart: "no"
+  environment:
+    LAYER_A: from-dep-own
+    LAYER_B: dep-own-only

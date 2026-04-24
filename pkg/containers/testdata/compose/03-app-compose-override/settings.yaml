@@ -1,0 +1,17 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+env:
+  - name: LOG_LEVEL
+    default: info
+volumes:
+  - path: /config
+    required: true
+compose:
+  restart: always
+  environment:
+    LOG_LEVEL: debug
+    EXTRA_FLAG: "1"
+  labels:
+    traefik.enable: "true"

@@ -1,0 +1,6 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+opt_dependencies:
+  - name: redis

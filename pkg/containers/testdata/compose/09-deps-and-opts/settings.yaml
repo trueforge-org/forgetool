@@ -1,0 +1,17 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+env:
+  - name: APP_ENV
+    default: production
+volumes:
+  - path: /config
+    required: true
+dependencies:
+  - name: postgres
+    compose:
+      environment:
+        POSTGRES_PASSWORD: secret
+opt_dependencies:
+  - name: redis

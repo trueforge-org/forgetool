@@ -291,7 +291,7 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 		return err
 	}
 
-	composeYAML, err := containers.BuildComposeYAML(opts.App, vars["VERSION"], settings)
+	composeYAML, err := containers.BuildComposeYAML(opts.App, vars["VERSION"], settings, dependencyResolver(opts.AppsDir))
 	if err != nil {
 		return err
 	}
@@ -314,6 +314,38 @@ func writeComposePage(opts ContainerOptions, p containerPaths, vars map[string]s
 		return err
 	}
 	return os.WriteFile(pagePath, []byte(rendered), 0o644)
+}
+
+// dependencyResolver returns a containers.DependencyResolver that looks up
+// dependency apps under appsDir. For each requested image it loads the app's
+// settings.yaml and parses its docker-bake.hcl for the VERSION variable. A
+// dependency without both files is reported as not found and silently
+// skipped by BuildComposeYAML.
+func dependencyResolver(appsDir string) containers.DependencyResolver {
+	return func(image string) (containers.AppSettings, string, bool, error) {
+		appDir := filepath.Join(appsDir, image)
+		settingsPath := filepath.Join(appDir, "settings.yaml")
+		bakePath := filepath.Join(appDir, "docker-bake.hcl")
+
+		settings, ok, err := containers.ParseSettings(settingsPath)
+		if err != nil {
+			return containers.AppSettings{}, "", false, err
+		}
+		if !ok {
+			return containers.AppSettings{}, "", false, nil
+		}
+		if _, err := os.Stat(bakePath); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return settings, "", true, nil
+			}
+			return containers.AppSettings{}, "", false, err
+		}
+		vars, err := parseBakeVars(bakePath)
+		if err != nil {
+			return containers.AppSettings{}, "", false, err
+		}
+		return settings, vars["VERSION"], true, nil
+	}
 }
 
 // DiscoverApps lists the apps under appsDir that contain a docker-bake.hcl

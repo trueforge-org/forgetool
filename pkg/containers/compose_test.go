@@ -1,11 +1,16 @@
 package containers
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	composetypes "github.com/compose-spec/compose-go/v2/types"
 )
+
+func stringPtr(s string) *string { return &s }
 
 const sampleSettings = `# yaml-language-server: $schema=../../settings.schema.json
 schema_version: 1
@@ -91,7 +96,7 @@ func TestBuildComposeYAML(t *testing.T) {
 		return p
 	}())
 
-	snippet, err := BuildComposeYAML("myapp", "1.2.3", settings)
+	snippet, err := BuildComposeYAML("myapp", "1.2.3", settings, nil)
 	if err != nil {
 		t.Fatalf("BuildComposeYAML: %v", err)
 	}
@@ -108,9 +113,9 @@ func TestBuildComposeYAML(t *testing.T) {
 		"protocol: udp",
 		"APP_HOME: /config",
 		"APP_LOG: info",
-		"source: ./config",
+		"source: config",
 		"target: /config",
-		"source: ./data",
+		"source: data",
 		"target: /data",
 	}
 	for _, want := range checks {
@@ -124,7 +129,7 @@ func TestBuildComposeYAML_NoPorts(t *testing.T) {
 	settings := AppSettings{
 		Volumes: []VolumeSetting{{Path: "/config", Required: true}},
 	}
-	snippet, err := BuildComposeYAML("svc", "2.0.0", settings)
+	snippet, err := BuildComposeYAML("svc", "2.0.0", settings, nil)
 	if err != nil {
 		t.Fatalf("BuildComposeYAML: %v", err)
 	}
@@ -135,12 +140,149 @@ func TestBuildComposeYAML_NoPorts(t *testing.T) {
 
 func TestBuildComposeYAML_VersionFallback(t *testing.T) {
 	for _, ver := range []string{"", "latest", "LATEST"} {
-		snippet, err := BuildComposeYAML("svc", ver, AppSettings{})
+		snippet, err := BuildComposeYAML("svc", ver, AppSettings{}, nil)
 		if err != nil {
 			t.Fatalf("BuildComposeYAML(%q): %v", ver, err)
 		}
 		if !strings.Contains(snippet, "ghcr.io/trueforge-org/svc:rolling") {
 			t.Errorf("version %q: expected rolling tag fallback, got:\n%s", ver, snippet)
 		}
+	}
+}
+
+func TestBuildComposeYAML_Dependencies(t *testing.T) {
+	depSettings := AppSettings{
+		Ports:   []PortSetting{{Port: 5432, Protocol: "tcp"}},
+		Volumes: []VolumeSetting{{Path: "/var/lib/postgresql/data", Required: true}},
+	}
+	optSettings := AppSettings{
+		Ports: []PortSetting{{Port: 6379, Protocol: "tcp"}},
+	}
+
+	resolve := func(image string) (AppSettings, string, bool, error) {
+		switch image {
+		case "postgres":
+			return depSettings, "16.0", true, nil
+		case "redis":
+			return optSettings, "7.2", true, nil
+		case "missing":
+			return AppSettings{}, "", false, nil
+		}
+		return AppSettings{}, "", false, nil
+	}
+
+	settings := AppSettings{
+		Dependencies:    []Dependency{{Name: "postgres"}, {Name: "missing"}},
+		OptDependencies: []Dependency{{Name: "redis"}},
+	}
+
+	snippet, err := BuildComposeYAML("myapp", "1.0.0", settings, resolve)
+	if err != nil {
+		t.Fatalf("BuildComposeYAML: %v", err)
+	}
+
+	mustContain := []string{
+		"myapp:",
+		"image: ghcr.io/trueforge-org/myapp:1.0.0",
+		"postgres:",
+		"image: ghcr.io/trueforge-org/postgres:16.0",
+		"target: 5432",
+		"#   redis:",
+		"#     image: ghcr.io/trueforge-org/redis:7.2",
+		"#     container_name: redis",
+	}
+	for _, want := range mustContain {
+		if !strings.Contains(snippet, want) {
+			t.Errorf("snippet missing %q\ngot:\n%s", want, snippet)
+		}
+	}
+
+	if strings.Contains(snippet, "missing:") {
+		t.Errorf("unresolved dependency should be skipped, got:\n%s", snippet)
+	}
+
+	// Optional dependency must not appear as an active service entry.
+	if i := strings.Index(snippet, "redis:"); i != -1 {
+		// The only allowed occurrence is inside a commented "#   redis:" line.
+		lineStart := strings.LastIndex(snippet[:i], "\n") + 1
+		if !strings.HasPrefix(snippet[lineStart:], "# ") {
+			t.Errorf("opt dependency redis must be commented out, got:\n%s", snippet)
+		}
+	}
+}
+
+func TestBuildComposeYAML_DependencyResolverError(t *testing.T) {
+	resolve := func(image string) (AppSettings, string, bool, error) {
+		return AppSettings{}, "", false, fmt.Errorf("boom for %s", image)
+	}
+	settings := AppSettings{Dependencies: []Dependency{{Name: "broken"}}}
+	if _, err := BuildComposeYAML("app", "1.0.0", settings, resolve); err == nil {
+		t.Fatal("expected error from resolver to propagate")
+	}
+}
+
+// TestBuildComposeYAML_DependencyOverrides verifies that fields supplied on
+// a dependency entry override / extend the service generated from the
+// dependency's own settings.yaml using compose-spec merge semantics. The
+// "image" key is used only as the service name and must not leak into the
+// rendered "image:" field.
+func TestBuildComposeYAML_DependencyOverrides(t *testing.T) {
+	depSettings := AppSettings{
+		Ports: []PortSetting{{Port: 5432, Protocol: "tcp"}},
+		Env: []EnvSetting{
+			{Name: "POSTGRES_USER", Default: "postgres"},
+			{Name: "POSTGRES_DB", Default: "app"},
+		},
+		Volumes: []VolumeSetting{{Path: "/var/lib/postgresql/data", Required: true}},
+	}
+	resolve := func(image string) (AppSettings, string, bool, error) {
+		if image == "postgres" {
+			return depSettings, "16.0", true, nil
+		}
+		return AppSettings{}, "", false, nil
+	}
+
+	settings := AppSettings{
+		Dependencies: []Dependency{
+			{
+				Name: "postgres",
+				Compose: composetypes.ServiceConfig{
+					Restart: "always",
+					Environment: composetypes.MappingWithEquals{
+						"POSTGRES_PASSWORD": stringPtr("secret"),
+						"POSTGRES_DB":       stringPtr("myappdb"),
+					},
+				},
+			},
+		},
+	}
+
+	snippet, err := BuildComposeYAML("myapp", "1.0.0", settings, resolve)
+	if err != nil {
+		t.Fatalf("BuildComposeYAML: %v", err)
+	}
+
+	// New field added by the override.
+	if !strings.Contains(snippet, "POSTGRES_PASSWORD: secret") {
+		t.Errorf("expected merged env POSTGRES_PASSWORD, got:\n%s", snippet)
+	}
+	// Existing field overridden by the dependency entry.
+	if !strings.Contains(snippet, "POSTGRES_DB: myappdb") {
+		t.Errorf("expected POSTGRES_DB overridden to myappdb, got:\n%s", snippet)
+	}
+	// Existing field kept from base settings.
+	if !strings.Contains(snippet, "POSTGRES_USER: postgres") {
+		t.Errorf("expected POSTGRES_USER preserved from base, got:\n%s", snippet)
+	}
+	// Override of a base scalar field.
+	if !strings.Contains(snippet, "restart: always") {
+		t.Errorf("expected restart overridden to always, got:\n%s", snippet)
+	}
+	// Image must be the generated ghcr.io reference, not literally "postgres".
+	if !strings.Contains(snippet, "image: ghcr.io/trueforge-org/postgres:16.0") {
+		t.Errorf("dependency image must come from settings, got:\n%s", snippet)
+	}
+	if strings.Contains(snippet, "image: postgres\n") {
+		t.Errorf("dependency 'image' key must not leak as compose image override, got:\n%s", snippet)
 	}
 }

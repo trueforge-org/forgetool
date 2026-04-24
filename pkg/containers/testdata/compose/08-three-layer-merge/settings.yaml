@@ -1,0 +1,11 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+dependencies:
+  - name: postgres
+    compose:
+      restart: always
+      environment:
+        LAYER_A: from-parent
+        LAYER_C: parent-only

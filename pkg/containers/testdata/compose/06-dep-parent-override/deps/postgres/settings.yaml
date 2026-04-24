@@ -1,0 +1,12 @@
+schema_version: 1
+ports:
+  - port: 5432
+    protocol: tcp
+env:
+  - name: POSTGRES_USER
+    default: postgres
+  - name: POSTGRES_DB
+    default: app
+volumes:
+  - path: /var/lib/postgresql/data
+    required: true

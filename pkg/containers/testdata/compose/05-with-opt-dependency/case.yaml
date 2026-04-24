@@ -1,0 +1,4 @@
+app: myapp
+version: "1.0.0"
+dep_versions:
+  redis: "7.2"

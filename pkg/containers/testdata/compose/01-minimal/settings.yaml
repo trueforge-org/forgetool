@@ -1,0 +1,7 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+volumes:
+  - path: /config
+    required: true

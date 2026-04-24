@@ -1,0 +1,16 @@
+schema_version: 1
+ports:
+  - port: 5432
+    protocol: tcp
+env:
+  - name: POSTGRES_USER
+    default: postgres
+volumes:
+  - path: /var/lib/postgresql/data
+    required: true
+compose:
+  restart: always
+  environment:
+    POSTGRES_PASSWORD: from-dep-own
+  labels:
+    role: database

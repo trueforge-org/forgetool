@@ -1,0 +1,11 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+dependencies:
+  - name: postgres
+    compose:
+      restart: always
+      environment:
+        POSTGRES_PASSWORD: secret
+        POSTGRES_DB: myappdb
