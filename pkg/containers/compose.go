@@ -191,6 +191,8 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 // of the shape `{services: {...}}`, ready to be ingested by the compose-go
 // loader. Going through the typed ServiceConfig.MarshalYAML guarantees that
 // the canonical compose-spec representation is used for every field.
+var marshalServicesDocFn = marshalServicesDoc
+
 func marshalServicesDoc(services composetypes.Services) ([]byte, error) {
 	project := &composetypes.Project{Services: services}
 	return project.MarshalYAML()
@@ -199,9 +201,13 @@ func marshalServicesDoc(services composetypes.Services) ([]byte, error) {
 // isEmptyService reports whether a ServiceConfig has any user-supplied fields
 // that should be applied as a compose override. The Name field is set by the
 // caller and ignored here.
+var yamlMarshalFn = yaml.Marshal
+
+var loaderLoadWithContextFn = loader.LoadWithContext
+
 func isEmptyService(svc composetypes.ServiceConfig) bool {
 	svc.Name = ""
-	out, err := yaml.Marshal(svc)
+	out, err := yamlMarshalFn(svc)
 	if err != nil {
 		return true
 	}
@@ -215,7 +221,7 @@ func isEmptyService(svc composetypes.ServiceConfig) bool {
 // Override layers are applied in order, so later layers win over earlier
 // ones. Empty layers are skipped.
 func mergeAndMarshal(projectName string, baseServices composetypes.Services, overrideLayers ...composetypes.Services) (string, error) {
-	baseYAML, err := marshalServicesDoc(baseServices)
+	baseYAML, err := marshalServicesDocFn(baseServices)
 	if err != nil {
 		return "", fmt.Errorf("marshal base compose: %w", err)
 	}
@@ -227,7 +233,7 @@ func mergeAndMarshal(projectName string, baseServices composetypes.Services, ove
 		if len(layer) == 0 {
 			continue
 		}
-		layerYAML, err := marshalServicesDoc(layer)
+		layerYAML, err := marshalServicesDocFn(layer)
 		if err != nil {
 			return "", fmt.Errorf("marshal override layer %d: %w", i, err)
 		}
@@ -242,7 +248,7 @@ func mergeAndMarshal(projectName string, baseServices composetypes.Services, ove
 		Environment: composetypes.Mapping{},
 	}
 
-	project, err := loader.LoadWithContext(context.Background(), cfg, func(o *loader.Options) {
+	project, err := loaderLoadWithContextFn(context.Background(), cfg, func(o *loader.Options) {
 		o.SetProjectName(projectName, true)
 		o.SkipValidation = true
 		o.SkipNormalization = true
