@@ -3,7 +3,7 @@ module github.com/trueforge-org/forgetool
 go 1.26.1
 
 require (
-	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/beevik/ntp v1.5.0
 	github.com/compose-spec/compose-go/v2 v2.10.2
 	github.com/docker/docker v28.5.2+incompatible
