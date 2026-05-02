@@ -36,8 +36,10 @@ services:
           cpus: 4
           memory: 4G
     environment:
+      POSTGRES_DB: myapp
       POSTGRES_PASSWORD: test-secret-1
-      POSTGRES_USER: postgres
+      POSTGRES_RO_DB: myapp-readonly
+      POSTGRES_USER: myapp
     group_add:
       - "568"
     image: ghcr.io/trueforge-org/postgres:16.0

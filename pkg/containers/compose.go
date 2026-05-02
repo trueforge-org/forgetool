@@ -23,6 +23,31 @@ import (
 // handled.
 var passPlaceholderRE = regexp.MustCompile(`MY[A-Z0-9_]+PASS`)
 
+// userPlaceholders are well-known placeholders that, when present in the
+// rendered compose document, get replaced with the parent application's
+// name. This keeps generated database credentials and database names
+// namespaced per app without forcing operators to hand-edit the shared
+// dependency template. The MY*DB placeholders also support an optional
+// "-suffix" tail (e.g. MYPOSTGRESDB-readonly -> myapp-readonly): because
+// the suffix is preserved verbatim, a plain string replacement is enough.
+var userPlaceholders = []string{
+	"MYPOSTGRESUSER",
+	"MYMARIADBUSER",
+	"MYPOSTGRESDB",
+	"MYMARIADBDB",
+}
+
+// substituteUserPlaceholders rewrites every occurrence of the well-known
+// MY*USER / MY*DB placeholders to the parent application's name. Any
+// suffix (e.g. "MYPOSTGRESDB-readonly") is preserved as-is by virtue of
+// the plain string replacement, yielding "<app>-readonly".
+func substituteUserPlaceholders(rendered, app string) string {
+	for _, p := range userPlaceholders {
+		rendered = strings.ReplaceAll(rendered, p, app)
+	}
+	return rendered
+}
+
 // hostIPLineRE matches the rendered `host_ip:` line inside a port entry.
 // We comment these lines out so the generated stack publishes on all
 // interfaces by default while keeping the loopback hint one keystroke
@@ -336,6 +361,7 @@ func BuildComposeYAML(app, version string, settings AppSettings, resolve Depende
 	rendered = commentOutHostIP(rendered)
 	rendered = addReadOnlyDefault(rendered)
 	rendered = injectPrivilegedDefault(rendered)
+	rendered = substituteUserPlaceholders(rendered, app)
 	return substitutePassPlaceholders(rendered)
 }
 

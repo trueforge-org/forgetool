@@ -4,7 +4,11 @@ ports:
     protocol: tcp
 env:
   - name: POSTGRES_USER
-    default: postgres
+    default: MYPOSTGRESUSER
+  - name: POSTGRES_DB
+    default: MYPOSTGRESDB
+  - name: POSTGRES_RO_DB
+    default: MYPOSTGRESDB-readonly
   - name: POSTGRES_PASSWORD
     default: MYPOSTGRESPASS
 volumes:
