@@ -20,9 +20,4 @@ services:
         published: "8080"
         protocol: tcp
     restart: unless-stopped
-    shm_size: 256M
-    volumes:
-      - type: bind
-        source: /mnt/tank/apps/myapp/config
-        target: /config
-        read_only: false
+    shm_size: 1G

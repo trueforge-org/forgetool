@@ -1,22 +1,31 @@
 name: myapp
 services:
   myapp:
+    cap_drop:
+      - ALL
     container_name: myapp
+    privileged: false
     deploy:
       resources:
         limits:
           cpus: 4
           memory: 4G
+    group_add:
+      - "568"
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 8080
         published: "8080"
         protocol: tcp
     restart: unless-stopped
+    shm_size: 256M
   postgres:
+    cap_drop:
+      - ALL
     container_name: postgres
+    privileged: false
     deploy:
       resources:
         limits:
@@ -25,15 +34,19 @@ services:
     environment:
       POSTGRES_DB: app
       POSTGRES_USER: postgres
+    group_add:
+      - "568"
     image: ghcr.io/trueforge-org/postgres:16.0
     ports:
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 5432
         published: "5432"
         protocol: tcp
     restart: unless-stopped
+    shm_size: 256M
     volumes:
       - type: bind
         source: /mnt/tank/apps/postgres/data
         target: /var/lib/postgresql/data
+        read_only: false

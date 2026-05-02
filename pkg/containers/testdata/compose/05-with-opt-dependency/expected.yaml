@@ -1,27 +1,37 @@
 name: myapp
 services:
   myapp:
+    cap_drop:
+      - ALL
     container_name: myapp
+    privileged: false
     deploy:
       resources:
         limits:
           cpus: 4
           memory: 4G
+    group_add:
+      - "568"
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 8080
         published: "8080"
         protocol: tcp
     restart: unless-stopped
+    shm_size: 256M
 #   redis:
+#     cap_drop:
+#       - ALL
 #     container_name: redis
 #     deploy:
 #       resources:
 #         limits:
 #           cpus: 4
 #           memory: "4294967296"
+#     group_add:
+#       - "568"
 #     image: ghcr.io/trueforge-org/redis:7.2
 #     ports:
 #       - mode: ingress
@@ -30,6 +40,7 @@ services:
 #         published: "6379"
 #         protocol: tcp
 #     restart: unless-stopped
+#     shm_size: "268435456"
 #     volumes:
 #       - type: bind
 #         source: /mnt/tank/apps/redis/data

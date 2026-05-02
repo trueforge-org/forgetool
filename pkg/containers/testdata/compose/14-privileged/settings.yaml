@@ -1,0 +1,5 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+privileged: true

@@ -4,7 +4,6 @@ services:
     cap_drop:
       - ALL
     container_name: myapp
-    privileged: false
     deploy:
       resources:
         limits:
@@ -19,10 +18,6 @@ services:
         target: 8080
         published: "8080"
         protocol: tcp
+    privileged: true
     restart: unless-stopped
     shm_size: 256M
-    volumes:
-      - type: bind
-        source: /mnt/tank/apps/myapp/config
-        target: /config
-        read_only: false

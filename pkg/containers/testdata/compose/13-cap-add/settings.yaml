@@ -1,0 +1,7 @@
+schema_version: 1
+ports:
+  - port: 80
+    protocol: tcp
+cap_add:
+  - NET_BIND_SERVICE
+  - SYS_ADMIN

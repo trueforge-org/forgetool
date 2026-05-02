@@ -137,6 +137,23 @@
           "$ref": "#/$defs/resourceQuota"
         }
       }
+    },
+    "cap_add": {
+      "type": "array",
+      "description": "Additional Linux capabilities to grant the container on top of the default cap_drop: [ALL] baseline. Use bare capability names without the CAP_ prefix (e.g. NET_BIND_SERVICE, SYS_ADMIN).",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "uniqueItems": true
+    },
+    "privileged": {
+      "type": "boolean",
+      "description": "Run the container in privileged mode. Defaults to false; set to true only when the workload genuinely needs full host capabilities."
+    },
+    "shm_size": {
+      "description": "Size of /dev/shm inside the container. Accepts a compose-spec size string (e.g. \"256M\", \"1G\") or a raw byte count. Defaults to 256M.",
+      "type": ["string", "integer"]
     }
   },
   "$defs": {

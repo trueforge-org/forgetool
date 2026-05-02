@@ -1,7 +1,10 @@
 name: myapp
 services:
   myapp:
+    cap_drop:
+      - ALL
     container_name: myapp
+    privileged: false
     deploy:
       resources:
         limits:
@@ -11,28 +14,33 @@ services:
       PGID: "1000"
       PUID: "1000"
       TZ: UTC
+    group_add:
+      - "568"
     image: ghcr.io/trueforge-org/myapp:2.0.0
     ports:
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 80
         published: "80"
         protocol: tcp
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 443
         published: "443"
         protocol: tcp
       - mode: ingress
-        host_ip: 127.0.0.1
+        # host_ip: 127.0.0.1
         target: 53
         published: "53"
         protocol: udp
     restart: unless-stopped
+    shm_size: 256M
     volumes:
       - type: bind
         source: /mnt/tank/apps/myapp/config
         target: /config
+        read_only: false
       - type: bind
         source: /mnt/tank/apps/myapp/data
         target: /data
+        read_only: false

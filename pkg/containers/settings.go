@@ -30,6 +30,20 @@ type AppSettings struct {
 	// generator fills in sane defaults; pass any non-zero override here
 	// (or via the `compose:` block) to replace them.
 	Resources composetypes.Resources `yaml:"resources,omitempty"`
+	// CapAdd lists additional Linux capabilities to grant the container
+	// on top of the default `cap_drop: [ALL]` baseline. Use the bare
+	// capability name without the CAP_ prefix, e.g. NET_BIND_SERVICE.
+	CapAdd []string `yaml:"cap_add,omitempty"`
+	// Privileged toggles the container's `privileged` flag. The generator
+	// emits `privileged: false` by default; setting this to true here
+	// (or in the `compose:` override block) opts the app in to running
+	// with full host capabilities. Pointer so we can distinguish "unset"
+	// from an explicit false.
+	Privileged *bool `yaml:"privileged,omitempty"`
+	// ShmSize overrides the size of /dev/shm in the container. Accepts
+	// any compose-spec byte syntax (e.g. "256M", "1G", or a raw byte
+	// count). When unset the generator falls back to a 256 MiB default.
+	ShmSize *composetypes.UnitBytes `yaml:"shm_size,omitempty"`
 }
 
 // UnmarshalYAML decodes the AppSettings document, routing the top-level
@@ -47,6 +61,9 @@ func (s *AppSettings) UnmarshalYAML(value *yaml.Node) error {
 		OptDependencies []Dependency    `yaml:"opt_dependencies"`
 		Compose         map[string]any  `yaml:"compose"`
 		Resources       map[string]any  `yaml:"resources"`
+		CapAdd          []string        `yaml:"cap_add"`
+		Privileged      *bool           `yaml:"privileged"`
+		ShmSize         any             `yaml:"shm_size"`
 	}
 	var raw rawAppSettings
 	if err := value.Decode(&raw); err != nil {
@@ -59,6 +76,15 @@ func (s *AppSettings) UnmarshalYAML(value *yaml.Node) error {
 	s.Volumes = raw.Volumes
 	s.Dependencies = raw.Dependencies
 	s.OptDependencies = raw.OptDependencies
+	s.CapAdd = raw.CapAdd
+	s.Privileged = raw.Privileged
+	if raw.ShmSize != nil {
+		var u composetypes.UnitBytes
+		if err := u.DecodeMapstructure(raw.ShmSize); err != nil {
+			return fmt.Errorf("decode shm_size: %w", err)
+		}
+		s.ShmSize = &u
+	}
 	s.Compose = composetypes.ServiceConfig{}
 	if len(raw.Compose) > 0 {
 		var svc composetypes.ServiceConfig

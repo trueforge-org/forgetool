@@ -23,12 +23,130 @@ import (
 // handled.
 var passPlaceholderRE = regexp.MustCompile(`MY[A-Z0-9_]+PASS`)
 
-// memoryBytesRE matches `memory: "<digits>"` lines emitted by compose-go's
+// hostIPLineRE matches the rendered `host_ip:` line inside a port entry.
+// We comment these lines out so the generated stack publishes on all
+// interfaces by default while keeping the loopback hint one keystroke
+// away for operators who want to restrict the bind. Indentation is
+// preserved so the commented line stays aligned with its siblings.
+var hostIPLineRE = regexp.MustCompile(`(?m)^(\s*)(host_ip:.*)$`)
+
+// commentOutHostIP rewrites every `host_ip:` line into `# host_ip:` while
+// keeping the original indentation, surfacing the field as an opt-in hint
+// rather than a hard binding.
+func commentOutHostIP(in string) string {
+	return hostIPLineRE.ReplaceAllString(in, "$1# $2")
+}
+
+// volumeTargetLineRE matches the `target: /<path>` line inside a rendered
+// volume entry. Port entries also render a `target:` field but with a
+// numeric value, so anchoring the value on a leading slash distinguishes
+// the two without needing a stateful YAML walker.
+var volumeTargetLineRE = regexp.MustCompile(`(?m)^(\s*)(target:\s*/[^\n]*)$`)
+
+// addReadOnlyDefault appends `read_only: false` to every rendered volume
+// block so operators can flip the mount to read-only by editing a single
+// boolean instead of having to remember the field name. The line is
+// indented to match the sibling `target:` so it stays inside the same
+// volume entry.
+func addReadOnlyDefault(in string) string {
+	return volumeTargetLineRE.ReplaceAllString(in, "${1}${2}\n${1}read_only: false")
+}
+
+// injectPrivilegedDefault makes the `privileged:` flag visible on every
+// generated service. compose-go's typed marshaller drops the field when it
+// is false (it has the `omitempty` tag), so without this step operators
+// would have to remember the field name to opt a service in. We walk the
+// rendered document service-by-service and insert `privileged: false`
+// right after the service's `container_name:` line, but only when no
+// `privileged:` line already exists in that service block (e.g. because
+// the user set it via the typed field or a `compose:` override).
+func injectPrivilegedDefault(in string) string {
+	lines := strings.Split(in, "\n")
+	// Service blocks are rendered with two-space indentation under the
+	// top-level "services:" key, so each "  <name>:" line at exactly two
+	// leading spaces marks a new service. The body uses four leading
+	// spaces.
+	type segment struct {
+		start, end int // [start, end) line range of the service body
+		nameIdx    int // index of the "  <name>:" header line
+	}
+	var segs []segment
+	inServices := false
+	cur := -1
+	curName := -1
+	for i, l := range lines {
+		if !inServices {
+			if strings.TrimSpace(l) == "services:" {
+				inServices = true
+			}
+			continue
+		}
+		// A line that starts a top-level (zero-indent) key ends the
+		// services block.
+		if len(l) > 0 && l[0] != ' ' && l[0] != '#' && strings.Contains(l, ":") {
+			if cur != -1 {
+				segs = append(segs, segment{cur, i, curName})
+				cur = -1
+			}
+			inServices = false
+			continue
+		}
+		// Service header: exactly two leading spaces, then "<name>:".
+		if strings.HasPrefix(l, "  ") && !strings.HasPrefix(l, "   ") && strings.HasSuffix(strings.TrimSpace(l), ":") {
+			if cur != -1 {
+				segs = append(segs, segment{cur, i, curName})
+			}
+			cur = i + 1
+			curName = i
+		}
+	}
+	if cur != -1 {
+		segs = append(segs, segment{cur, len(lines), curName})
+	}
+
+	type insertion struct {
+		afterLine int
+		text      string
+	}
+	var inserts []insertion
+	for _, s := range segs {
+		hasPrivileged := false
+		containerNameLine := -1
+		for i := s.start; i < s.end; i++ {
+			t := strings.TrimSpace(lines[i])
+			if strings.HasPrefix(t, "privileged:") {
+				hasPrivileged = true
+				break
+			}
+			if containerNameLine == -1 && strings.HasPrefix(t, "container_name:") {
+				containerNameLine = i
+			}
+		}
+		if hasPrivileged {
+			continue
+		}
+		anchor := containerNameLine
+		if anchor == -1 {
+			anchor = s.nameIdx
+		}
+		inserts = append(inserts, insertion{anchor, "    privileged: false"})
+	}
+	if len(inserts) == 0 {
+		return in
+	}
+	// Apply insertions from the bottom up so earlier indices stay valid.
+	for i := len(inserts) - 1; i >= 0; i-- {
+		ins := inserts[i]
+		lines = append(lines[:ins.afterLine+1], append([]string{ins.text}, lines[ins.afterLine+1:]...)...)
+	}
+	return strings.Join(lines, "\n")
+}
+
 // UnitBytes.MarshalYAML, which always renders as a quoted decimal byte
 // count. We rewrite those into the short compose-spec suffix form
 // (e.g. "1G", "512M") for any value that is an exact multiple of a
 // power-of-two unit, leaving non-round values as the raw byte count.
-var memoryBytesRE = regexp.MustCompile(`(?m)^(\s*memory:\s*)"(\d+)"\s*$`)
+var memoryBytesRE = regexp.MustCompile(`(?m)^(\s*(?:memory|shm_size):\s*)"(\d+)"[ \t]*$`)
 
 // humanizeMemoryValues rewrites quoted byte counts on `memory:` lines to
 // human-readable compose-spec sizes (G/M/K) when the value divides cleanly,
@@ -215,6 +333,9 @@ func BuildComposeYAML(app, version string, settings AppSettings, resolve Depende
 	}
 
 	rendered = humanizeMemoryValues(rendered)
+	rendered = commentOutHostIP(rendered)
+	rendered = addReadOnlyDefault(rendered)
+	rendered = injectPrivilegedDefault(rendered)
 	return substitutePassPlaceholders(rendered)
 }
 
@@ -230,6 +351,32 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 		Image:         "ghcr.io/trueforge-org/" + app + ":" + tag,
 		ContainerName: app,
 		Restart:       "unless-stopped",
+		// Add the shared "apps" GID (568) so processes inside the
+		// container can read/write the host bind mounts without
+		// having to match the container's primary UID exactly.
+		GroupAdd: []string{"568"},
+		// Drop all Linux capabilities by default. Apps that genuinely
+		// need a capability can re-add it via the `compose:` block in
+		// settings.yaml (e.g. cap_add: [NET_BIND_SERVICE]).
+		CapDrop: []string{"ALL"},
+		// Apps may declare a per-app capability allow-list directly
+		// in settings.yaml via top-level `cap_add:`. The values are
+		// passed through verbatim and merged with the default
+		// `cap_drop: [ALL]` above; an empty list means no caps are
+		// re-added.
+		CapAdd: append([]string(nil), settings.CapAdd...),
+		// Privileged is only set when the user explicitly opts in;
+		// the typed field is `bool` with `omitempty`, so an unset
+		// (nil) value renders nothing here and the
+		// injectPrivilegedDefault post-processor adds the explicit
+		// `privileged: false` line for visibility.
+		Privileged: settings.Privileged != nil && *settings.Privileged,
+		// /dev/shm size: honour any per-app override, otherwise fall
+		// back to the defaultShmSize constant. compose-go's
+		// MarshalYAML renders this as a quoted byte count which the
+		// humanizeMemoryValues post-processor rewrites to the short
+		// suffix form (e.g. "256M").
+		ShmSize: shmSizeOrDefault(settings.ShmSize),
 	}
 
 	for _, p := range settings.Ports {
@@ -289,8 +436,18 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 // override.
 const (
 	defaultCPULimit    composetypes.NanoCPUs  = 4.0
-	defaultMemoryLimit composetypes.UnitBytes = 4 << 30 // 4 GiB
+	defaultMemoryLimit composetypes.UnitBytes = 4 << 30   // 4 GiB
+	defaultShmSize     composetypes.UnitBytes = 256 << 20 // 256 MiB
 )
+
+// shmSizeOrDefault returns the user's per-app /dev/shm override or the
+// generator's defaultShmSize when none is set.
+func shmSizeOrDefault(user *composetypes.UnitBytes) composetypes.UnitBytes {
+	if user != nil && *user > 0 {
+		return *user
+	}
+	return defaultShmSize
+}
 
 // applyResourceDefaults returns a *DeployConfig populated with the user's
 // resource settings, falling back to defaultCPULimit / defaultMemoryLimit
