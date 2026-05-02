@@ -2,6 +2,11 @@ name: myapp
 services:
   myapp:
     container_name: myapp
+    deploy:
+      resources:
+        limits:
+          cpus: 4
+          memory: 4G
     environment:
       PGID: "1000"
       PUID: "1000"

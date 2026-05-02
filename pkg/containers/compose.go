@@ -23,6 +23,43 @@ import (
 // handled.
 var passPlaceholderRE = regexp.MustCompile(`MY[A-Z0-9_]+PASS`)
 
+// memoryBytesRE matches `memory: "<digits>"` lines emitted by compose-go's
+// UnitBytes.MarshalYAML, which always renders as a quoted decimal byte
+// count. We rewrite those into the short compose-spec suffix form
+// (e.g. "1G", "512M") for any value that is an exact multiple of a
+// power-of-two unit, leaving non-round values as the raw byte count.
+var memoryBytesRE = regexp.MustCompile(`(?m)^(\s*memory:\s*)"(\d+)"\s*$`)
+
+// humanizeMemoryValues rewrites quoted byte counts on `memory:` lines to
+// human-readable compose-spec sizes (G/M/K) when the value divides cleanly,
+// keeping the canonical byte form otherwise.
+func humanizeMemoryValues(in string) string {
+	return memoryBytesRE.ReplaceAllStringFunc(in, func(line string) string {
+		m := memoryBytesRE.FindStringSubmatch(line)
+		if len(m) != 3 {
+			return line
+		}
+		n, err := strconv.ParseInt(m[2], 10, 64)
+		if err != nil || n <= 0 {
+			return line
+		}
+		const (
+			kib = 1024
+			mib = 1024 * kib
+			gib = 1024 * mib
+		)
+		switch {
+		case n%gib == 0:
+			return fmt.Sprintf("%s%dG", m[1], n/gib)
+		case n%mib == 0:
+			return fmt.Sprintf("%s%dM", m[1], n/mib)
+		case n%kib == 0:
+			return fmt.Sprintf("%s%dK", m[1], n/kib)
+		}
+		return line
+	})
+}
+
 // randomSecretFn produces the random secret used to replace each unique
 // MY<NAME>PASS placeholder. Exposed as a package variable so tests can
 // substitute a deterministic generator.
@@ -177,6 +214,7 @@ func BuildComposeYAML(app, version string, settings AppSettings, resolve Depende
 		}
 	}
 
+	rendered = humanizeMemoryValues(rendered)
 	return substitutePassPlaceholders(rendered)
 }
 
@@ -238,7 +276,49 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 		})
 	}
 
+	svc.Deploy = applyResourceDefaults(settings.Resources)
+
 	return svc
+}
+
+// defaultCPULimit and defaultMemoryLimit are the conservative resource caps
+// applied to every generated service. They are intentionally generous
+// enough for typical self-hosted apps but small enough to prevent a single
+// runaway container from starving the host. Per-app overrides go through
+// the `resources:` block in settings.yaml or the service's `compose:`
+// override.
+const (
+	defaultCPULimit    composetypes.NanoCPUs  = 4.0
+	defaultMemoryLimit composetypes.UnitBytes = 4 << 30 // 4 GiB
+)
+
+// applyResourceDefaults returns a *DeployConfig populated with the user's
+// resource settings, falling back to defaultCPULimit / defaultMemoryLimit
+// for any limit field the user left unset. Reservations are passed through
+// untouched (no default) so apps that don't request guaranteed capacity
+// stay schedulable.
+func applyResourceDefaults(user composetypes.Resources) *composetypes.DeployConfig {
+	limits := composetypes.Resource{
+		NanoCPUs:    defaultCPULimit,
+		MemoryBytes: defaultMemoryLimit,
+	}
+	if user.Limits != nil {
+		if user.Limits.NanoCPUs != 0 {
+			limits.NanoCPUs = user.Limits.NanoCPUs
+		}
+		if user.Limits.MemoryBytes != 0 {
+			limits.MemoryBytes = user.Limits.MemoryBytes
+		}
+		limits.Pids = user.Limits.Pids
+		limits.Devices = user.Limits.Devices
+		limits.GenericResources = user.Limits.GenericResources
+	}
+	return &composetypes.DeployConfig{
+		Resources: composetypes.Resources{
+			Limits:       &limits,
+			Reservations: user.Reservations,
+		},
+	}
 }
 
 // serviceToMap was previously needed to convert ServiceConfig values to

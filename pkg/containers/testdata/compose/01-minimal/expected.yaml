@@ -2,6 +2,11 @@ name: myapp
 services:
   myapp:
     container_name: myapp
+    deploy:
+      resources:
+        limits:
+          cpus: 4
+          memory: 4G
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress

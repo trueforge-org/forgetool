@@ -23,6 +23,13 @@ type AppSettings struct {
 	// top of the service generated for the app itself. Same merge semantics
 	// as Dependency.Compose.
 	Compose composetypes.ServiceConfig `yaml:"compose,omitempty"`
+	// Resources holds optional CPU/memory limits and reservations applied
+	// to the generated service via the compose `deploy.resources` block.
+	// Both `limits` and `reservations` accept the standard compose syntax
+	// (e.g. `cpus: "2.0"`, `memory: 1G`). When fields are omitted, the
+	// generator fills in sane defaults; pass any non-zero override here
+	// (or via the `compose:` block) to replace them.
+	Resources composetypes.Resources `yaml:"resources,omitempty"`
 }
 
 // UnmarshalYAML decodes the AppSettings document, routing the top-level
@@ -39,6 +46,7 @@ func (s *AppSettings) UnmarshalYAML(value *yaml.Node) error {
 		Dependencies    []Dependency    `yaml:"dependencies"`
 		OptDependencies []Dependency    `yaml:"opt_dependencies"`
 		Compose         map[string]any  `yaml:"compose"`
+		Resources       map[string]any  `yaml:"resources"`
 	}
 	var raw rawAppSettings
 	if err := value.Decode(&raw); err != nil {
@@ -58,6 +66,14 @@ func (s *AppSettings) UnmarshalYAML(value *yaml.Node) error {
 			return fmt.Errorf("decode top-level compose override: %w", err)
 		}
 		s.Compose = svc
+	}
+	s.Resources = composetypes.Resources{}
+	if len(raw.Resources) > 0 {
+		var res composetypes.Resources
+		if err := loader.Transform(raw.Resources, &res); err != nil {
+			return fmt.Errorf("decode top-level resources: %w", err)
+		}
+		s.Resources = res
 	}
 	return nil
 }

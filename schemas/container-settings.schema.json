@@ -119,6 +119,24 @@
       "items": {
         "$ref": "#/$defs/dependency"
       }
+    },
+    "compose": {
+      "type": "object",
+      "description": "Optional docker-compose service-spec fragment merged on top of the service generated for this app. Uses compose-spec merge semantics; any field accepted under services.<name> in a docker-compose file is allowed here.",
+      "additionalProperties": true
+    },
+    "resources": {
+      "type": "object",
+      "description": "Optional CPU/memory limits and reservations applied to the generated service via the compose deploy.resources block. Any field omitted falls back to the generator's default (currently cpus: 4, memory: 4G for limits; no reservations).",
+      "additionalProperties": false,
+      "properties": {
+        "limits": {
+          "$ref": "#/$defs/resourceQuota"
+        },
+        "reservations": {
+          "$ref": "#/$defs/resourceQuota"
+        }
+      }
     }
   },
   "$defs": {
@@ -138,6 +156,25 @@
           "type": "object",
           "description": "Optional docker-compose service-spec fragment. Merged on top of the service generated from the dependency's own settings.yaml using compose-spec merge semantics. The 'image' field, if set, overrides the generated ghcr.io/trueforge-org/<name>:<version> reference.",
           "additionalProperties": true
+        }
+      }
+    },
+    "resourceQuota": {
+      "type": "object",
+      "description": "A docker-compose deploy.resources quota (limits or reservations).",
+      "additionalProperties": true,
+      "properties": {
+        "cpus": {
+          "description": "Number of CPUs (e.g. 1.5 or \"2\").",
+          "type": ["number", "string"]
+        },
+        "memory": {
+          "description": "Memory amount in compose-spec syntax, e.g. 512M, 4G or a raw byte count.",
+          "type": ["string", "integer"]
+        },
+        "pids": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     }
