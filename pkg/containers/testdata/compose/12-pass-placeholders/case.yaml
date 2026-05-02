@@ -1,0 +1,5 @@
+app: myapp
+version: "1.0.0"
+dep_versions:
+  postgres: "16.0"
+  redis: "7.2"

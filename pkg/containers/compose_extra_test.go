@@ -3,6 +3,7 @@ package containers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -264,4 +265,92 @@ func TestBuildComposeYAML_RenderedMissingTrailingNewline(t *testing.T) {
 	}
 	_ = out
 	_ = calls
+}
+
+func TestBuildComposeYAML_SubstitutesPassPlaceholders(t *testing.T) {
+	// Drive the secret generator deterministically so we can assert the
+	// per-placeholder grouping behaviour.
+	prev := randomSecretFn
+	t.Cleanup(func() { randomSecretFn = prev })
+	var n int
+	randomSecretFn = func() (string, error) {
+		n++
+		return fmt.Sprintf("secret-%d", n), nil
+	}
+
+	depPostgres := AppSettings{
+		Env: []EnvSetting{{Name: "POSTGRES_PASSWORD", Default: "MYPOSTGRESPASS"}},
+	}
+	depRedis := AppSettings{
+		Env: []EnvSetting{{Name: "REDIS_PASSWORD", Default: "MYREDISPASS"}},
+	}
+	resolve := func(name string) (AppSettings, string, bool, error) {
+		switch name {
+		case "postgres":
+			return depPostgres, "16.0", true, nil
+		case "redis":
+			return depRedis, "7.2", true, nil
+		}
+		return AppSettings{}, "", false, nil
+	}
+
+	settings := AppSettings{
+		Env: []EnvSetting{
+			{Name: "DB_PASSWORD", Default: "MYPOSTGRESPASS"},
+			{Name: "CACHE_PASSWORD", Default: "MYREDISPASS"},
+			{Name: "OTHER_PASSWORD", Default: "MYPOSTGRESPASS"},
+		},
+		Dependencies: []Dependency{{Name: "postgres"}, {Name: "redis"}},
+	}
+
+	out, err := BuildComposeYAML("myapp", "1.0.0", settings, resolve)
+	if err != nil {
+		t.Fatalf("BuildComposeYAML: %v", err)
+	}
+
+	if strings.Contains(out, "MYPOSTGRESPASS") || strings.Contains(out, "MYREDISPASS") {
+		t.Fatalf("placeholders not substituted:\n%s", out)
+	}
+	// Two distinct placeholders -> two distinct generated secrets.
+	if n != 2 {
+		t.Fatalf("expected exactly 2 secret generations, got %d", n)
+	}
+	// The postgres placeholder appeared three times in the input and must
+	// be substituted with the same secret in every location; the redis
+	// placeholder appeared twice. Which generated secret each maps to
+	// depends on the alphabetical ordering of the rendered YAML keys, so
+	// the test asserts on counts only.
+	postCount := strings.Count(out, "secret-1") + strings.Count(out, "secret-2")
+	if postCount != 5 {
+		t.Errorf("expected 5 total secret occurrences, got %d\n%s", postCount, out)
+	}
+	if c1, c2 := strings.Count(out, "secret-1"), strings.Count(out, "secret-2"); !((c1 == 3 && c2 == 2) || (c1 == 2 && c2 == 3)) {
+		t.Errorf("expected per-placeholder counts of {3,2}, got {%d,%d}\n%s", c1, c2, out)
+	}
+}
+
+func TestBuildComposeYAML_SubstitutesPassPlaceholders_AcrossInvocations(t *testing.T) {
+	// Each call to BuildComposeYAML must generate fresh secrets.
+	prev := randomSecretFn
+	t.Cleanup(func() { randomSecretFn = prev })
+	var n int
+	randomSecretFn = func() (string, error) {
+		n++
+		return fmt.Sprintf("call-%d", n), nil
+	}
+
+	settings := AppSettings{
+		Env: []EnvSetting{{Name: "DB_PASSWORD", Default: "MYPOSTGRESPASS"}},
+	}
+	a, err := BuildComposeYAML("myapp", "1.0.0", settings, nil)
+	if err != nil {
+		t.Fatalf("BuildComposeYAML: %v", err)
+	}
+	b, err := BuildComposeYAML("myapp", "1.0.0", settings, nil)
+	if err != nil {
+		t.Fatalf("BuildComposeYAML: %v", err)
+	}
+	if !strings.Contains(a, "call-1") || !strings.Contains(b, "call-2") {
+		t.Errorf("expected fresh secret per invocation\n--- a ---\n%s\n--- b ---\n%s", a, b)
+	}
 }

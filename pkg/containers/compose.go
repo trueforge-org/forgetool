@@ -2,8 +2,11 @@ package containers
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -11,6 +14,51 @@ import (
 	composetypes "github.com/compose-spec/compose-go/v2/types"
 	"gopkg.in/yaml.v3"
 )
+
+// passPlaceholderRE matches placeholders of the form MY<NAME>PASS that the
+// generator substitutes with a freshly generated random secret. NAME is one
+// or more uppercase alphanumeric/underscore characters, typically the
+// uppercased name of a dependency (e.g. MYPOSTGRESPASS), but the
+// substitution is purely textual so any token matching the pattern is
+// handled.
+var passPlaceholderRE = regexp.MustCompile(`MY[A-Z0-9_]+PASS`)
+
+// randomSecretFn produces the random secret used to replace each unique
+// MY<NAME>PASS placeholder. Exposed as a package variable so tests can
+// substitute a deterministic generator.
+var randomSecretFn = func() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
+// substitutePassPlaceholders replaces every occurrence of MY<NAME>PASS in
+// the rendered compose document with a random secret. All occurrences of
+// the same placeholder share the same secret within a single document, but
+// different placeholders (e.g. MYPOSTGRESPASS vs MYREDISPASS) get distinct
+// secrets, and each invocation of BuildComposeYAML generates fresh ones.
+func substitutePassPlaceholders(rendered string) (string, error) {
+	matches := passPlaceholderRE.FindAllString(rendered, -1)
+	if len(matches) == 0 {
+		return rendered, nil
+	}
+	secrets := make(map[string]string)
+	for _, m := range matches {
+		if _, ok := secrets[m]; ok {
+			continue
+		}
+		s, err := randomSecretFn()
+		if err != nil {
+			return "", fmt.Errorf("generate secret for %s: %w", m, err)
+		}
+		secrets[m] = s
+	}
+	return passPlaceholderRE.ReplaceAllStringFunc(rendered, func(m string) string {
+		return secrets[m]
+	}), nil
+}
 
 // DependencyResolver resolves a dependency name (which is the directory name
 // of another app in the same repository) to that app's settings and version
@@ -129,7 +177,7 @@ func BuildComposeYAML(app, version string, settings AppSettings, resolve Depende
 		}
 	}
 
-	return rendered, nil
+	return substitutePassPlaceholders(rendered)
 }
 
 // buildService converts an app's settings into a single ServiceConfig entry.
@@ -151,7 +199,13 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 		if proto == "" {
 			proto = "tcp"
 		}
+		// Bind to loopback by default so generated stacks are not
+		// accidentally exposed on LAN/internet interfaces. Operators
+		// who want a different bind address (e.g. 0.0.0.0 or a
+		// specific NIC) can override this via the service's
+		// `compose:` block in settings.yaml.
 		svc.Ports = append(svc.Ports, composetypes.ServicePortConfig{
+			HostIP:    "127.0.0.1",
 			Target:    uint32(p.Port),
 			Published: strconv.Itoa(p.Port),
 			Protocol:  proto,
@@ -167,11 +221,19 @@ func buildService(app, version string, settings AppSettings) composetypes.Servic
 		svc.Environment = env
 	}
 
+	// Bind-mount host paths are namespaced under the service name beneath
+	// a fixed absolute base directory so that dependencies whose volume
+	// targets share a basename with the app or each other (e.g. multiple
+	// "/data" mounts) do not collide on the host filesystem. Using an
+	// absolute path also keeps the host layout independent of the
+	// directory the compose file happens to live in. Operators who want
+	// a different on-disk layout can override the source via the
+	// service's `compose:` block in settings.yaml.
 	for _, v := range settings.Volumes {
 		hostName := filepath.Base(v.Path)
 		svc.Volumes = append(svc.Volumes, composetypes.ServiceVolumeConfig{
 			Type:   composetypes.VolumeTypeBind,
-			Source: "./" + hostName,
+			Source: "/mnt/tank/apps/" + app + "/" + hostName,
 			Target: v.Path,
 		})
 	}

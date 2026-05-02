@@ -1,0 +1,7 @@
+schema_version: 1
+ports:
+  - port: 6379
+    protocol: tcp
+env:
+  - name: REDIS_PASSWORD
+    default: MYREDISPASS

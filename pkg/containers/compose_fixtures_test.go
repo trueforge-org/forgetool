@@ -2,6 +2,7 @@ package containers
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -76,6 +77,18 @@ func TestBuildComposeYAML_Fixtures(t *testing.T) {
 			}
 
 			resolve := newDirResolver(t, filepath.Join(caseDir, "deps"), c.DepVersions)
+
+			// Make the random-secret substitution deterministic so
+			// fixtures that exercise MY<NAME>PASS placeholders can
+			// pin an exact expected.yaml. Each unique placeholder
+			// gets a stable, sequence-numbered fake secret.
+			prevSecret := randomSecretFn
+			defer func() { randomSecretFn = prevSecret }()
+			var secretSeq int
+			randomSecretFn = func() (string, error) {
+				secretSeq++
+				return fmt.Sprintf("test-secret-%d", secretSeq), nil
+			}
 
 			got, err := BuildComposeYAML(c.App, c.Version, settings, resolve)
 			if err != nil {

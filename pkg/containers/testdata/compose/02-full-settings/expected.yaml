@@ -9,22 +9,25 @@ services:
     image: ghcr.io/trueforge-org/myapp:2.0.0
     ports:
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 80
         published: "80"
         protocol: tcp
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 443
         published: "443"
         protocol: tcp
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 53
         published: "53"
         protocol: udp
     restart: unless-stopped
     volumes:
       - type: bind
-        source: config
+        source: /mnt/tank/apps/myapp/config
         target: /config
       - type: bind
-        source: data
+        source: /mnt/tank/apps/myapp/data
         target: /data

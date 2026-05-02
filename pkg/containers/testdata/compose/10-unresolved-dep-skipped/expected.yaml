@@ -5,6 +5,7 @@ services:
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 8080
         published: "8080"
         protocol: tcp

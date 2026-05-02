@@ -1,0 +1,14 @@
+schema_version: 1
+ports:
+  - port: 8080
+    protocol: tcp
+env:
+  - name: DB_PASSWORD
+    default: MYPOSTGRESPASS
+  - name: ALSO_DB_PASSWORD
+    default: MYPOSTGRESPASS
+  - name: CACHE_PASSWORD
+    default: MYREDISPASS
+dependencies:
+  - name: postgres
+  - name: redis

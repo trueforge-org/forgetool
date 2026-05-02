@@ -2,6 +2,10 @@ name: myapp
 services:
   myapp:
     container_name: myapp
+    environment:
+      ALSO_DB_PASSWORD: test-secret-1
+      CACHE_PASSWORD: test-secret-2
+      DB_PASSWORD: test-secret-1
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress
@@ -13,7 +17,7 @@ services:
   postgres:
     container_name: postgres
     environment:
-      POSTGRES_DB: app
+      POSTGRES_PASSWORD: test-secret-1
       POSTGRES_USER: postgres
     image: ghcr.io/trueforge-org/postgres:16.0
     ports:
@@ -27,3 +31,15 @@ services:
       - type: bind
         source: /mnt/tank/apps/postgres/data
         target: /var/lib/postgresql/data
+  redis:
+    container_name: redis
+    environment:
+      REDIS_PASSWORD: test-secret-2
+    image: ghcr.io/trueforge-org/redis:7.2
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 6379
+        published: "6379"
+        protocol: tcp
+    restart: unless-stopped

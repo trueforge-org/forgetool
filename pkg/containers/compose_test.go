@@ -113,9 +113,9 @@ func TestBuildComposeYAML(t *testing.T) {
 		"protocol: udp",
 		"APP_HOME: /config",
 		"APP_LOG: info",
-		"source: config",
+		"source: /mnt/tank/apps/myapp/config",
 		"target: /config",
-		"source: data",
+		"source: /mnt/tank/apps/myapp/data",
 		"target: /data",
 	}
 	for _, want := range checks {

@@ -7,13 +7,14 @@ services:
     image: ghcr.io/trueforge-org/myapp:1.0.0
     ports:
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 8080
         published: "8080"
         protocol: tcp
     restart: unless-stopped
     volumes:
       - type: bind
-        source: config
+        source: /mnt/tank/apps/myapp/config
         target: /config
   postgres:
     container_name: postgres
@@ -23,24 +24,26 @@ services:
     image: ghcr.io/trueforge-org/postgres:16.0
     ports:
       - mode: ingress
+        host_ip: 127.0.0.1
         target: 5432
         published: "5432"
         protocol: tcp
     restart: unless-stopped
     volumes:
       - type: bind
-        source: data
+        source: /mnt/tank/apps/postgres/data
         target: /var/lib/postgresql/data
 #   redis:
 #     container_name: redis
 #     image: ghcr.io/trueforge-org/redis:7.2
 #     ports:
 #       - mode: ingress
+#         host_ip: 127.0.0.1
 #         target: 6379
 #         published: "6379"
 #         protocol: tcp
 #     restart: unless-stopped
 #     volumes:
 #       - type: bind
-#         source: data
+#         source: /mnt/tank/apps/redis/data
 #         target: /data
