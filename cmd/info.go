@@ -15,7 +15,7 @@ Workflow:
   Create talconfig.yaml file defining your nodes information like so:
 
  Available commands
-  > forgetool cluster init
+  > forgetool charts
   > forgetool cluster genconfig
 
 `)
