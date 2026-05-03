@@ -48,8 +48,6 @@ func NewInfo() *Data {
 
 func (d *Data) Print() {
 	log.Info().Msgf(`
-forgetool is a tool for managing TrueCharts charts.
-
 Go
     Version: %s
     OS: %s

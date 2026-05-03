@@ -3,20 +3,21 @@ package cmd
 import (
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/trueforge-org/forgetool/pkg/info"
 )
 
-var infoLongHelp = strings.TrimSpace(`
-Forgetool is a tool to help you easily deploy and maintain a Talos Kubernetes Cluster.
+var description = strings.TrimSpace(`Forgetool is a toolkit to help maintain trueforge projects.
+`)
 
-
+var infoLongHelp = strings.TrimSpace(description + `
 Workflow:
   Create talconfig.yaml file defining your nodes information like so:
 
  Available commands
-  > forgetool charts
-  > forgetool cluster genconfig
+  > forgetool chart
+  > forgetool container
 
 `)
 
@@ -26,6 +27,7 @@ var infoCmd = &cobra.Command{
 	Long:    infoLongHelp,
 	Example: "forgetool info",
 	Run: func(cmd *cobra.Command, args []string) {
+		log.Info().Msg(description)
 		info.NewInfo().Print()
 	},
 }
