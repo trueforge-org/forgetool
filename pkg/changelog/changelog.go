@@ -10,7 +10,7 @@ import (
 	"github.com/go-git/go-git/v5"
 	gitobject "github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 type ChangelogOptions struct {

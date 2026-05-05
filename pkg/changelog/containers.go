@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/pkg/version"
+	"github.com/trueforge-org/forgetool/v4/pkg/version"
 )
 
 const containerManifestFile = "docker-bake.hcl"

@@ -1,4 +1,4 @@
-module github.com/trueforge-org/forgetool
+module github.com/trueforge-org/forgetool/v4
 
 go 1.26.1
 

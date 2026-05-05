@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/file"

@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/trueforge-org/forgetool/pkg/containers/website"
+	"github.com/trueforge-org/forgetool/v4/pkg/containers/website"
 )
 
 var containersGenListLongHelp = strings.TrimSpace(`

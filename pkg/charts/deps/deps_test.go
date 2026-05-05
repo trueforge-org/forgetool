@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

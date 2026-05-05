@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/trueforge-org/forgetool/pkg/containers"
+	"github.com/trueforge-org/forgetool/v4/pkg/containers"
 )
 
 // ContainerOptions configures a single container app docs build.

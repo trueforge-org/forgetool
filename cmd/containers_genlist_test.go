@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/containers/website"
+	"github.com/trueforge-org/forgetool/v4/pkg/containers/website"
 )
 
 func TestRunContainersGenListErrorPaths(t *testing.T) {

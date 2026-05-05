@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	containertest "github.com/trueforge-org/forgetool/pkg/containers/test"
+	containertest "github.com/trueforge-org/forgetool/v4/pkg/containers/test"
 )
 
 var containersTestLongHelp = strings.TrimSpace(`

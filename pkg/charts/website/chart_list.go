@@ -8,8 +8,8 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/trueforge-org/forgetool/pkg/charts/chartFile"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/chartFile"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 var marshalChartList = json.Marshal

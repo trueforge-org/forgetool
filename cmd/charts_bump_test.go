@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/version"
+	"github.com/trueforge-org/forgetool/v4/pkg/version"
 )
 
 func TestRunChartsBumpUsesArgs(t *testing.T) {

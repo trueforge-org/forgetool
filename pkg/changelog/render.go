@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 var loadChangedDataFileFunc = func(cd *ChangedData, path string) error { return cd.LoadFromFile(path) }

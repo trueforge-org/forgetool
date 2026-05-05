@@ -5,8 +5,8 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"github.com/trueforge-org/forgetool/pkg/charts/deps"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/deps"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 var chartsDepsLongHelp = strings.TrimSpace(`

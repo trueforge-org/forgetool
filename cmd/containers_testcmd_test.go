@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	containertest "github.com/trueforge-org/forgetool/pkg/containers/test"
+	containertest "github.com/trueforge-org/forgetool/v4/pkg/containers/test"
 )
 
 func TestRunContainersTestPassesArgumentsToRunner(t *testing.T) {

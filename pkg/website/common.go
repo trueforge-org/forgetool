@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 // safeDocs is the list of files that must be preserved across a docs

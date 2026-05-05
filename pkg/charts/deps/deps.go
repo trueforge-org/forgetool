@@ -11,9 +11,9 @@ import (
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/trueforge-org/forgetool/pkg/charts/chartFile"
-	"github.com/trueforge-org/forgetool/pkg/helmhandler"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/chartFile"
+	"github.com/trueforge-org/forgetool/v4/pkg/helmhandler"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 var httpGet = http.Get

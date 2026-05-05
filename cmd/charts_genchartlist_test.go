@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/charts/website"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/website"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 func TestRunChartsGenChartListErrorPaths(t *testing.T) {

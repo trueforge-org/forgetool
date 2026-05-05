@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/website"
+	"github.com/trueforge-org/forgetool/v4/pkg/website"
 )
 
 func setupChartsGenDocsStubs(t *testing.T) {

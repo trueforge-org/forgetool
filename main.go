@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/go-logr/zerologr"
-	"github.com/trueforge-org/forgetool/cmd"
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/cmd"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 	k8slog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 

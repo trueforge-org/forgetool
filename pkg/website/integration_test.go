@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/website"
+	"github.com/trueforge-org/forgetool/v4/pkg/website"
 )
 
 // copyTree mirrors a fixture tree into dst. It is intentionally small and

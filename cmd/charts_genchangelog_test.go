@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/changelog"
+	"github.com/trueforge-org/forgetool/v4/pkg/changelog"
 )
 
 func TestRunChartsGenChangelog(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/charts/image"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/image"
 )
 
 func TestRunChartsTagClean(t *testing.T) {

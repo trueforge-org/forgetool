@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/helper"
+	"github.com/trueforge-org/forgetool/v4/pkg/helper"
 )
 
 func TestParseChartsGenMetaArgs(t *testing.T) {

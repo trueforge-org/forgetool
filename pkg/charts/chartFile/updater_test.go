@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/trueforge-org/forgetool/pkg/charts/image"
+	"github.com/trueforge-org/forgetool/v4/pkg/charts/image"
 )
 
 func TestSetAppVersionFromImage(t *testing.T) {
