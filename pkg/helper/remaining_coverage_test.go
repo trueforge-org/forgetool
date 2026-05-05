@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -270,50 +269,6 @@ func TestCoverage_GitHookedErrorBranches(t *testing.T) {
 	hasUnstagedChangesInGitFn = func(string) (bool, error) { return false, errors.New("diff failed") }
 	if _, err := IsFileFullyStaged("f.txt"); err == nil {
 		t.Fatalf("expected IsFileFullyStaged error from hasUnstagedChanges hook")
-	}
-}
-
-func TestCoverage_GitPrecommitExtraBranches(t *testing.T) {
-	resetHelperHooks(t)
-	defer resetHelperHooks(t)
-
-	tmp := t.TempDir()
-	hookGetwdFn = func() (string, error) { return "", errors.New("wd fail") }
-	if _, err := IsCurrentDirGitRepo(); err == nil {
-		t.Fatalf("expected IsCurrentDirGitRepo getwd error")
-	}
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected CreateEncrPreCommitHook getwd error")
-	}
-
-	hookGOOS = "windows"
-	path := getPreCommitHookPath(tmp)
-	if !strings.HasSuffix(path, "pre-commit.bat") {
-		t.Fatalf("expected windows hook path, got %s", path)
-	}
-	script := buildExecutableHookScript(filepath.Join(tmp, "precommit"))
-	if !strings.Contains(script, "@echo off") {
-		t.Fatalf("expected windows script")
-	}
-
-	hookGOOS = runtime.GOOS
-	hookCreateFn = func(string) (*os.File, error) { return nil, errors.New("create fail") }
-	if err := writeHookScript(filepath.Join(tmp, "x"), "data"); err == nil {
-		t.Fatalf("expected writeHookScript create error")
-	}
-
-	hookCreateFn = os.Create
-	hookChmodFn = func(string, os.FileMode) error { return errors.New("chmod fail") }
-	repo := initGitRepo(t)
-	chdirForTest(t, repo)
-	if err := os.MkdirAll(filepath.Join(repo, ".git", "hooks"), 0o755); err != nil {
-		t.Fatalf("mkdir hooks: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module m\n"), 0o644); err != nil {
-		t.Fatalf("write go.mod: %v", err)
-	}
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected chmod error")
 	}
 }
 
@@ -607,65 +562,6 @@ func TestCoverage_CopyAndEnvsubstHookedBranches(t *testing.T) {
 	}
 	if err := EnvSubstRecursive(root, `\.yaml$`, map[string]string{"A": "x"}); err == nil {
 		t.Fatalf("expected EnvSubstRecursive processing error")
-	}
-}
-
-func TestCoverage_GitPrecommitRemainingBranches(t *testing.T) {
-	resetHelperHooks(t)
-	defer resetHelperHooks(t)
-
-	base := t.TempDir()
-	repo := filepath.Join(base, "repo")
-	if err := os.MkdirAll(filepath.Join(repo, ".git", "hooks"), 0o755); err != nil {
-		t.Fatalf("mkdir repo hooks: %v", err)
-	}
-	chdirForTest(t, repo)
-
-	hookStatFn = func(string) (os.FileInfo, error) { return nil, errors.New("stat fail") }
-	if _, err := IsCurrentDirGitRepo(); err == nil {
-		t.Fatalf("expected IsCurrentDirGitRepo stat error")
-	}
-
-	resetHelperHooks(t)
-	chdirForTest(t, repo)
-	calls := 0
-	hookGetwdFn = func() (string, error) {
-		calls++
-		if calls == 1 {
-			return repo, nil
-		}
-		return "", errors.New("getwd fail")
-	}
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected CreateEncrPreCommitHook second getwd error")
-	}
-
-	resetHelperHooks(t)
-	chdirForTest(t, repo)
-	buildPreCommitHookScriptFn = func(string) (string, error) { return "", errors.New("script build fail") }
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected buildHookFileData error")
-	}
-
-	resetHelperHooks(t)
-	chdirForTest(t, repo)
-	hookCreateFn = func(string) (*os.File, error) { return nil, errors.New("create fail") }
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected writeHookScript create error")
-	}
-
-	resetHelperHooks(t)
-	chdirForTest(t, repo)
-	hookWriteStringFn = func(*os.File, string) (int, error) { return 0, errors.New("write fail") }
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected writeHookScript write error")
-	}
-
-	resetHelperHooks(t)
-	chdirForTest(t, repo)
-	hookChmodFn = func(string, os.FileMode) error { return errors.New("chmod fail") }
-	if err := CreateEncrPreCommitHook(); err == nil {
-		t.Fatalf("expected chmod error")
 	}
 }
 

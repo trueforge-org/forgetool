@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -20,14 +19,6 @@ func resetHelperHooks(t *testing.T) {
 	checkSystemTimeNTPTimeFn = ntp.Time
 	checkSystemTimeNowFn = time.Now
 	checkSystemTimeExitFn = os.Exit
-
-	hookGetwdFn = os.Getwd
-	hookStatFn = os.Stat
-	hookCreateFn = os.Create
-	hookWriteStringFn = func(file *os.File, content string) (int, error) { return file.WriteString(content) }
-	hookChmodFn = os.Chmod
-	hookGOOS = runtime.GOOS
-	buildPreCommitHookScriptFn = buildPreCommitHookScript
 
 	checkIgnoreFn = checkIgnore
 	hasUnstagedChangesInGitFn = hasUnstagedChanges
