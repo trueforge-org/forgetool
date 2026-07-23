@@ -21,8 +21,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.21.3
 	helm.sh/helm/v4 v4.2.3
-	k8s.io/api v0.36.2
-	k8s.io/apimachinery v0.36.2
+	k8s.io/api v0.36.3
+	k8s.io/apimachinery v0.36.3
 	k8s.io/client-go v0.36.2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/kustomize/api v0.21.1
@@ -213,5 +213,5 @@ require (
 	oras.land/oras-go/v2 v2.6.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 )
