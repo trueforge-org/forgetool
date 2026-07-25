@@ -7,7 +7,7 @@ require (
 	github.com/beevik/ntp v1.5.0
 	github.com/compose-spec/compose-go/v2 v2.13.0
 	github.com/docker/docker v28.5.2+incompatible
-	github.com/docker/go-connections v0.7.0
+	github.com/docker/go-connections v0.8.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-logr/zerologr v1.2.3
 	github.com/go-playground/validator/v10 v10.30.3
